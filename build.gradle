@@ -1,0 +1,147 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.141'
+    id 'idea'
+}
+
+// ═══════════ 在配置阶段一次性读取所有属性 ═══════════
+def modId              = project.mod_id
+def modName            = project.mod_name
+def modVersion         = project.mod_version
+def modDescription     = project.mod_description
+def modLicense         = project.mod_license
+def mcVersionRange     = project.minecraft_version_range
+def neoforgeVersionRange = project.neoforge_version_range
+def loaderVersionRange = project.loader_version_range
+def networkProtocol    = project.network_protocol
+def modInfoFiles       = fileTree('src/main/java') { include '**/ModInfo.java' }
+
+version = project.mod_version
+group = project.mod_group_id
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+sourceSets.main.resources {
+    srcDir('src/generated/resources')
+    exclude("**/*.bbmodel")
+    exclude("src/generated/**/.cache")
+}
+
+final def forge = neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        client {
+            client()
+            systemProperty "neoforge.enabledGameTestNamespaces", modId
+        }
+
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', modId
+        }
+
+        data {
+            data()
+            programArguments.addAll '--mod', modId, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        advancementoverhaul {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+def neoForgeExtension = forge
+
+base {
+    archivesName = modId
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly fileTree(dir: 'libs', include: '*.jar')
+        ;
+    }
+
+
+
+processResources {
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand(
+                'mod_id'               : modId,
+                'mod_license'          : modLicense,
+                'mod_version'          : modVersion,
+                'mod_name'             : modName,
+                'mod_description'      : modDescription,
+                'mc_version_range'     : mcVersionRange,
+                'neoforge_version_range': neoforgeVersionRange,
+                'loader_version_range' : loaderVersionRange,
+                'network_protocol'     : networkProtocol,
+        )
+    }
+}
+
+tasks.register('injectModInfo') {
+    doLast {
+        String[][] pairs = [
+                ['${mod_id}',              modId],
+                ['${mod_name}',            modName],
+                ['${mod_version}',         modVersion],
+                ['${mod_description}',     modDescription],
+                ['${mod_license}',         modLicense],
+                ['${mc_version_range}',    mcVersionRange],
+                ['${neoforge_version_range}', neoforgeVersionRange],
+                ['${loader_version_range}', loaderVersionRange],
+                ['${network_protocol}',    networkProtocol],
+        ]
+        modInfoFiles.each { f ->
+            String c = f.text
+            pairs.each { pair -> c = c.replace(pair[0], pair[1]) }
+            f.text = c
+        }
+    }
+}
+
+compileJava.dependsOn injectModInfo
+
+publishing {
+    publications {
+        create('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            name = 'local'
+            url = "file://${project.projectDir}/repo"
+        }
+    }
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}
