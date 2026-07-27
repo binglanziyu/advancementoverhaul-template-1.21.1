@@ -4,6 +4,7 @@ package com.example.advancementoverhaul.client.gui;
 import com.example.advancementoverhaul.LangKeys;
 import com.example.advancementoverhaul.client.gui.cache.CircleCache;
 import com.example.advancementoverhaul.client.gui.cache.RegistryCache;
+import com.example.advancementoverhaul.client.gui.cache.RoundedRectCache;
 import com.example.advancementoverhaul.client.gui.manager.CanvasManager;
 import com.example.advancementoverhaul.client.gui.manager.InputManager;
 import com.example.advancementoverhaul.client.gui.manager.TabManager;
@@ -18,6 +19,8 @@ import com.example.advancementoverhaul.client.gui.state.OverlayState.CtxAct;
 import com.example.advancementoverhaul.client.gui.state.OverlayState.Ov;
 import com.example.advancementoverhaul.data.ClientDataStore;
 import com.example.advancementoverhaul.data.DataStore;
+import com.example.advancementoverhaul.data.model.CustomAdvancement;
+import com.example.advancementoverhaul.data.model.VanillaAdvMeta;
 import net.minecraft.Util;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -61,8 +64,12 @@ public class AdvancementScreen extends Screen {
     public boolean editMode = persistEdit;
     public String curTab = null;
     public int frameCount = 0;
-    public boolean showDim = false, showSel = false;
+    public boolean showDim = false, showSel = false, showHelp = false;
     public boolean vanillaPositionsDirty = true;
+
+    // ── FTB 通知模式（客户端持久化）──
+    /** 0=默认（FTB 自带通知）, 1=关闭 FTB 通知, 2=替换为项目通知 */
+    public static int ftbNotifMode = 1;
 
     // ── Vanilla advancement data ──
 
@@ -80,7 +87,7 @@ public class AdvancementScreen extends Screen {
     /** Explicit dirty flag — set when tabs change or data is updated externally. */
     private boolean filteredDirty = true;
     /** Cached snapshot of the current filtered advancement list for this frame. */
-    public List<DataStore.CustomAdvancement> frameFiltered = Collections.emptyList();
+    public List<CustomAdvancement> frameFiltered = Collections.emptyList();
 
     /** Mark the filtered cache as needing refresh (called on tab switch or data update). */
     public void markFilteredDirty() { filteredDirty = true; }
@@ -105,9 +112,9 @@ public class AdvancementScreen extends Screen {
 
     public AdvancementScreen() { super(Component.translatable(LangKeys.TITLE)); }
     public net.minecraft.client.gui.Font getFont() { return this.font; }
-    public boolean hasOv() { return overlay.current != Ov.NONE || showDim || showSel || tabDrag.overDDOpen; }
+    public boolean hasOv() { return overlay.current != Ov.NONE || showDim || showSel || showHelp || tabDrag.overDDOpen; }
     public boolean blocksCanvas() {
-        return showDim || showSel
+        return showDim || showSel || showHelp
                 || overlay.current == Ov.DETAIL || overlay.current == Ov.CREATE
                 || overlay.current == Ov.EDIT || overlay.current == Ov.STATS
                 || overlay.current == Ov.CONFIRM || overlay.current == Ov.TAB_INPUT
@@ -118,7 +125,7 @@ public class AdvancementScreen extends Screen {
     public int getScreenWidth() { return width; }
     public int getScreenHeight() { return height; }
     public boolean isVanillaAdvId(String id) { return id != null && vanillaAdvIdSet.contains(id); }
-    public DataStore.CustomAdvancement adv(String id) { return id == null ? null : ClientDataStore.getInstance().getAdvancement(id); }
+    public CustomAdvancement adv(String id) { return id == null ? null : ClientDataStore.getInstance().getAdvancement(id); }
     public VanillaAdv getVanillaAdv(String id) { return vanillaAdvMap.get(id); }
     public String prereqDisplayName(String id) { if (id == null || id.isEmpty()) return ""; var a = adv(id); return a != null ? a.getName() : id; }
     public void addWidgetToScreen(EditBox eb) { addRenderableWidget(eb); }
@@ -128,7 +135,7 @@ public class AdvancementScreen extends Screen {
 
     // ═══════════════ Filtering ═══════════════
 
-    public Collection<DataStore.CustomAdvancement> filtered() {
+    public Collection<CustomAdvancement> filtered() {
         ClientDataStore s = ClientDataStore.getInstance();
         if (curTab == null) return s.getAdvancements().values();
         if ("hidden".equals(curTab)) return s.getHiddenAdvancements();
@@ -138,15 +145,15 @@ public class AdvancementScreen extends Screen {
 
     /**
      * Returns true if this vanilla advancement should be shown on the current tab.
-     * Shows on TAB_VANILLA (default tab), or on any custom tab if the advancement
-     * has been assigned to that tab via vanillaMeta.
+     * <ul>
+     *   <li>已启用的原版进度 — 在所有分类可见（全部、自定义标签页、原版分类）</li>
+     *   <li>未启用的原版进度 — 仅在"原有成就"分类可见</li>
+     * </ul>
      */
     public boolean shouldShowVanilla(String id) {
-        if (DataStore.TAB_VANILLA.equals(curTab)) return true;
-        if (curTab == null) return false;
         ClientDataStore cs = ClientDataStore.getInstance();
-        DataStore.VanillaAdvMeta meta = cs.getVanillaMeta(id);
-        return meta != null && curTab.equals(meta.getTab());
+        if (cs.isVanillaEnabled(id)) return true;
+        return DataStore.TAB_VANILLA.equals(curTab);
     }
 
     // ═══════════════ Vanilla advancement loading ═══════════════
@@ -206,33 +213,57 @@ public class AdvancementScreen extends Screen {
             byTab.computeIfAbsent(tab, k -> new ArrayList<>()).add(va);
         }
 
-        // Start below the lowest custom advancement
-        int startY = 40;
+        // Start Y for "原有成就" tab groups — below the lowest custom advancement
+        int vanillaTabY = 40;
         for (var a : cs.getAdvancements().values())
-            startY = Math.max(startY, a.getY() + CARD_H + 80);
+            vanillaTabY = Math.max(vanillaTabY, a.getY() + CARD_H + 80);
 
-        // Layout each tab group as a layered prerequisite tree
         int gapX = CARD_W + 16;
         int gapY = CARD_H + 24;
-        int tabStartY = startY;
         Map<String, String> parentMap = cs.getVanillaParentMap();
 
         for (var entry : byTab.entrySet()) {
+            String tab = entry.getKey();
             List<VanillaAdv> group = entry.getValue();
             if (group.isEmpty()) continue;
 
             Map<Integer, List<String>> layerMap = buildDepthLayers(group, parentMap);
-            int layerY = tabStartY;
+            int layerY;
+            int baseX;
+
+            if (DataStore.TAB_VANILLA.equals(tab)) {
+                // "原有成就" 分类：保持在所有自定义进度下方居中
+                baseX = 20;
+                layerY = vanillaTabY;
+            } else {
+                // 自定义分类：放在该分类已有自定义进度的右侧
+                int rightEdge = 20;
+                int tabTopY = Integer.MAX_VALUE;
+                for (var a : cs.getAdvancementsByTab(tab)) {
+                    rightEdge = Math.max(rightEdge, a.getX() + CARD_W + gapX);
+                    tabTopY = Math.min(tabTopY, a.getY());
+                }
+                // 也考虑该分类中已有位置的原版进度
+                for (var va : vanillaAdvs) {
+                    int[] pos = vanillaPos.get(va.id());
+                    if (pos != null && tab.equals(cs.getVanillaDisplayTab(va.id()))) {
+                        rightEdge = Math.max(rightEdge, pos[0] + CARD_W + gapX);
+                        tabTopY = Math.min(tabTopY, pos[1]);
+                    }
+                }
+                baseX = rightEdge;
+                layerY = tabTopY == Integer.MAX_VALUE ? 40 : tabTopY;
+            }
 
             for (var layer : layerMap.entrySet()) {
                 List<String> ids = layer.getValue();
-                int totalWidth = ids.size() * gapX;
-                int layerStartX = Math.max(20, (width > 0 ? (width - totalWidth) / 2 : 100));
+                int layerStartX = Math.max(baseX, 20);
                 for (int i = 0; i < ids.size(); i++)
                     vanillaPos.put(ids.get(i), new int[]{layerStartX + i * gapX, layerY});
                 layerY += gapY;
             }
-            tabStartY = layerY + 40;
+            // 更新全局 TAB_VANILLA 起始 Y，防止后续组重叠
+            vanillaTabY = Math.max(vanillaTabY, layerY + 40);
         }
     }
 
@@ -242,7 +273,7 @@ public class AdvancementScreen extends Screen {
     protected void init() {
         if (editPanel != null && editPanel.isVisible()) editPanel.close();
         if (overlay.current != Ov.NONE) overlay.close();
-        showDim = false; showSel = false;
+        showDim = false; showSel = false; showHelp = false;
         tabDrag.reset();
         canvasManager.resetScrollDrag();
 
@@ -265,6 +296,7 @@ public class AdvancementScreen extends Screen {
         filteredDirty = true;
 
         CircleCache.init();
+        RoundedRectCache.init();
         RegistryCache.init();
         cardRenderer.clearIconCache();
         imageElements.clear();
@@ -322,10 +354,22 @@ public class AdvancementScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
+        renderCanvasBackground(g);
+        renderCanvasContent(g, mx, my);
+        renderBackgroundMask(g);
+        renderChrome(g, mx, my);
+        renderOverlayLayer(g, mx, my, pt);
+        anim.tick();
+    }
+
+    /** Background fill for the entire screen. */
+    private void renderCanvasBackground(GuiGraphics g) {
         g.fill(0, 0, width, height, BG);
         cardRenderer.tickFrameTime();
+    }
 
-        // ── Canvas (scrolled region) ──
+    /** Scrolled canvas region: grid, connections, cards, box selection, scroll indicators. */
+    private void renderCanvasContent(GuiGraphics g, int mx, int my) {
         g.enableScissor(0, TAB_H, width, height - BOTTOM_H);
         cardRenderer.renderGrid(g);
         if (!blocksCanvas()) {
@@ -335,31 +379,46 @@ public class AdvancementScreen extends Screen {
         }
         cardRenderer.renderScrollIndicators(g);
         g.disableScissor();
+    }
 
-        // ── 遮罩层：覆盖画布区域，防止 renderItem 穿透悬浮窗 ──
-        if (hasOv()) {
+    /**
+     * Opaque mask to prevent {@code renderItem} 3D quads from penetrating
+     * through popup overlays (ListSelector / detail/edit panels).
+     */
+    private void renderBackgroundMask(GuiGraphics g) {
+        if (showSel) {
+            g.fill(0, 0, width, height, 0xFF1A1A2E);
+        } else if (hasOv()) {
             g.fill(0, TAB_H, width, height - BOTTOM_H, 0x80000000);
         }
+    }
 
-        // ── Chrome (tabs, bottom bar, toolbar buttons) ──
+    /** Tab bar, bottom status bar, and toolbar buttons. */
+    private void renderChrome(GuiGraphics g, int mx, int my) {
         tabRenderer.renderTabs(g, mx, my);
         tabRenderer.renderBottom(g, mx, my);
         tabRenderer.renderButtons(g, mx, my);
+    }
 
-        // ── EditBox visibility management ──
+    /**
+     * Overlay layer rendered at z=300: edit/detail/create panels,
+     * dimension panel, list selector, help screen, managed EditBoxes,
+     * tab-name input, card tooltips, and toast notifications.
+     */
+    private void renderOverlayLayer(GuiGraphics g, int mx, int my, float pt) {
         boolean ebVis = (overlay.current == Ov.CREATE || overlay.current == Ov.EDIT)
                 && !showSel && !editPanel.isCondSelActive();
         editPanel.updateVisibility(ebVis);
 
-        // ── Overlays (z=300 to occlude renderItem which is at z≈100) ──
         g.pose().pushPose();
         g.pose().translate(0, 0, 300);
 
         overlayRenderer.renderOv(g, mx, my);
         if (showDim) dimPanel.render(g, mx, my);
         if (showSel) listSel.render(g, mx, my);
+        if (showHelp) overlayRenderer.renderHelp(g, mx, my, font, width, height);
 
-        // ── Managed EditBoxes ──
+        // Managed EditBoxes
         for (var w : renderables) {
             if (w instanceof EditBox eb && eb.isVisible()) {
                 boolean isInlineCount = eb == editPanel.getInlineCountBox();
@@ -367,7 +426,7 @@ public class AdvancementScreen extends Screen {
             }
         }
 
-        // ── Tab name input overlay ──
+        // Tab name input popup
         if (overlay.current == Ov.TAB_INPUT) {
             int px = mid(OverlayLayout.TAB_INPUT_W);
             int py = midY(OverlayLayout.TAB_INPUT_H);
@@ -380,16 +439,17 @@ public class AdvancementScreen extends Screen {
             tabNameBox.setVisible(false);
         }
 
-        // ── Tooltip (only when no overlay is active) ──
+        // Hover tooltip (only when no overlay is active)
         if (!hasOv()) {
-            String hoverCard = canvasManager.cardAt(mx, my);
-            if (hoverCard != null) overlayRenderer.renderTooltip(g, mx, my, hoverCard);
+            // 图片元素覆盖时不显示卡片 tooltip（避免穿透显示）
+            if (imageAt(mx, my) == null) {
+                String hoverCard = canvasManager.cardAt(mx, my);
+                if (hoverCard != null) overlayRenderer.renderTooltip(g, mx, my, hoverCard);
+            }
         }
 
         overlayRenderer.renderToasts(g);
         g.pose().popPose();
-
-        anim.tick();
     }
 
     // ═══════════════ Event delegation ═══════════════
@@ -405,8 +465,10 @@ public class AdvancementScreen extends Screen {
 
     public void showCtx(double mx, double my, String id) {
         overlay.ctxX = (int) mx; overlay.ctxY = (int) my; overlay.ctxActions.clear();
+        overlay.ctxActions.add(new CtxAct(Component.translatable(LangKeys.DETAIL_TITLE).getString(), () -> openDetail(id)));
         overlay.ctxActions.add(new CtxAct(Component.translatable(LangKeys.EDIT_TITLE).getString(), () -> openEdit(id)));
         overlay.ctxActions.add(new CtxAct(Component.translatable(LangKeys.DELETE).getString(), () -> requestDelete(id)));
+        overlay.ctxActions.add(new CtxAct(Component.translatable(LangKeys.RESET).getString(), () -> GuiUtils.sendCommand("adv reset @s " + id)));
         var a = adv(id);
         if (a != null) {
             String key = a.isHidden() ? LangKeys.SHOW : LangKeys.HIDE;
@@ -418,6 +480,10 @@ public class AdvancementScreen extends Screen {
     public void showVanillaCtx(double mx, double my, String id) {
         overlay.ctxX = (int) mx; overlay.ctxY = (int) my; overlay.ctxActions.clear();
         boolean enabled = ClientDataStore.getInstance().isVanillaEnabled(id);
+
+        overlay.ctxActions.add(new OverlayState.CtxAct(
+                Component.translatable(LangKeys.DETAIL_TITLE).getString(),
+                () -> openDetail(id)));
 
         if (enabled) {
             // 已启用：显示禁用（完全重置回原样）
@@ -557,6 +623,22 @@ public class AdvancementScreen extends Screen {
         overlay.current = Ov.CTX;
     }
 
+    /** 非编辑模式下右键卡片：仅显示"详情"选项 */
+    public void showViewCtx(double mx, double my, String id) {
+        overlay.ctxX = (int) mx; overlay.ctxY = (int) my; overlay.ctxActions.clear();
+        overlay.ctxActions.add(new OverlayState.CtxAct(
+                Component.translatable(LangKeys.DETAIL_TITLE).getString(),
+                () -> openDetail(id)));
+        overlay.current = Ov.CTX;
+    }
+
+    private void openDetail(String id) {
+        selection.select(id);
+        overlay.detailId = id;
+        overlay.detailOpenTime = System.currentTimeMillis();
+        overlay.current = Ov.DETAIL;
+    }
+
     public ImageElement findImageById(String id) {
         for (ImageElement img : imageElements) if (img.getId().equals(id)) return img;
         return null;
@@ -598,7 +680,7 @@ public class AdvancementScreen extends Screen {
 
         // 2. 清除原版/模组成就的标签分配并禁用
         for (var va : vanillaAdvs) {
-            DataStore.VanillaAdvMeta meta = cs.getVanillaMeta(va.id());
+            VanillaAdvMeta meta = cs.getVanillaMeta(va.id());
             if (meta != null && tabName.equals(meta.getTab())) {
                 GuiUtils.sendCommand("adv vanilla cleartab " + va.id());
                 GuiUtils.sendCommand("adv vanilla disable " + va.id());
@@ -633,6 +715,10 @@ public class AdvancementScreen extends Screen {
 
     @Override
     public void onClose() {
+        // 关闭前保存编辑面板中未保存的修改内容
+        if (editPanel != null && editPanel.isVisible()) {
+            editPanel.saveIfVisible();
+        }
         persistEdit = editMode;
         PERSIST.scrollX = canvas.scrollX;
         PERSIST.scrollY = canvas.scrollY;

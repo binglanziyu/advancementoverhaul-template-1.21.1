@@ -2,15 +2,18 @@ package com.example.advancementoverhaul.compat;
 
 import com.example.advancementoverhaul.data.DataStore;
 import com.example.advancementoverhaul.data.ServerDataStore;
+import com.example.advancementoverhaul.data.model.AdvancementCondition;
+import com.example.advancementoverhaul.data.model.CustomAdvancement;
 import com.example.advancementoverhaul.event.AdvResetEvent;
-import com.example.advancementoverhaul.event.ConditionEvaluator;
-import com.example.advancementoverhaul.event.SyncManager;
+import com.example.advancementoverhaul.logic.ConditionEvaluator;
+import com.example.advancementoverhaul.network.SyncManager;
 import com.example.advancementoverhaul.network.ProgressSyncPayload;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -35,7 +38,7 @@ public final class AdvancementAPI {
         private String tab = null;
         private int x = 80, y = 80;
         private boolean hidden = false;
-        private final List<DataStore.AdvancementCondition> conditions = new ArrayList<>();
+        private final List<AdvancementCondition> conditions = new ArrayList<>();
         private final List<String> prerequisites = new ArrayList<>();
 
         AdvancementBuilder(String id) { this.id = id; }
@@ -51,9 +54,9 @@ public final class AdvancementAPI {
             try { ct = DataStore.ConditionType.valueOf(type.toUpperCase()); }
             catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Unknown condition type: " + type
-                        + ". Valid: kill_entity, craft_item, get_item, break_block, place_block, change_dimension, deal_damage, take_damage, fish_item");
+                        + ". Valid: kill_entity, craft_item, get_item, break_block, place_block, change_dimension, deal_damage, take_damage, fish_item, ftb_quest_complete");
             }
-            conditions.add(new DataStore.AdvancementCondition(ct, target != null ? target : "", count));
+            conditions.add(new AdvancementCondition(ct, target != null ? target : "", count));
             return this;
         }
 
@@ -64,7 +67,7 @@ public final class AdvancementAPI {
             catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Unknown condition type: " + type);
             }
-            DataStore.AdvancementCondition cond = new DataStore.AdvancementCondition(ct, target != null ? target : "", count);
+            AdvancementCondition cond = new AdvancementCondition(ct, target != null ? target : "", count);
             cond.setTargetNbt(nbtJson);
             cond.setNbtMatchMode(matchMode);
             conditions.add(cond);
@@ -77,13 +80,9 @@ public final class AdvancementAPI {
         }
 
         public void register() {
-            DataStore.CustomAdvancement adv = build();
+            CustomAdvancement adv = build();
             ServerDataStore store = ServerDataStore.getInstance();
-            if (store.getAdvancement(adv.getId()) != null) {
-                store.addAdvancement(adv);
-            } else {
-                store.addAdvancement(adv);
-            }
+            store.addAdvancement(adv);
             MinecraftServer server = store.getServer();
             if (server != null) {
                 AdvancementRegistry.syncAllRuntime(server);
@@ -91,8 +90,8 @@ public final class AdvancementAPI {
             }
         }
 
-        private DataStore.CustomAdvancement build() {
-            DataStore.CustomAdvancement adv = new DataStore.CustomAdvancement(id, name, description, x, y);
+        private CustomAdvancement build() {
+            CustomAdvancement adv = new CustomAdvancement(id, name, description, x, y);
             adv.setTab(tab);
             adv.setHidden(hidden);
             adv.setConditions(new ArrayList<>(conditions));
@@ -107,6 +106,7 @@ public final class AdvancementAPI {
         return new ArrayList<>(ServerDataStore.getInstance().getAdvancements().keySet());
     }
 
+    @Nullable
     public static String getName(String advId) {
         var adv = ServerDataStore.getInstance().getAdvancement(advId);
         return adv != null ? adv.getName() : null;

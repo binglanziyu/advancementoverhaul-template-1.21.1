@@ -1,5 +1,11 @@
 package com.example.advancementoverhaul.client.gui.panel;
 
+/**
+ * 通用列表/注册表选择器：条件编辑时用于从注册表中选择目标实体/物品/方块/维度。
+ * <p>
+ * 支持模糊搜索过滤、滚动浏览、键盘导航和点击选择。
+ * 数据源通过 {@link com.example.advancementoverhaul.client.gui.cache.RegistryCache} 预加载。
+ */
 import com.example.advancementoverhaul.LangKeys;
 import com.example.advancementoverhaul.client.gui.GuiUtils;
 import com.example.advancementoverhaul.client.gui.TranslatedStrings;
@@ -10,6 +16,8 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -17,6 +25,9 @@ import java.util.function.Consumer;
 import static com.example.advancementoverhaul.client.gui.Theme.*;
 
 public class ListSelector {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("AdvancementOverhaul/ListSelector");
+
     public record Entry(String id, String display, String nbt) {
         public Entry(String id, String display) { this(id, display, null); }
     }
@@ -51,7 +62,7 @@ public class ListSelector {
         int listH = ph - HEADER_H - SEARCH_H - FOOTER_H - 4;
         scrollBar.update(filtered.size() * ENTRY_H, listH);
 
-        g.fill(0, 0, sw, sh, 0x60000000);
+        // 全屏暗色遮罩由 AdvancementScreen 统一管理，此处仅绘制面板自身
         g.fill(px, py, px + pw, py + ph, PANEL);
         g.renderOutline(px, py, pw, ph, DIVIDER);
         g.fill(px, py, px + pw, py + 3, ACCENT);
@@ -102,7 +113,9 @@ public class ListSelector {
                                     iconRendered = true;
                                 }
                             }
-                        } catch (Exception ignored) {}
+                        } catch (Exception ex) {
+                            LOGGER.debug("Failed to render item icon for {}: {}", entryId, ex.getMessage());
+                        }
                     }
                     if (!iconRendered) {
                         g.drawString(font, GuiUtils.truncate(font, e.display(), pw - 24), px + 10, y + 3, TEXT, false);
@@ -140,7 +153,12 @@ public class ListSelector {
         if (GuiUtils.closeHit(mx, my, px, py, pw)) { visible = false; return true; }
         if (GuiUtils.inRect(mx, my, px, py, pw, ph)) {
             int listY = py + HEADER_H + SEARCH_H;
-            if (my >= listY) {
+            int listH = ph - HEADER_H - SEARCH_H - FOOTER_H - 4;
+            // 滚动条点击
+            if (scrollBar.needsScrollbar()) {
+                if (scrollBar.handleClick(mx, my, px + pw - 8, listY)) return true;
+            }
+            if (my >= listY && my < listY + listH) {
                 int idx = (int) ((my - listY + scrollBar.getScroll()) / ENTRY_H);
                 if (idx >= 0 && idx < filtered.size() && callback != null) {
                     Entry entry = filtered.get(idx);
@@ -189,5 +207,13 @@ public class ListSelector {
         if (!visible) return false;
         if (GuiUtils.inRect(mx, my, px, py, pw, ph)) return scrollBar.handleScroll(sy);
         return false;
+    }
+
+    public void mouseReleased(double mx, double my, int btn) {
+        scrollBar.handleRelease();
+    }
+
+    public boolean mouseDragged(double mx, double my, int btn, double dx, double dy) {
+        return scrollBar.handleDrag(my);
     }
 }

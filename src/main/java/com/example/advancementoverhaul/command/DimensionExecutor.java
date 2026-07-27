@@ -8,6 +8,17 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import net.minecraft.commands.CommandSourceStack;
 
+/**
+ * /adv dimension 子命令执行器。
+ * <p>
+ * 管理维度的锁定/解锁及解锁条件设置：
+ * <ul>
+ *   <li>{@code /adv dimension lock <dim>} — 锁定维度</li>
+ *   <li>{@code /adv dimension unlock <dim>} — 解锁维度</li>
+ *   <li>{@code /adv dimension setcondition <dim> <advId>} — 设置解锁条件</li>
+ *   <li>{@code /adv dimension removecondition <dim>} — 移除解锁条件</li>
+ * </ul>
+ */
 final class DimensionExecutor {
 
     static int dimLock(CommandContext<CommandSourceStack> ctx, boolean lock) {

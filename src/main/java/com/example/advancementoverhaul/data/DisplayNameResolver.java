@@ -5,8 +5,22 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+/**
+ * 显示名称解析器：将注册表 ID 转换为游戏内的本地化显示名。
+ * <p>
+ * 根据条件类型的数据源（实体/物品/方块/维度），通过 {@link BuiltInRegistries}
+ * 查找对应的注册对象并返回其本地化名称。
+ * 此外提供维度的友好名称转换。
+ * <p>
+ * 纯工具类，所有方法为静态方法，不可实例化。
+ */
 public final class DisplayNameResolver {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("AdvancementOverhaul/DisplayNameResolver");
+
     private DisplayNameResolver() {}
 
     public static String resolve(DataStore.ConditionType type, String targetId) {
@@ -31,7 +45,9 @@ public final class DisplayNameResolver {
                             try {
                                 var stack = new ItemStack(block);
                                 if (!stack.isEmpty()) return stack.getHoverName().getString();
-                            } catch (Exception ignored) {}
+                            } catch (Exception e) {
+                                LOGGER.debug("Failed to get display name for block {}: {}", targetId, e.getMessage());
+                            }
                         }
                     }
                     case DIMENSION -> {
@@ -45,7 +61,9 @@ public final class DisplayNameResolver {
                     default -> {}
                 }
             }
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            LOGGER.debug("Failed to resolve display name for type={} target={}: {}", type, targetId, e.getMessage());
+        }
         return targetId;
     }
 

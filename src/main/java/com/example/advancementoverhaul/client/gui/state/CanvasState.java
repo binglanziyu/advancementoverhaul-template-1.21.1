@@ -2,6 +2,12 @@ package com.example.advancementoverhaul.client.gui.state;
 
 import static com.example.advancementoverhaul.client.gui.Theme.*;
 
+/**
+ * 画布视图状态：滚动偏移、缩放级别与坐标系转换。
+ * <p>
+ * 提供世界坐标（成就位置）与屏幕坐标（像素）之间的双向转换方法。
+ * 缩放以鼠标位置为中心点进行（zoomAt），保证直觉化的缩放体验。
+ */
 public class CanvasState {
     public double scrollX = 80, scrollY = 80, zoom = 1.0;
     public boolean panning = false;

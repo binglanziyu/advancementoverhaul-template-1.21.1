@@ -9,8 +9,12 @@ package com.example.advancementoverhaul.client.gui.state;
 public final class OverlayLayout {
 
     // ── Detail panel ──
-    public static final int DETAIL_W = 320;
-    public static final int DETAIL_H = 220;
+    public static final int DETAIL_W = 340;
+    public static final int DETAIL_H = 360;
+    /** 详情面板内容区顶部偏移（标题栏下方） */
+    public static final int DETAIL_CONTENT_TOP = 30;
+    /** 详情面板内容区底部偏移（按钮栏上方） */
+    public static final int DETAIL_CONTENT_BOTTOM = 30;
 
     // ── Stats panel ──
     public static final int STATS_W = 300;

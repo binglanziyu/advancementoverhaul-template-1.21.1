@@ -77,12 +77,19 @@ base {
 
 repositories {
     mavenCentral()
+    maven {
+        url = "https://maven.latvian.dev/releases"
+        content {
+            includeGroup "dev.latvian.mods"
+            includeGroup "dev.latvian.apps"
+        }
+    }
 }
 
 dependencies {
     compileOnly fileTree(dir: 'libs', include: '*.jar')
-        ;
-    }
+    compileOnly "dev.latvian.mods:kubejs-neoforge:2101.7.2-build.372"
+}
 
 
 

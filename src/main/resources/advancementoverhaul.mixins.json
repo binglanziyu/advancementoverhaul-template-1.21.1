@@ -5,9 +5,16 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "InventoryMixin",
-    "AdvancementManagerMixin"
+    "AdvancementManagerMixin",
+    "AdvancementRewardMixin"
   ],
-  "client": [],
+  "client": [
+    "FtbToastMixin",
+    "FtbSoundMixin",
+    "SyncKsrMixin",
+    "AdvancementTaskMixin",
+    "EnumConfigMixin"
+  ],
   "injectors": {
     "defaultRequire": 0
   }

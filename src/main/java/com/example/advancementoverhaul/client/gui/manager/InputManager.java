@@ -7,11 +7,9 @@ import com.example.advancementoverhaul.client.gui.ImageManager;
 import com.example.advancementoverhaul.client.gui.state.OverlayLayout;
 import com.example.advancementoverhaul.client.gui.state.OverlayState.Ov;
 import com.example.advancementoverhaul.data.ClientDataStore;
-import com.example.advancementoverhaul.data.DataStore;
+import com.example.advancementoverhaul.data.model.VanillaAdvMeta;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.*;
@@ -20,7 +18,6 @@ import static com.example.advancementoverhaul.client.gui.Theme.*;
 
 /**
  * Event dispatcher: routes all mouse/keyboard events to CanvasManager / TabManager / AdvancementScreen.
- * Also handles overlay click processing.
  */
 public class InputManager {
 
@@ -39,6 +36,11 @@ public class InputManager {
     public boolean onMouseClicked(double mx, double my, int btn) {
         // Priority 1: List selector overlay
         if (screen.showSel) {
+            // 右键点击任意位置直接关闭选择器
+            if (btn == 1) {
+                screen.showSel = false;
+                return true;
+            }
             if (screen.listSel.mouseClicked(mx, my, btn)) {
                 if (!screen.listSel.isVisible()) screen.showSel = false;
                 return true;
@@ -47,20 +49,46 @@ public class InputManager {
             return true;
         }
 
-        // Priority 2: Dimension panel
+        // Priority 2: Help panel
+        if (screen.showHelp) {
+            if (btn == 0) {
+                int px = screen.overlayRenderer.getHelpPx();
+                int py = screen.overlayRenderer.getHelpPy();
+                int pw = screen.overlayRenderer.getHelpPw();
+                int ph = screen.overlayRenderer.getHelpPh();
+                // Close button hit
+                if (GuiUtils.inRect(mx, my, px + pw - 18, py + 3, 15, 22 - 3)) {
+                    screen.showHelp = false;
+                    screen.overlayRenderer.resetHelpScroll();
+                    return true;
+                }
+                // Click outside panel → close
+                if (GuiUtils.outsidePanel(mx, my, px, py, pw, ph)) {
+                    screen.showHelp = false;
+                    screen.overlayRenderer.resetHelpScroll();
+                    return true;
+                }
+            }
+            return true;
+        }
+
+        // Priority 3: Dimension panel
         if (screen.showDim) {
-            if (screen.dimPanel.mouseClicked(mx, my, btn)) return true;
+            if (screen.dimPanel.mouseClicked(mx, my, btn)) {
+                screen.showDim = screen.dimPanel.isVisible();
+                return true;
+            }
             screen.showDim = false;
             return true;
         }
 
         // Priority 3: Modal overlays
         if (screen.overlay.current != Ov.NONE) {
-            return handleOverlayClick(mx, my, btn);
+            return OverlayClickHandler.handleOverlayClick(screen, mx, my, btn);
         }
 
         // Priority 4: Toolbar buttons
-        if (handleButtons(mx, my)) {
+        if (ToolbarClickHandler.handleButtons(screen, canvasMgr, mx, my)) {
             GuiUtils.playClickSound();
             return true;
         }
@@ -86,7 +114,17 @@ public class InputManager {
         }
 
         // Bottom status bar
-        if (my >= screen.getScreenHeight() - BOTTOM_H) return true;
+        if (my >= screen.getScreenHeight() - BOTTOM_H) {
+            // Help button ("?")
+            int helpW = screen.getFont().width("?") + 10;
+            int helpX = screen.getScreenWidth() - helpW - 8;
+            int helpY = screen.getScreenHeight() - BOTTOM_H;
+            if (btn == 0 && GuiUtils.inRect(mx, my, helpX, helpY, helpW, BOTTOM_H)) {
+                screen.showHelp = !screen.showHelp;
+                return true;
+            }
+            return true;
+        }
 
         // Scrollbar click
         if (!screen.hasOv() && btn == 0) {
@@ -101,7 +139,6 @@ public class InputManager {
         String card = canvasMgr.cardAt((int) mx, (int) my);
 
         if (btn == 0) {
-            // 图片在卡片之上渲染，应优先检测
             ImageElement hitImg = screen.imageAt(mx, my);
             if (hitImg != null) {
                 screen.selectedImageId = hitImg.getId();
@@ -115,12 +152,10 @@ public class InputManager {
             }
             screen.selectedImageId = null;
 
-            // 卡片检测（图片未命中后）
             if (card != null) {
                 return handleCardLeftClick(mx, my, card);
             }
 
-            // Clicked empty canvas
             screen.selection.clear();
             if (screen.editMode && !screen.blocksCanvas()) {
                 screen.drag.boxSel = true;
@@ -132,19 +167,22 @@ public class InputManager {
             return true;
         }
 
-            if (btn == 1) {
-            // 右键图片：缩放/锁定/删除
+        if (btn == 1) {
             ImageElement rClickImg = screen.imageAt(mx, my);
             if (rClickImg != null && screen.editMode) {
                 screen.showImageCtx(mx, my, rClickImg.getId());
                 return true;
             }
-            if (screen.editMode && card != null) {
-                if (screen.selection.multiSel.size() > 1 && screen.selection.multiSel.contains(card)) {
-                    screen.showBatchCtx(mx, my);
+            if (card != null) {
+                if (screen.editMode) {
+                    if (screen.selection.multiSel.size() > 1 && screen.selection.multiSel.contains(card)) {
+                        screen.showBatchCtx(mx, my);
+                    } else {
+                        if (screen.isVanillaAdvId(card)) screen.showVanillaCtx(mx, my, card);
+                        else screen.showCtx(mx, my, card);
+                    }
                 } else {
-                    if (screen.isVanillaAdvId(card)) screen.showVanillaCtx(mx, my, card);
-                    else screen.showCtx(mx, my, card);
+                    screen.showViewCtx(mx, my, card);
                 }
             } else if (screen.editMode) {
                 screen.showCanvasCtx(mx, my);
@@ -154,7 +192,6 @@ public class InputManager {
             return true;
         }
 
-        // Middle button: always pan
         if (!screen.blocksCanvas()) {
             screen.canvas.panning = true;
         }
@@ -163,11 +200,25 @@ public class InputManager {
 
     private boolean handleCardLeftClick(double mx, double my, String card) {
         if (screen.editMode && Screen.hasShiftDown()) {
+            // Shift + 点击：切换多选
             screen.selection.toggle(card);
+            if (!screen.selection.multiSel.contains(card)) {
+                screen.selection.selectedId = screen.selection.multiSel.isEmpty() ? null
+                        : screen.selection.multiSel.iterator().next();
+            } else {
+                screen.selection.selectedId = card;
+            }
         } else if (screen.editMode) {
+            // 编辑模式 — 如果点的是多选外的卡片，先清除旧选中状态
+            if (!screen.selection.multiSel.contains(card)) {
+                screen.selection.multiSel.clear();
+            }
+            screen.selection.selectedId = card;
+            screen.selection.multiSel.add(card);
+
             if (screen.isVanillaAdvId(card)) {
                 var cs = ClientDataStore.getInstance();
-                DataStore.VanillaAdvMeta meta = cs.getVanillaMeta(card);
+                VanillaAdvMeta meta = cs.getVanillaMeta(card);
                 if (meta != null && meta.getTab() != null && !meta.getTab().isEmpty()) {
                     screen.drag.dragCardId = card;
                     screen.drag.dragStartMX = mx;
@@ -176,7 +227,6 @@ public class InputManager {
                     screen.drag.lastDragMY = my;
                     screen.drag.dragMoved = false;
                 } else {
-                    // 未分配标签的原版成就，打开标签分配选择器
                     tabMgr.openVanillaTabSel(card);
                 }
             } else {
@@ -189,15 +239,19 @@ public class InputManager {
             }
         } else {
             screen.selection.select(card);
-            screen.overlay.detailId = card;
-            screen.overlay.current = Ov.DETAIL;
         }
         return true;
     }
+
     // ═══════════════ MOUSE RELEASE ═══════════════
 
     public boolean onMouseReleased(double mx, double my, int btn) {
+        screen.overlayRenderer.statsScrollDrag = false;
         if (screen.showDim) { screen.dimPanel.mouseReleased(mx, my, btn); }
+        if (screen.showSel) { screen.listSel.mouseReleased(mx, my, btn); }
+        if (screen.editPanel.isVisible()) {
+            screen.editPanel.mouseReleased(screen.getScreenWidth(), screen.getScreenHeight());
+        }
         canvasMgr.resetScrollDrag();
 
         if (screen.tabDrag.dragIdx >= 0) {
@@ -206,7 +260,6 @@ public class InputManager {
             return true;
         }
 
-        // Image drag release
         if (screen.drag.dragImageId != null) {
             if (screen.drag.dragMoved) ImageManager.save(screen.imageElements);
             screen.drag.dragImageId = null;
@@ -215,17 +268,16 @@ public class InputManager {
 
         if (screen.drag.dragCardId != null) {
             if (screen.drag.dragMoved) {
-                if (screen.isVanillaAdvId(screen.drag.dragCardId)) {
-                    int[] pos = screen.vanillaPos.get(screen.drag.dragCardId);
-                    if (pos != null) GuiUtils.sendCommand("adv vanilla setpos " + screen.drag.dragCardId + " " + pos[0] + " " + pos[1]);
-                } else {
-                    var a = screen.adv(screen.drag.dragCardId);
-                    if (a != null) GuiUtils.sendCommand("adv updatejson " + screen.drag.dragCardId + " {\"x\":" + a.getX() + ",\"y\":" + a.getY() + "}");
+                // 保存被拖拽卡片的位置
+                saveCardPosition(screen.drag.dragCardId);
+                // 多选拖动：同时保存所有其他选中卡片的位置
+                for (String selId : screen.selection.multiSel) {
+                    if (!selId.equals(screen.drag.dragCardId)) {
+                        saveCardPosition(selId);
+                    }
                 }
             } else {
                 screen.selection.select(screen.drag.dragCardId);
-                screen.overlay.detailId = screen.drag.dragCardId;
-                screen.overlay.current = Ov.DETAIL;
             }
             screen.drag.dragCardId = null;
             return false;
@@ -242,9 +294,25 @@ public class InputManager {
     // ═══════════════ MOUSE DRAG ═══════════════
 
     public boolean onMouseDragged(double mx, double my, int btn, double dx, double dy) {
-        if (screen.showDim && screen.dimPanel.mouseDragged(mx, my, btn, dx, dy)) return true;
+        // 统计面板滚动条拖拽
+        if (screen.overlayRenderer.statsScrollDrag) {
+            int contentTop = com.example.advancementoverhaul.client.gui.render.OverlayRenderer.statsContentTop;
+            int contentBottom = com.example.advancementoverhaul.client.gui.render.OverlayRenderer.statsContentBottom;
+            int sbH = contentBottom - contentTop;
+            if (sbH > 0) {
+                double ratio = Math.clamp((my - contentTop) / (double) sbH, 0, 1);
+                int ms = com.example.advancementoverhaul.client.gui.render.OverlayRenderer.statsMaxScroll;
+                screen.overlay.statsScrollOff = (int) (ratio * ms);
+            }
+            return true;
+        }
 
-        // Tab reordering drag
+        if (screen.showDim && screen.dimPanel.mouseDragged(mx, my, btn, dx, dy)) return true;
+        if (screen.showSel && screen.listSel.mouseDragged(mx, my, btn, dx, dy)) return true;
+        if (screen.editPanel.isVisible()) {
+            screen.editPanel.mouseDragged(my, screen.getScreenWidth(), screen.getScreenHeight());
+        }
+
         if (screen.tabDrag.dragIdx >= 0) {
             if (!screen.tabDrag.dragMoved && Math.abs(mx - screen.tabDrag.dragStartX) > DRAG_THRESH)
                 screen.tabDrag.dragMoved = true;
@@ -252,11 +320,9 @@ public class InputManager {
             return true;
         }
 
-        // Scrollbar drag
         if (canvasMgr.scrollDragH) { canvasMgr.updateHScrollFromMouse(mx); return true; }
         if (canvasMgr.scrollDragV) { canvasMgr.updateVScrollFromMouse(my); return true; }
 
-        // Image drag — 无阈值，按住即拖
         if (screen.drag.dragImageId != null) {
             screen.drag.dragMoved = true;
             ImageElement img = screen.findImageById(screen.drag.dragImageId);
@@ -269,23 +335,19 @@ public class InputManager {
             return true;
         }
 
-        // Card drag
         if (screen.drag.dragCardId != null) {
             if (!screen.drag.dragMoved && Math.hypot(mx - screen.drag.dragStartMX, my - screen.drag.dragStartMY) > DRAG_THRESH)
                 screen.drag.dragMoved = true;
             if (screen.drag.dragMoved) {
                 double deltaX = mx - screen.drag.lastDragMX, deltaY = my - screen.drag.lastDragMY;
-                if (screen.isVanillaAdvId(screen.drag.dragCardId)) {
-                    int[] pos = screen.vanillaPos.get(screen.drag.dragCardId);
-                    if (pos != null) {
-                        pos[0] += (int) Math.round(deltaX / screen.canvas.zoom);
-                        pos[1] += (int) Math.round(deltaY / screen.canvas.zoom);
-                    }
-                } else {
-                    var a = ClientDataStore.getInstance().getAdvancement(screen.drag.dragCardId);
-                    if (a != null) {
-                        a.setX((int) Math.round(a.getX() + deltaX / screen.canvas.zoom));
-                        a.setY((int) Math.round(a.getY() + deltaY / screen.canvas.zoom));
+                int dxWorld = (int) Math.round(deltaX / screen.canvas.zoom);
+                int dyWorld = (int) Math.round(deltaY / screen.canvas.zoom);
+                // 移动被拖拽的卡片
+                moveCard(screen.drag.dragCardId, dxWorld, dyWorld);
+                // 多选拖动：同时移动所有其他选中的卡片
+                for (String selId : screen.selection.multiSel) {
+                    if (!selId.equals(screen.drag.dragCardId)) {
+                        moveCard(selId, dxWorld, dyWorld);
                     }
                 }
             }
@@ -293,10 +355,8 @@ public class InputManager {
             return true;
         }
 
-        // Box selection drag
         if (screen.drag.boxSel) { screen.drag.bex = mx; screen.drag.bey = my; return true; }
 
-        // Canvas panning
         if (screen.canvas.panning && !screen.blocksCanvas()) {
             screen.canvas.scrollX += dx;
             screen.canvas.scrollY += dy;
@@ -309,10 +369,15 @@ public class InputManager {
     // ═══════════════ MOUSE SCROLL ═══════════════
 
     public boolean onMouseScrolled(double mx, double my, double sx, double sy) {
+        if (screen.showHelp) {
+            int s = screen.overlayRenderer.getHelpScroll();
+            s = (int) Math.clamp(s - sy * 20, 0, screen.overlayRenderer.getHelpMaxScroll());
+            screen.overlayRenderer.setHelpScroll(s);
+            return true;
+        }
         if (screen.showDim && screen.dimPanel.mouseScrolled(mx, my, sx, sy)) return true;
         if (screen.showSel && screen.listSel.mouseScrolled(mx, my, sx, sy)) return true;
 
-        // Overflow dropdown scroll
         if (screen.tabDrag.overDDOpen && screen.tabDrag.overflowDDX >= 0) {
             List<String> over = screen.tabRenderer.getOverflowTabs();
             int mw = OverlayLayout.CTX_ITEM_W;
@@ -327,22 +392,29 @@ public class InputManager {
             }
         }
 
-        // Stats overlay scroll
         if (screen.overlay.current == Ov.STATS) {
             int lineCount = 5 + ClientDataStore.getInstance().getTabs().size();
-            int ms = Math.max(0, lineCount * 16 - 230);
+            int contentH = lineCount * 16 + 8;
+            int availH = Math.max(0,
+                    com.example.advancementoverhaul.client.gui.render.OverlayRenderer.statsActualH - 32);
+            int ms = Math.max(0, contentH - availH);
             if (ms > 0) {
                 screen.overlay.statsScrollOff = (int) Math.clamp(screen.overlay.statsScrollOff - sy * 30, 0, ms);
                 return true;
             }
         }
 
-        // Edit panel scroll
+        if (screen.overlay.current == Ov.DETAIL) {
+            // 详情面板滚动（需要先计算内容高度来确定 maxScroll，这里用一个安全的上限）
+            screen.overlay.detailScrollOff = (int) Math.clamp(
+                    screen.overlay.detailScrollOff - sy * 30, 0, 10000);
+            return true;
+        }
+
         if ((screen.overlay.current == Ov.CREATE || screen.overlay.current == Ov.EDIT)
                 && screen.editPanel.handleScroll(mx, my, sy, screen.getScreenWidth(), screen.getScreenHeight()))
             return true;
 
-        // 图片缩放（鼠标悬停在图片上时）
         if (!screen.blocksCanvas()) {
             ImageElement scrollImg = screen.imageAt(mx, my);
             if (scrollImg != null && !scrollImg.isLocked() && screen.editMode) {
@@ -372,6 +444,7 @@ public class InputManager {
             return true;
         }
         if (screen.showDim && kc == GLFW.GLFW_KEY_ESCAPE) { screen.showDim = false; return true; }
+        if (screen.showHelp && kc == GLFW.GLFW_KEY_ESCAPE) { screen.showHelp = false; return true; }
 
         if (screen.editPanel.isCondSelActive()) {
             if (kc == GLFW.GLFW_KEY_ESCAPE) { screen.editPanel.closeCondSel(); return true; }
@@ -410,248 +483,54 @@ public class InputManager {
         return false;
     }
 
-    // ═══════════════ Overlay click handling ═══════════════
+    // ═══════════════ 卡片拖拽辅助方法 ═══════════════
 
-    private boolean handleOverlayClick(double mx, double my, int btn) {
-        switch (screen.overlay.current) {
-            case DETAIL:
-                if (btn == 0) clickDetail(mx, my);
-                else screen.overlay.close();
-                return true;
-            case CREATE: case EDIT:
-                if (btn == 0) { clickEditor(mx, my); return true; }
-                return true;
-            case STATS:
-                if (btn == 0) clickStats(mx, my);
-                else screen.overlay.close();
-                return true;
-            case CTX:
-                if (btn == 0) clickCtx(mx, my);
-                else screen.overlay.close();
-                return true;
-            case TAB_INPUT:
-                if (btn == 0) clickTabInput(mx, my);
-                return true;
-            case TAB_MANAGE:
-                if (btn == 0) clickTabManage(mx, my);
-                else screen.overlay.close();
-                return true;
-            case CONFIRM:
-                if (btn == 0) clickConfirm(mx, my);
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    private void clickDetail(double mx, double my) {
-        int px = screen.mid(OverlayLayout.DETAIL_W);
-        int py = screen.midY(OverlayLayout.DETAIL_H);
-        if (GuiUtils.closeHit(mx, my, px, py, OverlayLayout.DETAIL_W)
-                || GuiUtils.outsidePanel(mx, my, px, py, OverlayLayout.DETAIL_W, OverlayLayout.DETAIL_H))
-            screen.overlay.close();
-    }
-
-    private void clickEditor(double mx, double my) {
-        Font font = screen.getFont();
-        if (screen.editPanel.isCondSelActive()) {
-            screen.editPanel.condSelClick(mx, my, font, screen.getScreenWidth(), screen.getScreenHeight());
-            return;
-        }
-        boolean consumed = screen.editPanel.handleClick(mx, my, screen.getScreenWidth(), screen.getScreenHeight());
-        if (consumed) {
-            var focused = screen.editPanel.getLastFocusedWidget();
-            if (focused != null) screen.setFocused(focused);
-            if (!screen.editPanel.isVisible()) screen.overlay.close();
+    /**
+     * 按世界坐标增量移动单张卡片（自定义或原版）。
+     * 被 {@link #onMouseDragged} 调用，支持多选批量移动。
+     * <p>
+     * 移动后会标记空间网格脏，确保下一帧 {@link CardRenderer#ensureGrid()}
+     * 用更新后的坐标重建索引，避免卡片视觉位置与数据位置不同步。
+     *
+     * @param cardId 卡片 ID（自定义 ID 或 vanilla ResourceLocation 字符串）
+     * @param dxWorld 世界坐标 X 增量
+     * @param dyWorld 世界坐标 Y 增量
+     */
+    private void moveCard(String cardId, int dxWorld, int dyWorld) {
+        if (screen.isVanillaAdvId(cardId)) {
+            int[] pos = screen.vanillaPos.get(cardId);
+            if (pos != null) {
+                pos[0] += dxWorld;
+                pos[1] += dyWorld;
+            }
         } else {
-            screen.editPanel.close();
-            screen.overlay.close();
-        }
-    }
-
-    private void clickStats(double mx, double my) {
-        int px = screen.mid(OverlayLayout.STATS_W);
-        int py = screen.midY(OverlayLayout.STATS_H);
-        if (GuiUtils.closeHit(mx, my, px, py, OverlayLayout.STATS_W)
-                || GuiUtils.outsidePanel(mx, my, px, py, OverlayLayout.STATS_W, OverlayLayout.STATS_H))
-            screen.overlay.close();
-    }
-
-    private void clickCtx(double mx, double my) {
-        int cx = screen.overlay.ctxX, cy = screen.overlay.ctxY;
-        int mw = OverlayLayout.CTX_ITEM_W;
-        int mh = screen.overlay.ctxActions.size() * OverlayLayout.CTX_ITEM_H + OverlayLayout.CTX_PAD * 2;
-        if (cx + mw > screen.getScreenWidth()) cx = screen.getScreenWidth() - mw - 2;
-        if (cy + mh > screen.getScreenHeight()) cy = screen.getScreenHeight() - mh - 2;
-        if (mx >= cx && mx < cx + mw && my >= cy && my < cy + mh) {
-            int idx = (int) ((my - cy - OverlayLayout.CTX_PAD) / OverlayLayout.CTX_ITEM_H);
-            if (idx >= 0 && idx < screen.overlay.ctxActions.size()) {
-                screen.overlay.ctxActions.get(idx).action().run();
-                if (screen.overlay.current == Ov.CTX) {
-                    screen.overlay.close();
-                }
-                return;
+            var a = ClientDataStore.getInstance().getAdvancement(cardId);
+            if (a != null) {
+                a.setX(a.getX() + dxWorld);
+                a.setY(a.getY() + dyWorld);
             }
         }
-        screen.overlay.close();
+        // 标记空间网格脏，确保拖拽时卡片渲染位置实时更新
+        screen.cardRenderer.markBoundsDirty();
     }
 
-    private void clickTabInput(double mx, double my) {
-        int px = screen.mid(OverlayLayout.TAB_INPUT_W);
-        int py = screen.midY(OverlayLayout.TAB_INPUT_H);
-
-        if (GuiUtils.closeHit(mx, my, px, py, OverlayLayout.TAB_INPUT_W)
-                || GuiUtils.outsidePanel(mx, my, px, py, OverlayLayout.TAB_INPUT_W, OverlayLayout.TAB_INPUT_H)) {
-            screen.closeTabInput();
-            return;
-        }
-
-        if (GuiUtils.inRect(mx, my,
-                px + OverlayLayout.TAB_INPUT_W - OverlayLayout.TAB_INPUT_OK_RIGHT,
-                py + OverlayLayout.TAB_INPUT_BTN_Y,
-                OverlayLayout.TAB_INPUT_BTN_W, OverlayLayout.TAB_INPUT_BTN_H)) {
-            String tn = screen.tabNameBox.getValue().trim();
-            if (!tn.isEmpty()) GuiUtils.sendCommand("adv tab add " + tn);
-            screen.closeTabInput();
-            return;
-        }
-
-        if (GuiUtils.inRect(mx, my,
-                px + OverlayLayout.TAB_INPUT_W - OverlayLayout.TAB_INPUT_CANCEL_RIGHT,
-                py + OverlayLayout.TAB_INPUT_BTN_Y,
-                OverlayLayout.TAB_INPUT_BTN_W, OverlayLayout.TAB_INPUT_BTN_H)) {
-            screen.closeTabInput();
-        }
-    }
-
-    private void clickTabManage(double mx, double my) {
-        ClientDataStore cs = ClientDataStore.getInstance();
-        List<String> customTabs = cs.getCustomTabs();
-
-        int pw = 320;
-        int maxH = screen.getScreenHeight() - 80;
-        int contentH = customTabs.size() * 26 + 50;
-        int ph = Math.clamp(contentH, 120, maxH);
-        int px = screen.mid(pw), py = screen.midY(ph);
-
-        if (GuiUtils.closeHit(mx, my, px, py, pw)) { screen.overlay.close(); return; }
-        if (GuiUtils.outsidePanel(mx, my, px, py, pw, ph)) { screen.overlay.close(); return; }
-
-        int ty = py + 30;
-        for (String tab : customTabs) {
-            if (ty + 26 > py + ph) break;
-
-            if (GuiUtils.inRect(mx, my, px + pw - 30, ty, 20, 24)) {
-                int advCount = 0;
-                for (var adv : cs.getAdvancements().values())
-                    if (tab.equals(adv.getTab())) advCount++;
-
-                if (advCount > 0) {
-                    screen.overlay.manageTabTarget = tab;
-                    screen.overlay.confirmText = Component.translatable(
-                            com.example.advancementoverhaul.LangKeys.TAB_CONFIRM_DELETE_MSG, tab, advCount).getString();
-                    screen.overlay.confirmAction = () -> {
-                        screen.cascadeDeleteTab(screen.overlay.manageTabTarget);
-                        screen.overlay.manageTabTarget = null;
-                    };
-                    screen.overlay.current = Ov.CONFIRM;
-                } else {
-                    GuiUtils.sendCommand("adv tab delete " + tab);
-                }
-                return;
+    /**
+     * 发送命令保存单张卡片位置。
+     * 被 {@link #onMouseReleased} 调用，支持多选批量保存。
+     *
+     * @param cardId 卡片 ID
+     */
+    private void saveCardPosition(String cardId) {
+        if (screen.isVanillaAdvId(cardId)) {
+            int[] pos = screen.vanillaPos.get(cardId);
+            if (pos != null) {
+                GuiUtils.sendCommand("adv vanilla setpos " + cardId + " " + pos[0] + " " + pos[1]);
             }
-
-            if (GuiUtils.inRect(mx, my, px + 10, ty, pw - 40, 24)) return;
-            ty += 26;
+        } else {
+            var a = screen.adv(cardId);
+            if (a != null) {
+                GuiUtils.sendCommand("adv updatejson " + cardId + " {\"x\":" + a.getX() + ",\"y\":" + a.getY() + "}");
+            }
         }
-    }
-
-    private void clickConfirm(double mx, double my) {
-        int px = screen.mid(OverlayLayout.CONFIRM_W);
-        int py = screen.midY(OverlayLayout.CONFIRM_H);
-        int btnY = py + OverlayLayout.CONFIRM_H - OverlayLayout.CONFIRM_BTN_BOTTOM;
-
-        if (GuiUtils.inRect(mx, my,
-                px + OverlayLayout.CONFIRM_W - 170, btnY,
-                OverlayLayout.CONFIRM_BTN_W, OverlayLayout.CONFIRM_BTN_H)) {
-            if (screen.overlay.confirmAction != null) screen.overlay.confirmAction.run();
-            screen.overlay.close();
-            return;
-        }
-
-        if (GuiUtils.inRect(mx, my,
-                px + OverlayLayout.CONFIRM_W - 88, btnY,
-                OverlayLayout.CONFIRM_BTN_W, OverlayLayout.CONFIRM_BTN_H)) {
-            screen.overlay.close();
-            return;
-        }
-
-        if (GuiUtils.outsidePanel(mx, my, px, py, OverlayLayout.CONFIRM_W, OverlayLayout.CONFIRM_H))
-            screen.overlay.close();
-    }
-
-    // ═══════════════ Toolbar button handling ═══════════════
-
-    boolean handleButtons(double mx, double my) {
-        int s = ICON_S, p = ICON_PAD, gap = ICON_GAP;
-
-        int cx = screen.getScreenWidth() - p - s;
-        int cy = p;
-
-        // [1] Close
-        if (GuiUtils.inRect(mx, my, cx, cy, s, s)) { screen.onClose(); return true; }
-        cx -= s + gap;
-
-        // [2] Stats
-        if (GuiUtils.inRect(mx, my, cx, cy, s, s)) {
-            screen.overlay.current = screen.overlay.current == Ov.STATS ? Ov.NONE : Ov.STATS;
-            screen.showDim = false;
-            screen.overlay.statsScrollOff = 0;
-            return true;
-        }
-        cx -= s + gap;
-
-        // [3] Tab management
-        if (GuiUtils.inRect(mx, my, cx, cy, s, s)) { screen.openTabManage(); return true; }
-        cx -= s + gap;
-
-        // [4] Reset view
-        if (GuiUtils.inRect(mx, my, cx, cy, s, s)) { canvasMgr.resetView(); return true; }
-
-        // ── Bottom-right buttons ──
-        boolean canEdit = Minecraft.getInstance().player != null && !Minecraft.getInstance().player.isSpectator();
-        int by = screen.getScreenHeight() - BOTTOM_H - p - s;
-        cx = screen.getScreenWidth() - p - s;
-
-        // [5] Export
-        if (GuiUtils.inRect(mx, my, cx, by, s, s)) { GuiUtils.sendCommand("adv export"); return true; }
-        by -= s + gap;
-
-        // [6] Import
-        if (GuiUtils.inRect(mx, my, cx, by, s, s)) { GuiUtils.sendCommand("adv import"); return true; }
-        by -= s + gap;
-
-        // [7] Dimension panel
-        if (GuiUtils.inRect(mx, my, cx, by, s, s)) {
-            screen.showDim = !screen.showDim;
-            if (screen.showDim) { screen.dimPanel.show(); screen.overlay.current = Ov.NONE; }
-            return true;
-        }
-        by -= s + gap;
-
-        // [8] Auto-layout (edit mode only)
-        if (canEdit && screen.editMode) {
-            if (GuiUtils.inRect(mx, my, cx, by, s, s)) { GuiUtils.sendCommand("adv autolayout"); return true; }
-            by -= s + gap;
-        }
-
-        // [9] Edit mode toggle
-        if (canEdit && GuiUtils.inRect(mx, my, cx, by, s, s)) {
-            screen.editMode = !screen.editMode;
-            AdvancementScreen.persistEdit = screen.editMode;
-            return true;
-        }
-
-        return false;
     }
 }

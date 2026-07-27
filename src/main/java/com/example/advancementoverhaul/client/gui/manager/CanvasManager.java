@@ -4,6 +4,7 @@ import com.example.advancementoverhaul.client.gui.AdvancementScreen;
 import com.example.advancementoverhaul.client.gui.GuiUtils;
 import com.example.advancementoverhaul.data.ClientDataStore;
 import com.example.advancementoverhaul.data.DataStore;
+import com.example.advancementoverhaul.data.model.CustomAdvancement;
 import java.util.Iterator;
 
 import static com.example.advancementoverhaul.client.gui.Theme.*;
@@ -33,10 +34,11 @@ public class CanvasManager {
         for (int i = screen.frameFiltered.size() - 1; i >= 0; i--) {
             var a = screen.frameFiltered.get(i);
             if (a.isHidden() && !"hidden".equals(screen.curTab) && !screen.editMode && !s.isCompleted(a.getId())) continue;
-            int cx = screen.canvas.toScreenX(a.getX()) + screen.canvas.screenW(CARD_W) / 2;
-            int cy = screen.canvas.toScreenY(a.getY()) + screen.canvas.screenH(CARD_H) / 2;
-            int r = (int) (ICON_RADIUS * screen.canvas.zoom);
-            if (GuiUtils.inCircle(mx, my, cx, cy, r)) return a.getId();
+            int x = screen.canvas.toScreenX(a.getX());
+            int y = screen.canvas.toScreenY(a.getY());
+            int cw = screen.canvas.screenW(CARD_W);
+            int ch = screen.canvas.screenH(CARD_H);
+            if (GuiUtils.inRect(mx, my, x, y, cw, ch)) return a.getId();
         }
 
         // Vanilla advancements — per-advancement visibility check
@@ -45,10 +47,11 @@ public class CanvasManager {
             if (!screen.shouldShowVanilla(va.id())) continue;
             int[] p = screen.vanillaPos.get(va.id());
             if (p == null) continue;
-            int cx = screen.canvas.toScreenX(p[0]) + screen.canvas.screenW(CARD_W) / 2;
-            int cy = screen.canvas.toScreenY(p[1]) + screen.canvas.screenH(CARD_H) / 2;
-            int r = (int) (ICON_RADIUS * screen.canvas.zoom);
-            if (GuiUtils.inCircle(mx, my, cx, cy, r)) return va.id();
+            int x = screen.canvas.toScreenX(p[0]);
+            int y = screen.canvas.toScreenY(p[1]);
+            int cw = screen.canvas.screenW(CARD_W);
+            int ch = screen.canvas.screenH(CARD_H);
+            if (GuiUtils.inRect(mx, my, x, y, cw, ch)) return va.id();
         }
         return null;
     }
@@ -67,7 +70,7 @@ public class CanvasManager {
         int targetX = 0, targetY = 0;
         boolean found = false;
 
-        Iterator<DataStore.CustomAdvancement> it = cs.getAdvancements().values().iterator();
+        Iterator<CustomAdvancement> it = cs.getAdvancements().values().iterator();
         if (it.hasNext()) {
             var a = it.next();
             targetX = a.getX();

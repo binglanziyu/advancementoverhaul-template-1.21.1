@@ -1,11 +1,18 @@
 package com.example.advancementoverhaul.client.gui.render;
 
+/**
+ * 标签页渲染器：绘制顶部标签栏的视觉呈现。
+ * <p>
+ * 负责标签页的背景、文字、选中高亮、溢出下拉菜单和新建标签页按钮的渲染。
+ * 支持标签页拖拽排序的视觉反馈。
+ */
 import com.example.advancementoverhaul.LangKeys;
 import com.example.advancementoverhaul.client.gui.AdvancementScreen;
 import com.example.advancementoverhaul.client.gui.GuiUtils;
 import com.example.advancementoverhaul.client.gui.TranslatedStrings;
 import com.example.advancementoverhaul.client.gui.state.OverlayState.Ov;
 import com.example.advancementoverhaul.data.ClientDataStore;
+import com.example.advancementoverhaul.data.DataStore;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -38,7 +45,9 @@ public class TabRenderer {
         g.fill(0, 0, screen.width, TAB_H, PANEL);
         g.fill(0, TAB_H - 1, screen.width, TAB_H, DIVIDER);
 
-        List<String> allTabs = store.getTabs();
+        List<String> allTabs = new ArrayList<>(store.getTabs());
+        // 非编辑模式下隐藏"原有成就"分类
+        if (!screen.editMode) allTabs.remove(com.example.advancementoverhaul.data.DataStore.TAB_VANILLA);
 
         String allLabel = TranslatedStrings.get(LangKeys.ALL);
         int allW = font.width(allLabel) + 12;
@@ -46,9 +55,9 @@ public class TabRenderer {
         int[] tabWidths = new int[allTabs.size()];
         for (int i = 0; i < allTabs.size(); i++) {
             String tab = allTabs.get(i);
-            boolean isBuiltin = store.isBuiltinTab(tab);
             int d = store.getTabTotalCount(tab);
-            String label = d > 0 ? tab + " " + store.getTabCompletedCount(tab) + "/" + d : tab;
+            String displayName = DataStore.getTabDisplayName(tab);
+            String label = d > 0 ? displayName + " " + store.getTabCompletedCount(tab) + "/" + d : displayName;
             tabWidths[i] = font.width(label) + 12;
         }
         int hiddenW = screen.editMode ? font.width(Component.translatable(LangKeys.HIDDEN).getString()) + 12 : 0;
@@ -99,9 +108,9 @@ public class TabRenderer {
         // 标签按钮
         for (int i = 0; i < cachedBarTabs.size(); i++) {
             String tab = cachedBarTabs.get(i);
-            boolean isBuiltin = store.isBuiltinTab(tab);
             int d = store.getTabTotalCount(tab);
-            String label = d > 0 ? tab + " " + store.getTabCompletedCount(tab) + "/" + d : tab;
+            String displayName = DataStore.getTabDisplayName(tab);
+            String label = d > 0 ? displayName + " " + store.getTabCompletedCount(tab) + "/" + d : displayName;
             int w = font.width(label) + 12;
 
             int drawX = x;
@@ -167,7 +176,8 @@ public class TabRenderer {
                 boolean hov = GuiUtils.inRect(mx, my, ddX + 2, iy, mw - 4, 22);
                 boolean selected = tab.equals(screen.curTab);
                 if (hov) g.fill(ddX + 2, iy, ddX + mw - 2, iy + 22, CTX_HOV);
-                g.drawString(font, GuiUtils.truncate(font, tab, mw - 20),
+                String overflowDisplayName = DataStore.getTabDisplayName(tab);
+                g.drawString(font, GuiUtils.truncate(font, overflowDisplayName, mw - 20),
                         ddX + 8, iy + 7, selected ? ACCENT : TEXT, false);
             }
             iy += 22;
@@ -210,21 +220,10 @@ public class TabRenderer {
         int helpW = font.width(helpIcon) + 10;
         int helpX = screen.width - helpW - 8;
         boolean helpHov = GuiUtils.inRect(mx, my, helpX, y, helpW, BOTTOM_H);
-        g.fill(helpX, y, helpX + helpW, y + BOTTOM_H, helpHov ? BTN_HOV : PANEL);
-        g.renderOutline(helpX, y, helpW, BOTTOM_H, DIVIDER);
-        g.drawString(font, helpIcon, helpX + 5, y + (BOTTOM_H - 8) / 2, helpHov ? ACCENT : TEXT_DIM, false);
-
-        if (helpHov && !screen.hasOv()) {
-            String hint = Component.translatable(LangKeys.HELP_HINT).getString();
-            int tw = font.width(hint) + 12;
-            int tx = helpX + helpW / 2 - tw / 2;
-            int ty = y - 20;
-            if (tx < 4) tx = 4;
-            if (tx + tw > screen.width - 4) tx = screen.width - tw - 4;
-            g.fill(tx, ty, tx + tw, ty + 16, TOOLTIP_BG);
-            g.renderOutline(tx, ty, tw, 16, TOOLTIP_BORDER);
-            g.drawString(font, hint, tx + 6, ty + 4, TEXT, false);
-        }
+        boolean helpActive = screen.showHelp;
+        g.fill(helpX, y, helpX + helpW, y + BOTTOM_H, helpActive ? BTN_HOV : (helpHov ? BTN : PANEL));
+        g.renderOutline(helpX, y, helpW, BOTTOM_H, helpActive ? ACCENT : DIVIDER);
+        g.drawString(font, helpIcon, helpX + 5, y + (BOTTOM_H - 8) / 2, helpActive ? ACCENT : (helpHov ? ACCENT : TEXT_DIM), false);
     }
 
     // ═══════════════ 按钮 ═══════════════
@@ -273,6 +272,17 @@ public class TabRenderer {
                     GuiUtils.inRect(mx, my, cx, by, s, s), false);
             by -= s + gap;
         }
+        // FTB 通知模式切换（仅编辑模式 + FTB Quests 已加载）
+        if (canEdit && screen.editMode && com.example.advancementoverhaul.compat.FtbQuestsBridge.isLoaded()) {
+            String ftbLabel = switch (com.example.advancementoverhaul.client.gui.AdvancementScreen.ftbNotifMode) {
+                case 1 -> "\u2205";   // ⊘ 关闭
+                case 2 -> "\u21C4";   // ⇄ 替换
+                default -> "\u25C9";  // ◎ 默认
+            };
+            GuiUtils.drawIconBtn(g, font, cx, by, s, ftbLabel,
+                    GuiUtils.inRect(mx, my, cx, by, s, s), com.example.advancementoverhaul.client.gui.AdvancementScreen.ftbNotifMode != 0);
+            by -= s + gap;
+        }
         if (canEdit)
             GuiUtils.drawIconBtn(g, font, cx, by, s, "\u270E",
                     GuiUtils.inRect(mx, my, cx, by, s, s), screen.editMode);
@@ -315,6 +325,17 @@ public class TabRenderer {
         if (canEdit && screen.editMode) {
             GuiUtils.drawHoverTooltip(g, font, mx, my, cx, by, s, s,
                     Component.translatable(LangKeys.BTN_TT_AUTOLAYOUT).getString(), sw, sh);
+            by -= s + gap;
+        }
+        // FTB 通知模式 tooltip
+        if (canEdit && screen.editMode && com.example.advancementoverhaul.compat.FtbQuestsBridge.isLoaded()) {
+            String modeKey = switch (com.example.advancementoverhaul.client.gui.AdvancementScreen.ftbNotifMode) {
+                case 1 -> LangKeys.FTB_MODE_DISABLE;
+                case 2 -> LangKeys.FTB_MODE_REPLACE;
+                default -> LangKeys.FTB_MODE_DEFAULT;
+            };
+            GuiUtils.drawHoverTooltip(g, font, mx, my, cx, by, s, s,
+                    Component.translatable(modeKey).getString(), sw, sh);
             by -= s + gap;
         }
         if (canEdit)

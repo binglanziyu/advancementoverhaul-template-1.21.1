@@ -1,5 +1,12 @@
 package com.example.advancementoverhaul.client.gui.panel;
 
+/**
+ * 条件类型选择器面板：在编辑成就时选择条件类型、目标、数量和 NBT 匹配模式。
+ * <p>
+ * 根据所选的 {@link com.example.advancementoverhaul.data.DataStore.ConditionType}
+ * 动态显示对应的注册表选择器（实体/物品/方块/维度）。
+ * 包含条件添加、删除、排序和条件预览功能。
+ */
 import com.example.advancementoverhaul.LangKeys;
 import com.example.advancementoverhaul.client.gui.ConditionTypeStyle;
 import com.example.advancementoverhaul.client.gui.GuiUtils;
@@ -8,6 +15,8 @@ import com.example.advancementoverhaul.client.gui.cache.RegistryCache;
 import com.example.advancementoverhaul.client.gui.widget.ScrollBar;
 import com.example.advancementoverhaul.data.ClientDataStore;
 import com.example.advancementoverhaul.data.DataStore;
+import com.example.advancementoverhaul.data.model.AdvancementCondition;
+import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -17,6 +26,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import org.slf4j.Logger;
 
 import java.util.*;
 import java.util.function.Consumer;
@@ -66,13 +76,13 @@ public class ConditionSelector {
 
     private boolean showSelectedDD = false;
 
-    private Consumer<DataStore.AdvancementCondition> onAdd;
-    private Consumer<DataStore.AdvancementCondition> onRemove;
-    private List<DataStore.AdvancementCondition> existingConds = Collections.emptyList();
+    private Consumer<AdvancementCondition> onAdd;
+    private Consumer<AdvancementCondition> onRemove;
+    private List<AdvancementCondition> existingConds = Collections.emptyList();
 
-    public void setOnAdd(Consumer<DataStore.AdvancementCondition> cb) { this.onAdd = cb; }
-    public void setOnRemove(Consumer<DataStore.AdvancementCondition> cb) { this.onRemove = cb; }
-    public void setExistingConditions(List<DataStore.AdvancementCondition> c) { this.existingConds = c; }
+    public void setOnAdd(Consumer<AdvancementCondition> cb) { this.onAdd = cb; }
+    public void setOnRemove(Consumer<AdvancementCondition> cb) { this.onRemove = cb; }
+    public void setExistingConditions(List<AdvancementCondition> c) { this.existingConds = c; }
     public boolean isActive() { return active; }
 
     /**
@@ -90,11 +100,6 @@ public class ConditionSelector {
         itemSource = ItemSource.REGISTRY;
         backpackStacks.clear();
         loadEntries();
-    }
-
-    public void openForTargetEdit(DataStore.ConditionType type) {
-        open(type);
-        targetEditMode = true;
     }
 
     public void close() { active = false; search = ""; showSelectedDD = false; backpackStacks.clear(); }
@@ -190,7 +195,7 @@ public class ConditionSelector {
         }
     }
 
-    private DataStore.AdvancementCondition findExisting(CondEntry e) {
+    private AdvancementCondition findExisting(CondEntry e) {
         for (var c : existingConds) {
             if (c.getType() != selectedType) continue;
             if (!Objects.equals(c.getTargetId(), e.id())) continue;
@@ -212,8 +217,7 @@ public class ConditionSelector {
         int tabOffset = showTabs ? TAB_BAR_H : 0;
         int searchY = contentY + tabOffset;
 
-        // 背景
-        g.fill(0, 0, sw, sh, 0x80000000);
+        // 背景（全屏暗色遮罩由 AdvancementScreen 统一管理，此处仅绘制面板自身）
         g.fill(px, py, px + pw, py + ph, PANEL);
         g.renderOutline(px, py, pw, ph, DIVIDER);
         g.fill(px, py, px + pw, py + 3, ACCENT);
@@ -323,7 +327,7 @@ public class ConditionSelector {
                                 g.renderItem(renderStack, mainX + 3, ey + 2);
                                 textX = mainX + 24;
                             }
-                        } catch (Exception ignored) {}
+                        } catch (Exception ex) { LogUtils.getLogger().debug("Failed to render item icon in condition selector: {}", ex.toString()); }
                     }
 
                     int textCol = added ? ACCENT : (hov ? TEXT_BR : TEXT);
@@ -339,12 +343,8 @@ public class ConditionSelector {
 
         // ── 已选择条件下拉 ──
         if (!targetEditMode && !existingConds.isEmpty()) {
-            int ddBtnX = mainX + mainW - 20, ddBtnY = searchY;
-            boolean ddHov = GuiUtils.inRect(mx, my, ddBtnX, ddBtnY, 18, 18);
-            g.fill(ddBtnX, ddBtnY, ddBtnX + 18, ddBtnY + 18, ddHov ? BTN_HOV : BTN);
-            g.drawString(font, "\u25BE", ddBtnX + 5, ddBtnY + 4, ddHov ? ACCENT : TEXT_DIM, false);
-
             if (showSelectedDD) {
+                int ddBtnY = searchY;
                 int ddX = mainX + mainW - 170;
                 int ddY = ddBtnY + 20;
                 int ddW = 168;
@@ -356,7 +356,7 @@ public class ConditionSelector {
                 int cy = ddY + 2;
                 for (int i = 0; i < existingConds.size(); i++) {
                     if (cy + ENTRY_H > ddY + ddH) break;
-                    DataStore.AdvancementCondition c = existingConds.get(i);
+                    AdvancementCondition c = existingConds.get(i);
                     boolean itemHov = GuiUtils.inRect(mx, my, ddX + 2, cy, ddW - 4, 20);
                     if (itemHov) g.fill(ddX + 2, cy, ddX + ddW - 2, cy + ENTRY_H, BTN_HOV);
                     String typeStr = c.getType() != null ? ConditionTypeStyle.of(c.getType()).displayName() : "???";
@@ -444,10 +444,11 @@ public class ConditionSelector {
         // 搜索
         if (GuiUtils.inRect(mx, my, mainX, searchY, mainW, 18)) return true;
 
-        // 已选择下拉按钮
+        // 已选择下拉（通过右键点击搜索框触发，或在条目列表底部显示计数）
         if (!targetEditMode && !existingConds.isEmpty()) {
-            int ddBtnX = mainX + mainW - 20;
-            if (GuiUtils.inRect(mx, my, ddBtnX, searchY, 18, 18)) { showSelectedDD = !showSelectedDD; return true; }
+            if (GuiUtils.inRect(mx, my, mainX, searchY, mainW - 4, 18)) {
+                showSelectedDD = !showSelectedDD; return true;
+            }
         }
 
         // 条目列表
@@ -459,7 +460,7 @@ public class ConditionSelector {
                 CondEntry e = filtered.get(idx);
                 if (targetEditMode) {
                     if (onAdd != null) {
-                        DataStore.AdvancementCondition cond = new DataStore.AdvancementCondition(selectedType, e.id(), 1);
+                        AdvancementCondition cond = new AdvancementCondition(selectedType, e.id(), 1);
                         // 背包物品携带 NBT
                         if (e.nbt() != null && !e.nbt().isEmpty()) {
                             cond.setNbtMatchMode("exact");
@@ -469,12 +470,12 @@ public class ConditionSelector {
                     }
                     close();
                 } else {
-                    DataStore.AdvancementCondition existing = findExisting(e);
+                    AdvancementCondition existing = findExisting(e);
                     if (existing != null) {
                         if (onRemove != null) onRemove.accept(existing);
                     } else {
                         if (onAdd != null) {
-                            DataStore.AdvancementCondition cond = new DataStore.AdvancementCondition(selectedType, e.id(), 1);
+                            AdvancementCondition cond = new AdvancementCondition(selectedType, e.id(), 1);
                             // 背包物品携带 NBT，自动设置精确匹配
                             if (e.nbt() != null && !e.nbt().isEmpty()) {
                                 cond.setNbtMatchMode("exact");

@@ -8,6 +8,7 @@ import com.example.advancementoverhaul.client.gui.TranslatedStrings;
 import com.example.advancementoverhaul.client.gui.panel.ListSelector;
 import com.example.advancementoverhaul.data.ClientDataStore;
 import com.example.advancementoverhaul.data.DataStore;
+import com.example.advancementoverhaul.data.model.CustomAdvancement;
 
 
 import java.util.*;
@@ -112,17 +113,19 @@ public class TabManager {
         var edPrereqs = screen.editPanel.getEdPrereqs();
 
         // ── Custom advancements grouped by tab ──
-        Map<String, List<DataStore.CustomAdvancement>> byTab = new LinkedHashMap<>();
+        Map<String, List<CustomAdvancement>> byTab = new LinkedHashMap<>();
         for (var a : cs.getAdvancements().values()) {
             if (a.getId().equals(forId)) continue;
             if (edId != null && a.getId().equals(edId)) continue;
             if (edPrereqs.contains(a.getId())) continue;
+            // 循环检测：如果选了 a.getId() 作为前置会形成环（a → ... → edId），则跳过
+            if (edId != null && isTransitiveDependent(cs, a.getId(), edId)) continue;
             String tab = (a.getTab() != null && !a.getTab().isEmpty()) ? a.getTab() : DataStore.TAB_DEFAULT;
             byTab.computeIfAbsent(tab, k -> new ArrayList<>()).add(a);
         }
         for (var entry : byTab.entrySet()) {
             entries.add(new ListSelector.Entry("__sep_" + entry.getKey(), "── " + entry.getKey() + " ──"));
-            entry.getValue().sort(Comparator.comparing(DataStore.CustomAdvancement::getName, String.CASE_INSENSITIVE_ORDER));
+            entry.getValue().sort(Comparator.comparing(CustomAdvancement::getName, String.CASE_INSENSITIVE_ORDER));
             for (var a : entry.getValue()) entries.add(new ListSelector.Entry(a.getId(), a.getName()));
         }
 
@@ -132,6 +135,7 @@ public class TabManager {
             if (!cs.isVanillaEnabled(va.id())) continue;
             if (va.id().equals(forId)) continue;
             if (edPrereqs.contains(va.id())) continue;
+            if (edId != null && isTransitiveDependent(cs, va.id(), edId)) continue;
             String tab = cs.getVanillaDisplayTab(va.id());
             if (tab == null || tab.isEmpty()) tab = DataStore.TAB_VANILLA;
             vanillaByTab.computeIfAbsent(tab, k -> new ArrayList<>()).add(va.id());
@@ -181,5 +185,51 @@ public class TabManager {
         screen.tabNameBox.setVisible(false);
         screen.tabNameBox.setFocused(false);
         screen.setFocused(null);
+    }
+
+    // ═══════════════ 循环依赖检测 ═══════════════
+
+    /**
+     * 检查 candidateId 是否（通过前置条件链路）间接依赖 targetId。
+     * 即：candidateId → ... → targetId 是否存在一条路径。
+     * 如果存在，将 candidateId 添加为 targetId 的前置条件会形成环。
+     */
+    private boolean isTransitiveDependent(ClientDataStore cs, String candidateId, String targetId) {
+        if (candidateId.equals(targetId)) return true;
+        Set<String> visited = new HashSet<>();
+        Deque<String> queue = new ArrayDeque<>();
+
+        // 检查 candidateId 的自定义成就前置条件
+        var adv = cs.getAdvancement(candidateId);
+        if (adv != null && adv.getPrerequisites() != null) {
+            for (String p : adv.getPrerequisites()) {
+                if (visited.add(p)) queue.add(p);
+            }
+        }
+        // 检查 candidateId 的原版元数据前置条件
+        var meta = cs.getVanillaMeta(candidateId);
+        if (meta != null && meta.getPrerequisites() != null) {
+            for (String p : meta.getPrerequisites()) {
+                if (visited.add(p)) queue.add(p);
+            }
+        }
+
+        while (!queue.isEmpty()) {
+            String cur = queue.poll();
+            if (cur.equals(targetId)) return true;
+            var curAdv = cs.getAdvancement(cur);
+            if (curAdv != null && curAdv.getPrerequisites() != null) {
+                for (String p : curAdv.getPrerequisites()) {
+                    if (visited.add(p)) queue.add(p);
+                }
+            }
+            var curMeta = cs.getVanillaMeta(cur);
+            if (curMeta != null && curMeta.getPrerequisites() != null) {
+                for (String p : curMeta.getPrerequisites()) {
+                    if (visited.add(p)) queue.add(p);
+                }
+            }
+        }
+        return false;
     }
 }

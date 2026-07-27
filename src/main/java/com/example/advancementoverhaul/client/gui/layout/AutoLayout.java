@@ -1,41 +1,85 @@
 package com.example.advancementoverhaul.client.gui.layout;
 
-
-import com.example.advancementoverhaul.data.DataStore;
+import com.example.advancementoverhaul.data.model.CustomAdvancement;
+import com.example.advancementoverhaul.data.model.VanillaAdvMeta;
 import static com.example.advancementoverhaul.client.gui.Theme.*;
 
 import java.util.*;
 
+/**
+ * 画布自动布局算法。
+ * <p>
+ * 将画布上的所有自定义进度（以及启用的原版进度）按照依赖树拓扑排序后，
+ * 以网格方式重新排列位置，确保前置条件始终位于当前进度的左侧或上方。
+ * <p>
+ * 通过 {@code /adv autolayout} 命令调用。
+ */
 public final class AutoLayout {
 
     private static final int GAP_X = 16, GAP_Y = 16, MARGIN = 32;
 
     private AutoLayout() {}
 
-    public static void apply(Map<String, DataStore.CustomAdvancement> advancements) {
-        if (advancements.isEmpty()) return;
+    /**
+     * 仅布局自定义进度（向后兼容）。
+     */
+    public static void apply(Map<String, CustomAdvancement> advancements) {
+        apply(advancements, Map.of(), Map.of());
+    }
 
-        // ── 构建 DAG ──
+    /**
+     * 同时布局自定义进度和启用的原版进度。
+     *
+     * @param advancements 所有自定义进度
+     * @param vanillaMetas 启用的原版进度元数据（key = 原版 achievement ID）
+     * @param parentMap    原版进度父子关系（child → parent）
+     */
+    public static void apply(Map<String, CustomAdvancement> advancements,
+                             Map<String, VanillaAdvMeta> vanillaMetas,
+                             Map<String, String> parentMap) {
+        if (advancements.isEmpty() && vanillaMetas.isEmpty()) return;
+
+        // ═══ 构建全部节点集合 ═══
+        Set<String> allNodes = new LinkedHashSet<>(advancements.keySet());
+        allNodes.addAll(vanillaMetas.keySet());
+
+        // ═══ 构建前置条件映射 ═══
+        Map<String, List<String>> prereqsOf = new HashMap<>();
+        for (var adv : advancements.values()) {
+            prereqsOf.put(adv.getId(), new ArrayList<>(adv.getPrerequisites()));
+        }
+        for (var e : vanillaMetas.entrySet()) {
+            String vid = e.getKey();
+            var meta = e.getValue();
+            List<String> prqs = new ArrayList<>(meta.getPrerequisites());
+            String parent = parentMap.get(vid);
+            if (parent != null && allNodes.contains(parent) && !prqs.contains(parent)) {
+                prqs.add(parent);
+            }
+            prereqsOf.put(vid, prqs);
+        }
+
+        // ═══ 构建 DAG ═══
         Map<String, List<String>> children = new HashMap<>();
         Map<String, Integer> inDeg = new HashMap<>();
 
-        for (var adv : advancements.values()) {
-            inDeg.putIfAbsent(adv.getId(), 0);
-            for (String pre : adv.getPrerequisites()) {
-                if (advancements.containsKey(pre)) {
-                    children.computeIfAbsent(pre, k -> new ArrayList<>()).add(adv.getId());
-                    inDeg.merge(adv.getId(), 1, Integer::sum);
+        for (String id : allNodes) {
+            inDeg.putIfAbsent(id, 0);
+            for (String pre : prereqsOf.getOrDefault(id, List.of())) {
+                if (allNodes.contains(pre)) {
+                    children.computeIfAbsent(pre, k -> new ArrayList<>()).add(id);
+                    inDeg.merge(id, 1, Integer::sum);
                 }
             }
         }
 
-        // ── 拓扑分层 ──
+        // ═══ 拓扑分层 ═══
         Map<String, Integer> rank = new HashMap<>();
         Queue<String> queue = new ArrayDeque<>();
-        for (var adv : advancements.values()) {
-            if (inDeg.getOrDefault(adv.getId(), 0) == 0) {
-                queue.add(adv.getId());
-                rank.put(adv.getId(), 0);
+        for (String id : allNodes) {
+            if (inDeg.getOrDefault(id, 0) == 0) {
+                queue.add(id);
+                rank.put(id, 0);
             }
         }
         while (!queue.isEmpty()) {
@@ -46,7 +90,7 @@ public final class AutoLayout {
                 if (inDeg.merge(child, -1, Integer::sum) == 0) queue.add(child);
             }
         }
-        for (var adv : advancements.values()) rank.putIfAbsent(adv.getId(), 0);
+        for (String id : allNodes) rank.putIfAbsent(id, 0);
 
         int maxLayer = 0;
         Map<Integer, List<String>> layers = new TreeMap<>();
@@ -55,7 +99,7 @@ public final class AutoLayout {
             maxLayer = Math.max(maxLayer, e.getValue());
         }
 
-        // ── Phase 1: 自顶向下 — 重心启发式 ──
+        // ═══ Phase 1: 自顶向下 — 重心启发式 ═══
         Map<String, Double> xPos = new HashMap<>();
 
         // Layer 0: 均匀铺开
@@ -70,10 +114,8 @@ public final class AutoLayout {
 
             Map<String, Double> bary = new HashMap<>();
             for (String id : nodes) {
-                DataStore.CustomAdvancement adv = advancements.get(id);
-                if (adv == null) continue;
                 double sum = 0; int cnt = 0;
-                for (String pid : adv.getPrerequisites()) {
+                for (String pid : prereqsOf.getOrDefault(id, List.of())) {
                     if (xPos.containsKey(pid)) { sum += xPos.get(pid); cnt++; }
                 }
                 bary.put(id, cnt > 0 ? sum / cnt : MARGIN);
@@ -88,7 +130,7 @@ public final class AutoLayout {
             }
         }
 
-        // ── Phase 2: 自底向上 — 父节点居中于子节点之上 ──
+        // ═══ Phase 2: 自底向上 — 父节点居中于子节点之上 ═══
         for (int layer = maxLayer - 1; layer >= 0; layer--) {
             List<String> nodes = layers.get(layer);
             if (nodes == null) continue;
@@ -103,7 +145,7 @@ public final class AutoLayout {
             }
         }
 
-        // ── Phase 3: 最终重叠修正 ──
+        // ═══ Phase 3: 最终重叠修正 ═══
         for (int layer = 0; layer <= maxLayer; layer++) {
             List<String> nodes = layers.get(layer);
             if (nodes == null) continue;
@@ -115,14 +157,22 @@ public final class AutoLayout {
             }
         }
 
-        // ── 写入坐标 ──
+        // ═══ 写入坐标 ═══
         for (var entry : layers.entrySet()) {
             int y = MARGIN + entry.getKey() * (CARD_H + GAP_Y);
             for (String id : entry.getValue()) {
-                DataStore.CustomAdvancement a = advancements.get(id);
+                int nx = (int) Math.round(xPos.getOrDefault(id, 0.0));
+
+                CustomAdvancement a = advancements.get(id);
                 if (a != null) {
-                    a.setX((int) Math.round(xPos.getOrDefault(id, 0.0)));
+                    a.setX(nx);
                     a.setY(y);
+                } else {
+                    VanillaAdvMeta vm = vanillaMetas.get(id);
+                    if (vm != null) {
+                        vm.setX(nx);
+                        vm.setY(y);
+                    }
                 }
             }
         }

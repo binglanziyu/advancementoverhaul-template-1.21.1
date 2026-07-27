@@ -1,5 +1,11 @@
 package com.example.advancementoverhaul.client.gui.panel;
 
+/**
+ * 维度锁定管理面板：查看和管理所有维度的锁定状态及解锁条件。
+ * <p>
+ * 显示每个维度的锁定/解锁状态和解锁所需的成就名称，
+ * 通过 C2S 命令发送维度锁定/解锁/设置条件等操作到服务端。
+ */
 import com.example.advancementoverhaul.LangKeys;
 import com.example.advancementoverhaul.client.gui.AdvancementScreen;
 import com.example.advancementoverhaul.client.gui.GuiUtils;
@@ -23,6 +29,12 @@ public class DimensionPanel {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("AdvancementOverhaul/DimensionPanel");
 
+    /** 无条件维度集合——这些维度始终解锁，不可被锁定 */
+    private static final Set<String> ALWAYS_UNLOCKED = Set.of(
+        "minecraft:overworld",
+        "minecraft:overworld_caves"
+    );
+
     private final AdvancementScreen parent;
     private boolean visible = false;
     private int px, py, pw, ph, scrollAreaY, scrollAreaH;
@@ -44,6 +56,7 @@ public class DimensionPanel {
 
     public void show() { visible = true; scrollBar.setScroll(0); load(); lastScreenW = -1; }
     public void hide() { visible = false; }
+    public boolean isVisible() { return visible; }
 
     private void load() {
         entries.clear();
@@ -166,6 +179,8 @@ public class DimensionPanel {
     }
 
     private void toggleDisable(DimEntry e) {
+        // 无条件维度始终解锁，不允许锁定
+        if (!e.disabled && ALWAYS_UNLOCKED.contains(e.id)) return;
         GuiUtils.sendCommand("adv dimension " + (e.disabled ? "unlock " : "lock ") + e.id);
         e.disabled = !e.disabled;
     }
