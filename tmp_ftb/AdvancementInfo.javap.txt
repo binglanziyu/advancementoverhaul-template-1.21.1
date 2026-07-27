@@ -1,0 +1,15 @@
+Compiled from "KnownServerRegistries.java"
+public final class dev.ftb.mods.ftblibrary.util.KnownServerRegistries$AdvancementInfo extends java.lang.Record {
+  private final net.minecraft.resources.ResourceLocation id;
+  private final net.minecraft.network.chat.Component name;
+  private final net.minecraft.world.item.ItemStack icon;
+  public static net.minecraft.network.codec.StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, dev.ftb.mods.ftblibrary.util.KnownServerRegistries$AdvancementInfo> STREAM_CODEC;
+  public dev.ftb.mods.ftblibrary.util.KnownServerRegistries$AdvancementInfo(net.minecraft.resources.ResourceLocation, net.minecraft.network.chat.Component, net.minecraft.world.item.ItemStack);
+  public final java.lang.String toString();
+  public final int hashCode();
+  public final boolean equals(java.lang.Object);
+  public net.minecraft.resources.ResourceLocation id();
+  public net.minecraft.network.chat.Component name();
+  public net.minecraft.world.item.ItemStack icon();
+  static {};
+}

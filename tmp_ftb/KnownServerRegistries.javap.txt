@@ -1,0 +1,188 @@
+Compiled from "KnownServerRegistries.java"
+public final class dev.ftb.mods.ftblibrary.util.KnownServerRegistries extends java.lang.Record {
+  private final java.util.List<net.minecraft.resources.ResourceLocation> dimension;
+
+  private final java.util.Map<net.minecraft.resources.ResourceLocation, dev.ftb.mods.ftblibrary.util.KnownServerRegistries$AdvancementInfo> advancements;
+
+  public static dev.ftb.mods.ftblibrary.util.KnownServerRegistries client;
+
+  public static dev.ftb.mods.ftblibrary.util.KnownServerRegistries server;
+
+  public static net.minecraft.network.codec.StreamCodec<net.minecraft.network.RegistryFriendlyByteBuf, dev.ftb.mods.ftblibrary.util.KnownServerRegistries> STREAM_CODEC;
+
+  public dev.ftb.mods.ftblibrary.util.KnownServerRegistries(java.util.List<net.minecraft.resources.ResourceLocation>, java.util.Map<net.minecraft.resources.ResourceLocation, dev.ftb.mods.ftblibrary.util.KnownServerRegistries$AdvancementInfo>);
+    Code:
+       0: aload_0
+       1: invokespecial #36                 // Method java/lang/Record."<init>":()V
+       4: aload_0
+       5: aload_1
+       6: putfield      #38                 // Field dimension:Ljava/util/List;
+       9: aload_0
+      10: aload_2
+      11: putfield      #40                 // Field advancements:Ljava/util/Map;
+      14: return
+
+  public static dev.ftb.mods.ftblibrary.util.KnownServerRegistries create(net.minecraft.server.MinecraftServer);
+    Code:
+       0: new           #45                 // class java/util/ArrayList
+       3: dup
+       4: invokespecial #46                 // Method java/util/ArrayList."<init>":()V
+       7: astore_1
+       8: aload_0
+       9: invokevirtual #52                 // Method net/minecraft/server/MinecraftServer.getAllLevels:()Ljava/lang/Iterable;
+      12: invokeinterface #58,  1           // InterfaceMethod java/lang/Iterable.iterator:()Ljava/util/Iterator;
+      17: astore_2
+      18: aload_2
+      19: invokeinterface #64,  1           // InterfaceMethod java/util/Iterator.hasNext:()Z
+      24: ifeq          54
+      27: aload_2
+      28: invokeinterface #68,  1           // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      33: checkcast     #70                 // class net/minecraft/server/level/ServerLevel
+      36: astore_3
+      37: aload_1
+      38: aload_3
+      39: invokevirtual #73                 // Method net/minecraft/server/level/ServerLevel.dimension:()Lnet/minecraft/resources/ResourceKey;
+      42: invokevirtual #79                 // Method net/minecraft/resources/ResourceKey.location:()Lnet/minecraft/resources/ResourceLocation;
+      45: invokeinterface #85,  2           // InterfaceMethod java/util/List.add:(Ljava/lang/Object;)Z
+      50: pop
+      51: goto          18
+      54: aload_1
+      55: aconst_null
+      56: invokeinterface #89,  2           // InterfaceMethod java/util/List.sort:(Ljava/util/Comparator;)V
+      61: new           #45                 // class java/util/ArrayList
+      64: dup
+      65: invokespecial #46                 // Method java/util/ArrayList."<init>":()V
+      68: astore_2
+      69: aload_0
+      70: invokevirtual #93                 // Method net/minecraft/server/MinecraftServer.getAdvancements:()Lnet/minecraft/server/ServerAdvancementManager;
+      73: invokevirtual #99                 // Method net/minecraft/server/ServerAdvancementManager.getAllAdvancements:()Ljava/util/Collection;
+      76: aload_2
+      77: invokedynamic #119,  0            // InvokeDynamic #0:accept:(Ljava/util/List;)Ljava/util/function/Consumer;
+      82: invokeinterface #125,  2          // InterfaceMethod java/util/Collection.forEach:(Ljava/util/function/Consumer;)V
+      87: aload_2
+      88: invokedynamic #137,  0            // InvokeDynamic #1:apply:()Ljava/util/function/Function;
+      93: invokestatic  #143                // InterfaceMethod java/util/Comparator.comparing:(Ljava/util/function/Function;)Ljava/util/Comparator;
+      96: invokeinterface #89,  2           // InterfaceMethod java/util/List.sort:(Ljava/util/Comparator;)V
+     101: aload_2
+     102: invokeinterface #147,  1          // InterfaceMethod java/util/List.stream:()Ljava/util/stream/Stream;
+     107: invokedynamic #152,  0            // InvokeDynamic #2:apply:()Ljava/util/function/Function;
+     112: invokedynamic #159,  0            // InvokeDynamic #3:apply:()Ljava/util/function/Function;
+     117: invokedynamic #170,  0            // InvokeDynamic #4:apply:()Ljava/util/function/BinaryOperator;
+     122: aload_2
+     123: invokedynamic #182,  0            // InvokeDynamic #5:get:(Ljava/util/List;)Ljava/util/function/Supplier;
+     128: invokestatic  #188                // Method java/util/stream/Collectors.toMap:(Ljava/util/function/Function;Ljava/util/function/Function;Ljava/util/function/BinaryOperator;Ljava/util/function/Supplier;)Ljava/util/stream/Collector;
+     131: invokeinterface #194,  2          // InterfaceMethod java/util/stream/Stream.collect:(Ljava/util/stream/Collector;)Ljava/lang/Object;
+     136: checkcast     #196                // class java/util/Map
+     139: astore_3
+     140: new           #2                  // class dev/ftb/mods/ftblibrary/util/KnownServerRegistries
+     143: dup
+     144: aload_1
+     145: aload_3
+     146: invokespecial #198                // Method "<init>":(Ljava/util/List;Ljava/util/Map;)V
+     149: areturn
+
+  public final java.lang.String toString();
+    Code:
+       0: aload_0
+       1: invokedynamic #221,  0            // InvokeDynamic #6:toString:(Ldev/ftb/mods/ftblibrary/util/KnownServerRegistries;)Ljava/lang/String;
+       6: areturn
+
+  public final int hashCode();
+    Code:
+       0: aload_0
+       1: invokedynamic #226,  0            // InvokeDynamic #6:hashCode:(Ldev/ftb/mods/ftblibrary/util/KnownServerRegistries;)I
+       6: ireturn
+
+  public final boolean equals(java.lang.Object);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: invokedynamic #231,  0            // InvokeDynamic #6:equals:(Ldev/ftb/mods/ftblibrary/util/KnownServerRegistries;Ljava/lang/Object;)Z
+       7: ireturn
+
+  public java.util.List<net.minecraft.resources.ResourceLocation> dimension();
+    Code:
+       0: aload_0
+       1: getfield      #38                 // Field dimension:Ljava/util/List;
+       4: areturn
+
+  public java.util.Map<net.minecraft.resources.ResourceLocation, dev.ftb.mods.ftblibrary.util.KnownServerRegistries$AdvancementInfo> advancements();
+    Code:
+       0: aload_0
+       1: getfield      #40                 // Field advancements:Ljava/util/Map;
+       4: areturn
+
+  private static java.util.LinkedHashMap lambda$create$6(java.util.List);
+    Code:
+       0: new           #238                // class java/util/LinkedHashMap
+       3: dup
+       4: aload_0
+       5: invokeinterface #241,  1          // InterfaceMethod java/util/List.size:()I
+      10: invokespecial #244                // Method java/util/LinkedHashMap."<init>":(I)V
+      13: areturn
+
+  private static dev.ftb.mods.ftblibrary.util.KnownServerRegistries$AdvancementInfo lambda$create$5(dev.ftb.mods.ftblibrary.util.KnownServerRegistries$AdvancementInfo, dev.ftb.mods.ftblibrary.util.KnownServerRegistries$AdvancementInfo);
+    Code:
+       0: aload_1
+       1: areturn
+
+  private static dev.ftb.mods.ftblibrary.util.KnownServerRegistries$AdvancementInfo lambda$create$4(dev.ftb.mods.ftblibrary.util.KnownServerRegistries$AdvancementInfo);
+    Code:
+       0: aload_0
+       1: areturn
+
+  private static net.minecraft.resources.ResourceLocation lambda$create$3(dev.ftb.mods.ftblibrary.util.KnownServerRegistries$AdvancementInfo);
+    Code:
+       0: aload_0
+       1: getfield      #252                // Field dev/ftb/mods/ftblibrary/util/KnownServerRegistries$AdvancementInfo.id:Lnet/minecraft/resources/ResourceLocation;
+       4: areturn
+
+  private static net.minecraft.resources.ResourceLocation lambda$create$2(dev.ftb.mods.ftblibrary.util.KnownServerRegistries$AdvancementInfo);
+    Code:
+       0: aload_0
+       1: getfield      #252                // Field dev/ftb/mods/ftblibrary/util/KnownServerRegistries$AdvancementInfo.id:Lnet/minecraft/resources/ResourceLocation;
+       4: areturn
+
+  private static void lambda$create$1(java.util.List, net.minecraft.advancements.AdvancementHolder);
+    Code:
+       0: aload_1
+       1: invokevirtual #259                // Method net/minecraft/advancements/AdvancementHolder.value:()Lnet/minecraft/advancements/Advancement;
+       4: invokevirtual #265                // Method net/minecraft/advancements/Advancement.display:()Ljava/util/Optional;
+       7: aload_0
+       8: aload_1
+       9: invokedynamic #275,  0            // InvokeDynamic #7:accept:(Ljava/util/List;Lnet/minecraft/advancements/AdvancementHolder;)Ljava/util/function/Consumer;
+      14: invokevirtual #280                // Method java/util/Optional.ifPresent:(Ljava/util/function/Consumer;)V
+      17: return
+
+  private static void lambda$create$0(java.util.List, net.minecraft.advancements.AdvancementHolder, net.minecraft.advancements.DisplayInfo);
+    Code:
+       0: aload_0
+       1: new           #7                  // class dev/ftb/mods/ftblibrary/util/KnownServerRegistries$AdvancementInfo
+       4: dup
+       5: aload_1
+       6: invokevirtual #283                // Method net/minecraft/advancements/AdvancementHolder.id:()Lnet/minecraft/resources/ResourceLocation;
+       9: aload_2
+      10: invokevirtual #289                // Method net/minecraft/advancements/DisplayInfo.getTitle:()Lnet/minecraft/network/chat/Component;
+      13: aload_2
+      14: invokevirtual #293                // Method net/minecraft/advancements/DisplayInfo.getIcon:()Lnet/minecraft/world/item/ItemStack;
+      17: invokespecial #296                // Method dev/ftb/mods/ftblibrary/util/KnownServerRegistries$AdvancementInfo."<init>":(Lnet/minecraft/resources/ResourceLocation;Lnet/minecraft/network/chat/Component;Lnet/minecraft/world/item/ItemStack;)V
+      20: invokeinterface #85,  2           // InterfaceMethod java/util/List.add:(Ljava/lang/Object;)Z
+      25: pop
+      26: return
+
+  static {};
+    Code:
+       0: getstatic     #302                // Field net/minecraft/resources/ResourceLocation.STREAM_CODEC:Lnet/minecraft/network/codec/StreamCodec;
+       3: invokestatic  #308                // InterfaceMethod net/minecraft/network/codec/ByteBufCodecs.list:()Lnet/minecraft/network/codec/StreamCodec$CodecOperation;
+       6: invokeinterface #311,  2          // InterfaceMethod net/minecraft/network/codec/StreamCodec.apply:(Lnet/minecraft/network/codec/StreamCodec$CodecOperation;)Lnet/minecraft/network/codec/StreamCodec;
+      11: invokedynamic #317,  0            // InvokeDynamic #8:apply:()Ljava/util/function/Function;
+      16: invokedynamic #325,  0            // InvokeDynamic #9:apply:()Ljava/util/function/IntFunction;
+      21: getstatic     #302                // Field net/minecraft/resources/ResourceLocation.STREAM_CODEC:Lnet/minecraft/network/codec/StreamCodec;
+      24: getstatic     #326                // Field dev/ftb/mods/ftblibrary/util/KnownServerRegistries$AdvancementInfo.STREAM_CODEC:Lnet/minecraft/network/codec/StreamCodec;
+      27: invokestatic  #329                // InterfaceMethod net/minecraft/network/codec/ByteBufCodecs.map:(Ljava/util/function/IntFunction;Lnet/minecraft/network/codec/StreamCodec;Lnet/minecraft/network/codec/StreamCodec;)Lnet/minecraft/network/codec/StreamCodec;
+      30: invokedynamic #335,  0            // InvokeDynamic #10:apply:()Ljava/util/function/Function;
+      35: invokedynamic #341,  0            // InvokeDynamic #11:apply:()Ljava/util/function/BiFunction;
+      40: invokestatic  #345                // InterfaceMethod net/minecraft/network/codec/StreamCodec.composite:(Lnet/minecraft/network/codec/StreamCodec;Ljava/util/function/Function;Lnet/minecraft/network/codec/StreamCodec;Ljava/util/function/Function;Ljava/util/function/BiFunction;)Lnet/minecraft/network/codec/StreamCodec;
+      43: putstatic     #346                // Field STREAM_CODEC:Lnet/minecraft/network/codec/StreamCodec;
+      46: return
+}

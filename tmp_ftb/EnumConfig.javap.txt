@@ -1,0 +1,200 @@
+Compiled from "EnumConfig.java"
+public class dev.ftb.mods.ftblibrary.config.EnumConfig<E> extends dev.ftb.mods.ftblibrary.config.ConfigWithVariants<E> {
+  public final dev.ftb.mods.ftblibrary.config.NameMap<E> nameMap;
+
+  public dev.ftb.mods.ftblibrary.config.EnumConfig(dev.ftb.mods.ftblibrary.config.NameMap<E>);
+    Code:
+       0: aload_0
+       1: invokespecial #26                 // Method dev/ftb/mods/ftblibrary/config/ConfigWithVariants."<init>":()V
+       4: aload_0
+       5: aload_1
+       6: putfield      #28                 // Field nameMap:Ldev/ftb/mods/ftblibrary/config/NameMap;
+       9: aload_0
+      10: aload_0
+      11: getfield      #28                 // Field nameMap:Ldev/ftb/mods/ftblibrary/config/NameMap;
+      14: getfield      #34                 // Field dev/ftb/mods/ftblibrary/config/NameMap.defaultValue:Ljava/lang/Object;
+      17: putfield      #35                 // Field defaultValue:Ljava/lang/Object;
+      20: aload_0
+      21: aload_0
+      22: getfield      #28                 // Field nameMap:Ldev/ftb/mods/ftblibrary/config/NameMap;
+      25: getfield      #34                 // Field dev/ftb/mods/ftblibrary/config/NameMap.defaultValue:Ljava/lang/Object;
+      28: putfield      #38                 // Field value:Ljava/lang/Object;
+      31: return
+
+  public net.minecraft.network.chat.Component getStringForGUI(E);
+    Code:
+       0: aload_0
+       1: getfield      #28                 // Field nameMap:Ldev/ftb/mods/ftblibrary/config/NameMap;
+       4: aload_1
+       5: invokevirtual #48                 // Method dev/ftb/mods/ftblibrary/config/NameMap.getDisplayName:(Ljava/lang/Object;)Lnet/minecraft/network/chat/Component;
+       8: areturn
+
+  public dev.ftb.mods.ftblibrary.icon.Color4I getColor(E);
+    Code:
+       0: aload_0
+       1: getfield      #28                 // Field nameMap:Ldev/ftb/mods/ftblibrary/config/NameMap;
+       4: aload_1
+       5: invokevirtual #54                 // Method dev/ftb/mods/ftblibrary/config/NameMap.getColor:(Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/icon/Color4I;
+       8: astore_2
+       9: aload_2
+      10: invokevirtual #60                 // Method dev/ftb/mods/ftblibrary/icon/Color4I.isEmpty:()Z
+      13: ifeq          25
+      16: getstatic     #66                 // Field dev/ftb/mods/ftblibrary/config/Tristate.DEFAULT:Ldev/ftb/mods/ftblibrary/config/Tristate;
+      19: getfield      #70                 // Field dev/ftb/mods/ftblibrary/config/Tristate.color:Ldev/ftb/mods/ftblibrary/icon/Color4I;
+      22: goto          26
+      25: aload_2
+      26: areturn
+
+  public void addInfo(dev.ftb.mods.ftblibrary.util.TooltipList);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: invokespecial #76                 // Method dev/ftb/mods/ftblibrary/config/ConfigWithVariants.addInfo:(Ldev/ftb/mods/ftblibrary/util/TooltipList;)V
+       5: aload_0
+       6: getfield      #28                 // Field nameMap:Ldev/ftb/mods/ftblibrary/config/NameMap;
+       9: invokevirtual #80                 // Method dev/ftb/mods/ftblibrary/config/NameMap.size:()I
+      12: ifle          164
+      15: aload_1
+      16: invokevirtual #85                 // Method dev/ftb/mods/ftblibrary/util/TooltipList.blankLine:()V
+      19: iconst_0
+      20: istore_2
+      21: iload_2
+      22: aload_0
+      23: getfield      #28                 // Field nameMap:Ldev/ftb/mods/ftblibrary/config/NameMap;
+      26: invokevirtual #80                 // Method dev/ftb/mods/ftblibrary/config/NameMap.size:()I
+      29: if_icmpge     164
+      32: iload_2
+      33: bipush        10
+      35: if_icmplt     81
+      38: aload_1
+      39: aload_0
+      40: getfield      #28                 // Field nameMap:Ldev/ftb/mods/ftblibrary/config/NameMap;
+      43: invokevirtual #80                 // Method dev/ftb/mods/ftblibrary/config/NameMap.size:()I
+      46: iload_2
+      47: isub
+      48: invokedynamic #97,  0             // InvokeDynamic #0:makeConcatWithConstants:(I)Ljava/lang/String;
+      53: invokestatic  #103                // InterfaceMethod net/minecraft/network/chat/Component.literal:(Ljava/lang/String;)Lnet/minecraft/network/chat/MutableComponent;
+      56: iconst_2
+      57: anewarray     #105                // class net/minecraft/ChatFormatting
+      60: dup
+      61: iconst_0
+      62: getstatic     #109                // Field net/minecraft/ChatFormatting.GRAY:Lnet/minecraft/ChatFormatting;
+      65: aastore
+      66: dup
+      67: iconst_1
+      68: getstatic     #112                // Field net/minecraft/ChatFormatting.ITALIC:Lnet/minecraft/ChatFormatting;
+      71: aastore
+      72: invokevirtual #118                // Method net/minecraft/network/chat/MutableComponent.withStyle:([Lnet/minecraft/ChatFormatting;)Lnet/minecraft/network/chat/MutableComponent;
+      75: invokevirtual #122                // Method dev/ftb/mods/ftblibrary/util/TooltipList.add:(Lnet/minecraft/network/chat/Component;)V
+      78: goto          164
+      81: aload_0
+      82: getfield      #28                 // Field nameMap:Ldev/ftb/mods/ftblibrary/config/NameMap;
+      85: iload_2
+      86: invokevirtual #126                // Method dev/ftb/mods/ftblibrary/config/NameMap.get:(I)Ljava/lang/Object;
+      89: astore_3
+      90: aload_0
+      91: aload_3
+      92: aload_0
+      93: getfield      #38                 // Field value:Ljava/lang/Object;
+      96: invokevirtual #130                // Method isEqual:(Ljava/lang/Object;Ljava/lang/Object;)Z
+      99: istore        4
+     101: iload         4
+     103: ifeq          111
+     106: ldc           #132                // String +
+     108: goto          113
+     111: ldc           #136                // String -
+     113: invokestatic  #103                // InterfaceMethod net/minecraft/network/chat/Component.literal:(Ljava/lang/String;)Lnet/minecraft/network/chat/MutableComponent;
+     116: astore        5
+     118: aload         5
+     120: iload         4
+     122: ifeq          131
+     125: getstatic     #141                // Field net/minecraft/ChatFormatting.AQUA:Lnet/minecraft/ChatFormatting;
+     128: goto          134
+     131: getstatic     #144                // Field net/minecraft/ChatFormatting.DARK_GRAY:Lnet/minecraft/ChatFormatting;
+     134: invokevirtual #147                // Method net/minecraft/network/chat/MutableComponent.withStyle:(Lnet/minecraft/ChatFormatting;)Lnet/minecraft/network/chat/MutableComponent;
+     137: pop
+     138: aload         5
+     140: aload_0
+     141: getfield      #28                 // Field nameMap:Ldev/ftb/mods/ftblibrary/config/NameMap;
+     144: aload_3
+     145: invokevirtual #48                 // Method dev/ftb/mods/ftblibrary/config/NameMap.getDisplayName:(Ljava/lang/Object;)Lnet/minecraft/network/chat/Component;
+     148: invokevirtual #151                // Method net/minecraft/network/chat/MutableComponent.append:(Lnet/minecraft/network/chat/Component;)Lnet/minecraft/network/chat/MutableComponent;
+     151: pop
+     152: aload_1
+     153: aload         5
+     155: invokevirtual #122                // Method dev/ftb/mods/ftblibrary/util/TooltipList.add:(Lnet/minecraft/network/chat/Component;)V
+     158: iinc          2, 1
+     161: goto          21
+     164: return
+
+  public void onClicked(dev.ftb.mods.ftblibrary.ui.Widget, dev.ftb.mods.ftblibrary.ui.input.MouseButton, dev.ftb.mods.ftblibrary.config.ConfigCallback);
+    Code:
+       0: aload_0
+       1: getfield      #28                 // Field nameMap:Ldev/ftb/mods/ftblibrary/config/NameMap;
+       4: getfield      #167                // Field dev/ftb/mods/ftblibrary/config/NameMap.values:Ljava/util/List;
+       7: invokeinterface #170,  1          // InterfaceMethod java/util/List.size:()I
+      12: bipush        16
+      14: if_icmpgt     23
+      17: invokestatic  #175                // Method dev/ftb/mods/ftblibrary/ui/BaseScreen.isCtrlKeyDown:()Z
+      20: ifeq          64
+      23: new           #8                  // class dev/ftb/mods/ftblibrary/config/EnumConfig$EnumSelectScreen
+      26: dup
+      27: aload_0
+      28: aload_1
+      29: invokevirtual #181                // Method dev/ftb/mods/ftblibrary/ui/Widget.getParent:()Ldev/ftb/mods/ftblibrary/ui/Panel;
+      32: aload_3
+      33: invokespecial #184                // Method dev/ftb/mods/ftblibrary/config/EnumConfig$EnumSelectScreen."<init>":(Ldev/ftb/mods/ftblibrary/config/EnumConfig;Ldev/ftb/mods/ftblibrary/ui/Panel;Ldev/ftb/mods/ftblibrary/config/ConfigCallback;)V
+      36: astore        4
+      38: aload         4
+      40: iconst_1
+      41: invokevirtual #188                // Method dev/ftb/mods/ftblibrary/config/EnumConfig$EnumSelectScreen.setHasSearchBox:(Z)V
+      44: aload         4
+      46: iconst_0
+      47: invokevirtual #191                // Method dev/ftb/mods/ftblibrary/config/EnumConfig$EnumSelectScreen.showBottomPanel:(Z)V
+      50: aload         4
+      52: iconst_1
+      53: invokevirtual #194                // Method dev/ftb/mods/ftblibrary/config/EnumConfig$EnumSelectScreen.showCloseButton:(Z)V
+      56: aload         4
+      58: invokevirtual #197                // Method dev/ftb/mods/ftblibrary/config/EnumConfig$EnumSelectScreen.openGui:()V
+      61: goto          71
+      64: aload_0
+      65: aload_1
+      66: aload_2
+      67: aload_3
+      68: invokespecial #199                // Method dev/ftb/mods/ftblibrary/config/ConfigWithVariants.onClicked:(Ldev/ftb/mods/ftblibrary/ui/Widget;Ldev/ftb/mods/ftblibrary/ui/input/MouseButton;Ldev/ftb/mods/ftblibrary/config/ConfigCallback;)V
+      71: return
+
+  public E getIteration(E, boolean);
+    Code:
+       0: iload_2
+       1: ifeq          15
+       4: aload_0
+       5: getfield      #28                 // Field nameMap:Ldev/ftb/mods/ftblibrary/config/NameMap;
+       8: aload_1
+       9: invokevirtual #214                // Method dev/ftb/mods/ftblibrary/config/NameMap.getNext:(Ljava/lang/Object;)Ljava/lang/Object;
+      12: goto          23
+      15: aload_0
+      16: getfield      #28                 // Field nameMap:Ldev/ftb/mods/ftblibrary/config/NameMap;
+      19: aload_1
+      20: invokevirtual #217                // Method dev/ftb/mods/ftblibrary/config/NameMap.getPrevious:(Ljava/lang/Object;)Ljava/lang/Object;
+      23: areturn
+
+  public dev.ftb.mods.ftblibrary.icon.Icon getIcon(E);
+    Code:
+       0: aload_1
+       1: ifnull        22
+       4: aload_0
+       5: getfield      #28                 // Field nameMap:Ldev/ftb/mods/ftblibrary/config/NameMap;
+       8: aload_1
+       9: invokevirtual #223                // Method dev/ftb/mods/ftblibrary/config/NameMap.getIcon:(Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/icon/Icon;
+      12: astore_2
+      13: aload_2
+      14: invokevirtual #226                // Method dev/ftb/mods/ftblibrary/icon/Icon.isEmpty:()Z
+      17: ifne          22
+      20: aload_2
+      21: areturn
+      22: aload_0
+      23: aload_1
+      24: invokespecial #227                // Method dev/ftb/mods/ftblibrary/config/ConfigWithVariants.getIcon:(Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/icon/Icon;
+      27: areturn
+}

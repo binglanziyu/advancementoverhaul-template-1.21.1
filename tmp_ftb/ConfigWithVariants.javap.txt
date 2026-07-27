@@ -1,0 +1,32 @@
+Compiled from "ConfigWithVariants.java"
+public abstract class dev.ftb.mods.ftblibrary.config.ConfigWithVariants<T> extends dev.ftb.mods.ftblibrary.config.ConfigValue<T> {
+  public dev.ftb.mods.ftblibrary.config.ConfigWithVariants();
+    Code:
+       0: aload_0
+       1: invokespecial #10                 // Method dev/ftb/mods/ftblibrary/config/ConfigValue."<init>":()V
+       4: return
+
+  public abstract T getIteration(T, boolean);
+
+  public void onClicked(dev.ftb.mods.ftblibrary.ui.Widget, dev.ftb.mods.ftblibrary.ui.input.MouseButton, dev.ftb.mods.ftblibrary.config.ConfigCallback);
+    Code:
+       0: aload_0
+       1: getfield      #25                 // Field value:Ljava/lang/Object;
+       4: ifnull        40
+       7: aload_0
+       8: invokevirtual #29                 // Method getCanEdit:()Z
+      11: ifeq          40
+      14: aload_0
+      15: aload_0
+      16: aload_0
+      17: getfield      #25                 // Field value:Ljava/lang/Object;
+      20: aload_2
+      21: invokevirtual #34                 // Method dev/ftb/mods/ftblibrary/ui/input/MouseButton.isLeft:()Z
+      24: invokevirtual #36                 // Method getIteration:(Ljava/lang/Object;Z)Ljava/lang/Object;
+      27: invokevirtual #40                 // Method setCurrentValue:(Ljava/lang/Object;)Z
+      30: istore        4
+      32: aload_3
+      33: iload         4
+      35: invokeinterface #46,  2           // InterfaceMethod dev/ftb/mods/ftblibrary/config/ConfigCallback.save:(Z)V
+      40: return
+}

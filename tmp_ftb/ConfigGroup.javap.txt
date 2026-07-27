@@ -1,0 +1,610 @@
+Compiled from "ConfigGroup.java"
+public class dev.ftb.mods.ftblibrary.config.ConfigGroup implements java.lang.Comparable<dev.ftb.mods.ftblibrary.config.ConfigGroup> {
+  private final java.lang.String id;
+
+  private final dev.ftb.mods.ftblibrary.config.ConfigGroup parent;
+
+  private final java.util.Map<java.lang.String, dev.ftb.mods.ftblibrary.config.ConfigValue<?>> values;
+
+  private final java.util.Map<java.lang.String, dev.ftb.mods.ftblibrary.config.ConfigGroup> subgroups;
+
+  private final dev.ftb.mods.ftblibrary.config.ConfigCallback savedCallback;
+
+  private final int displayOrder;
+
+  private java.lang.String nameKey;
+
+  private dev.ftb.mods.ftblibrary.config.ConfigGroup(java.lang.String, dev.ftb.mods.ftblibrary.config.ConfigGroup, dev.ftb.mods.ftblibrary.config.ConfigCallback, int);
+    Code:
+       0: aload_0
+       1: invokespecial #32                 // Method java/lang/Object."<init>":()V
+       4: aload_0
+       5: aload_1
+       6: putfield      #34                 // Field id:Ljava/lang/String;
+       9: aload_0
+      10: aload_2
+      11: putfield      #36                 // Field parent:Ldev/ftb/mods/ftblibrary/config/ConfigGroup;
+      14: aload_0
+      15: new           #38                 // class java/util/LinkedHashMap
+      18: dup
+      19: invokespecial #39                 // Method java/util/LinkedHashMap."<init>":()V
+      22: putfield      #41                 // Field values:Ljava/util/Map;
+      25: aload_0
+      26: new           #38                 // class java/util/LinkedHashMap
+      29: dup
+      30: invokespecial #39                 // Method java/util/LinkedHashMap."<init>":()V
+      33: putfield      #43                 // Field subgroups:Ljava/util/Map;
+      36: aload_0
+      37: aload_3
+      38: putfield      #45                 // Field savedCallback:Ldev/ftb/mods/ftblibrary/config/ConfigCallback;
+      41: aload_0
+      42: ldc           #47                 // String
+      44: putfield      #49                 // Field nameKey:Ljava/lang/String;
+      47: aload_0
+      48: iload         4
+      50: putfield      #51                 // Field displayOrder:I
+      53: return
+
+  public dev.ftb.mods.ftblibrary.config.ConfigGroup(java.lang.String);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: aconst_null
+       3: aconst_null
+       4: iconst_0
+       5: invokespecial #55                 // Method "<init>":(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigGroup;Ldev/ftb/mods/ftblibrary/config/ConfigCallback;I)V
+       8: return
+
+  public dev.ftb.mods.ftblibrary.config.ConfigGroup(java.lang.String, dev.ftb.mods.ftblibrary.config.ConfigCallback);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: aconst_null
+       3: aload_2
+       4: iconst_0
+       5: invokespecial #55                 // Method "<init>":(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigGroup;Ldev/ftb/mods/ftblibrary/config/ConfigCallback;I)V
+       8: return
+
+  public static dev.ftb.mods.ftblibrary.config.ConfigGroup createEditable(dev.ftb.mods.ftblibrary.snbt.config.SNBTConfig, java.lang.String, boolean);
+    Code:
+       0: new           #2                  // class dev/ftb/mods/ftblibrary/config/ConfigGroup
+       3: dup
+       4: aload_1
+       5: iload_2
+       6: aload_0
+       7: invokedynamic #79,  0             // InvokeDynamic #0:save:(ZLdev/ftb/mods/ftblibrary/snbt/config/SNBTConfig;)Ldev/ftb/mods/ftblibrary/config/ConfigCallback;
+      12: invokespecial #81                 // Method "<init>":(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigCallback;)V
+      15: areturn
+
+  public java.lang.String getId();
+    Code:
+       0: aload_0
+       1: getfield      #34                 // Field id:Ljava/lang/String;
+       4: areturn
+
+  public dev.ftb.mods.ftblibrary.config.ConfigGroup getParent();
+    Code:
+       0: aload_0
+       1: getfield      #36                 // Field parent:Ldev/ftb/mods/ftblibrary/config/ConfigGroup;
+       4: areturn
+
+  public java.lang.String getNameKey();
+    Code:
+       0: aload_0
+       1: getfield      #49                 // Field nameKey:Ljava/lang/String;
+       4: invokevirtual #95                 // Method java/lang/String.isEmpty:()Z
+       7: ifeq          17
+      10: aload_0
+      11: invokevirtual #98                 // Method getPath:()Ljava/lang/String;
+      14: goto          21
+      17: aload_0
+      18: getfield      #49                 // Field nameKey:Ljava/lang/String;
+      21: areturn
+
+  public dev.ftb.mods.ftblibrary.config.ConfigGroup setNameKey(java.lang.String);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: putfield      #49                 // Field nameKey:Ljava/lang/String;
+       5: aload_0
+       6: areturn
+
+  public net.minecraft.network.chat.Component getName();
+    Code:
+       0: aload_0
+       1: invokevirtual #105                // Method getNameKey:()Ljava/lang/String;
+       4: invokestatic  #111                // InterfaceMethod net/minecraft/network/chat/Component.translatable:(Ljava/lang/String;)Lnet/minecraft/network/chat/MutableComponent;
+       7: areturn
+
+  public net.minecraft.network.chat.Component getTooltip();
+    Code:
+       0: aload_0
+       1: invokevirtual #105                // Method getNameKey:()Ljava/lang/String;
+       4: invokedynamic #124,  0            // InvokeDynamic #1:makeConcatWithConstants:(Ljava/lang/String;)Ljava/lang/String;
+       9: astore_1
+      10: aload_1
+      11: invokestatic  #130                // Method net/minecraft/client/resources/language/I18n.exists:(Ljava/lang/String;)Z
+      14: ifeq          24
+      17: aload_1
+      18: invokestatic  #111                // InterfaceMethod net/minecraft/network/chat/Component.translatable:(Ljava/lang/String;)Lnet/minecraft/network/chat/MutableComponent;
+      21: goto          27
+      24: invokestatic  #134                // InterfaceMethod net/minecraft/network/chat/Component.empty:()Lnet/minecraft/network/chat/MutableComponent;
+      27: areturn
+
+  public dev.ftb.mods.ftblibrary.config.ConfigGroup getOrCreateSubgroup(java.lang.String, int);
+    Code:
+       0: aload_1
+       1: bipush        46
+       3: invokevirtual #143                // Method java/lang/String.indexOf:(I)I
+       6: istore_3
+       7: iload_3
+       8: iconst_m1
+       9: if_icmpne     34
+      12: aload_0
+      13: getfield      #43                 // Field subgroups:Ljava/util/Map;
+      16: aload_1
+      17: aload_0
+      18: aload_1
+      19: iload_2
+      20: invokedynamic #155,  0            // InvokeDynamic #2:apply:(Ldev/ftb/mods/ftblibrary/config/ConfigGroup;Ljava/lang/String;I)Ljava/util/function/Function;
+      25: invokeinterface #161,  3          // InterfaceMethod java/util/Map.computeIfAbsent:(Ljava/lang/Object;Ljava/util/function/Function;)Ljava/lang/Object;
+      30: checkcast     #2                  // class dev/ftb/mods/ftblibrary/config/ConfigGroup
+      33: areturn
+      34: aload_0
+      35: aload_1
+      36: iconst_0
+      37: iload_3
+      38: invokevirtual #165                // Method java/lang/String.substring:(II)Ljava/lang/String;
+      41: iload_2
+      42: invokevirtual #167                // Method getOrCreateSubgroup:(Ljava/lang/String;I)Ldev/ftb/mods/ftblibrary/config/ConfigGroup;
+      45: aload_1
+      46: iload_3
+      47: iconst_1
+      48: iadd
+      49: invokevirtual #170                // Method java/lang/String.substring:(I)Ljava/lang/String;
+      52: iload_2
+      53: invokevirtual #167                // Method getOrCreateSubgroup:(Ljava/lang/String;I)Ldev/ftb/mods/ftblibrary/config/ConfigGroup;
+      56: areturn
+
+  public dev.ftb.mods.ftblibrary.config.ConfigGroup getOrCreateSubgroup(java.lang.String);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: iconst_0
+       3: invokevirtual #167                // Method getOrCreateSubgroup:(Ljava/lang/String;I)Ldev/ftb/mods/ftblibrary/config/ConfigGroup;
+       6: areturn
+
+  public <T, CV extends dev.ftb.mods.ftblibrary.config.ConfigValue<T>> CV add(java.lang.String, CV, T, java.util.function.Consumer<T>, T);
+    Code:
+       0: aload_0
+       1: getfield      #41                 // Field values:Ljava/util/Map;
+       4: aload_1
+       5: aload_2
+       6: aload_0
+       7: aload_1
+       8: aload_3
+       9: aload         4
+      11: aload         5
+      13: invokevirtual #184                // Method dev/ftb/mods/ftblibrary/config/ConfigValue.init:(Ldev/ftb/mods/ftblibrary/config/ConfigGroup;Ljava/lang/String;Ljava/lang/Object;Ljava/util/function/Consumer;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/ConfigValue;
+      16: invokeinterface #188,  3          // InterfaceMethod java/util/Map.put:(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+      21: pop
+      22: aload_2
+      23: areturn
+
+  public dev.ftb.mods.ftblibrary.config.BooleanConfig addBool(java.lang.String, boolean, java.util.function.Consumer<java.lang.Boolean>, boolean);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: new           #200                // class dev/ftb/mods/ftblibrary/config/BooleanConfig
+       5: dup
+       6: invokespecial #201                // Method dev/ftb/mods/ftblibrary/config/BooleanConfig."<init>":()V
+       9: iload_2
+      10: invokestatic  #207                // Method java/lang/Boolean.valueOf:(Z)Ljava/lang/Boolean;
+      13: aload_3
+      14: iload         4
+      16: invokestatic  #207                // Method java/lang/Boolean.valueOf:(Z)Ljava/lang/Boolean;
+      19: invokevirtual #209                // Method add:(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigValue;Ljava/lang/Object;Ljava/util/function/Consumer;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/ConfigValue;
+      22: checkcast     #200                // class dev/ftb/mods/ftblibrary/config/BooleanConfig
+      25: areturn
+
+  public dev.ftb.mods.ftblibrary.config.IntConfig addInt(java.lang.String, int, java.util.function.Consumer<java.lang.Integer>, int, int, int);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: new           #217                // class dev/ftb/mods/ftblibrary/config/IntConfig
+       5: dup
+       6: iload         5
+       8: iload         6
+      10: invokespecial #220                // Method dev/ftb/mods/ftblibrary/config/IntConfig."<init>":(II)V
+      13: iload_2
+      14: invokestatic  #225                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+      17: aload_3
+      18: iload         4
+      20: invokestatic  #225                // Method java/lang/Integer.valueOf:(I)Ljava/lang/Integer;
+      23: invokevirtual #209                // Method add:(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigValue;Ljava/lang/Object;Ljava/util/function/Consumer;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/ConfigValue;
+      26: checkcast     #217                // class dev/ftb/mods/ftblibrary/config/IntConfig
+      29: areturn
+
+  public dev.ftb.mods.ftblibrary.config.LongConfig addLong(java.lang.String, long, java.util.function.Consumer<java.lang.Long>, long, long, long);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: new           #231                // class dev/ftb/mods/ftblibrary/config/LongConfig
+       5: dup
+       6: lload         7
+       8: lload         9
+      10: invokespecial #234                // Method dev/ftb/mods/ftblibrary/config/LongConfig."<init>":(JJ)V
+      13: lload_2
+      14: invokestatic  #239                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+      17: aload         4
+      19: lload         5
+      21: invokestatic  #239                // Method java/lang/Long.valueOf:(J)Ljava/lang/Long;
+      24: invokevirtual #209                // Method add:(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigValue;Ljava/lang/Object;Ljava/util/function/Consumer;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/ConfigValue;
+      27: checkcast     #231                // class dev/ftb/mods/ftblibrary/config/LongConfig
+      30: areturn
+
+  public dev.ftb.mods.ftblibrary.config.DoubleConfig addDouble(java.lang.String, double, java.util.function.Consumer<java.lang.Double>, double, double, double);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: new           #246                // class dev/ftb/mods/ftblibrary/config/DoubleConfig
+       5: dup
+       6: dload         7
+       8: dload         9
+      10: invokespecial #249                // Method dev/ftb/mods/ftblibrary/config/DoubleConfig."<init>":(DD)V
+      13: dload_2
+      14: invokestatic  #254                // Method java/lang/Double.valueOf:(D)Ljava/lang/Double;
+      17: aload         4
+      19: dload         5
+      21: invokestatic  #254                // Method java/lang/Double.valueOf:(D)Ljava/lang/Double;
+      24: invokevirtual #209                // Method add:(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigValue;Ljava/lang/Object;Ljava/util/function/Consumer;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/ConfigValue;
+      27: checkcast     #246                // class dev/ftb/mods/ftblibrary/config/DoubleConfig
+      30: areturn
+
+  public dev.ftb.mods.ftblibrary.config.StringConfig addString(java.lang.String, java.lang.String, java.util.function.Consumer<java.lang.String>, java.lang.String, java.util.regex.Pattern);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: new           #262                // class dev/ftb/mods/ftblibrary/config/StringConfig
+       5: dup
+       6: aload         5
+       8: invokespecial #265                // Method dev/ftb/mods/ftblibrary/config/StringConfig."<init>":(Ljava/util/regex/Pattern;)V
+      11: aload_2
+      12: aload_3
+      13: aload         4
+      15: invokevirtual #209                // Method add:(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigValue;Ljava/lang/Object;Ljava/util/function/Consumer;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/ConfigValue;
+      18: checkcast     #262                // class dev/ftb/mods/ftblibrary/config/StringConfig
+      21: areturn
+
+  public dev.ftb.mods.ftblibrary.config.StringConfig addString(java.lang.String, java.lang.String, java.util.function.Consumer<java.lang.String>, java.lang.String);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: aload_2
+       3: aload_3
+       4: aload         4
+       6: aconst_null
+       7: invokevirtual #271                // Method addString:(Ljava/lang/String;Ljava/lang/String;Ljava/util/function/Consumer;Ljava/lang/String;Ljava/util/regex/Pattern;)Ldev/ftb/mods/ftblibrary/config/StringConfig;
+      10: areturn
+
+  public <E> dev.ftb.mods.ftblibrary.config.EnumConfig<E> addEnum(java.lang.String, E, java.util.function.Consumer<E>, dev.ftb.mods.ftblibrary.config.NameMap<E>, E);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: new           #277                // class dev/ftb/mods/ftblibrary/config/EnumConfig
+       5: dup
+       6: aload         4
+       8: invokespecial #280                // Method dev/ftb/mods/ftblibrary/config/EnumConfig."<init>":(Ldev/ftb/mods/ftblibrary/config/NameMap;)V
+      11: aload_2
+      12: aload_3
+      13: aload         5
+      15: invokevirtual #209                // Method add:(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigValue;Ljava/lang/Object;Ljava/util/function/Consumer;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/ConfigValue;
+      18: checkcast     #277                // class dev/ftb/mods/ftblibrary/config/EnumConfig
+      21: areturn
+
+  public <E> dev.ftb.mods.ftblibrary.config.EnumConfig<E> addEnum(java.lang.String, E, java.util.function.Consumer<E>, dev.ftb.mods.ftblibrary.config.NameMap<E>);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: aload_2
+       3: aload_3
+       4: aload         4
+       6: aload         4
+       8: getfield      #290                // Field dev/ftb/mods/ftblibrary/config/NameMap.defaultValue:Ljava/lang/Object;
+      11: invokevirtual #292                // Method addEnum:(Ljava/lang/String;Ljava/lang/Object;Ljava/util/function/Consumer;Ldev/ftb/mods/ftblibrary/config/NameMap;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/EnumConfig;
+      14: areturn
+
+  public <E, CV extends dev.ftb.mods.ftblibrary.config.ConfigValue<E>> dev.ftb.mods.ftblibrary.config.ListConfig<E, CV> addList(java.lang.String, java.util.List<E>, CV, E);
+    Code:
+       0: aload_3
+       1: aload         4
+       3: invokevirtual #299                // Method dev/ftb/mods/ftblibrary/config/ConfigValue.setDefaultValue:(Ljava/lang/Object;)V
+       6: aload_0
+       7: aload_1
+       8: new           #301                // class dev/ftb/mods/ftblibrary/config/ListConfig
+      11: dup
+      12: aload_3
+      13: invokespecial #304                // Method dev/ftb/mods/ftblibrary/config/ListConfig."<init>":(Ldev/ftb/mods/ftblibrary/config/ConfigValue;)V
+      16: aload_2
+      17: aload_2
+      18: invokedynamic #316,  0            // InvokeDynamic #3:accept:(Ljava/util/List;)Ljava/util/function/Consumer;
+      23: invokestatic  #322                // Method java/util/Collections.emptyList:()Ljava/util/List;
+      26: invokevirtual #209                // Method add:(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigValue;Ljava/lang/Object;Ljava/util/function/Consumer;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/ConfigValue;
+      29: checkcast     #301                // class dev/ftb/mods/ftblibrary/config/ListConfig
+      32: areturn
+
+  public <E, CV extends dev.ftb.mods.ftblibrary.config.ConfigValue<E>> dev.ftb.mods.ftblibrary.config.ListConfig<E, CV> addList(java.lang.String, java.util.List<E>, CV, java.util.function.Consumer<java.util.List<E>>, E);
+    Code:
+       0: aload_3
+       1: aload         5
+       3: invokevirtual #299                // Method dev/ftb/mods/ftblibrary/config/ConfigValue.setDefaultValue:(Ljava/lang/Object;)V
+       6: aload_0
+       7: aload_1
+       8: new           #301                // class dev/ftb/mods/ftblibrary/config/ListConfig
+      11: dup
+      12: aload_3
+      13: invokespecial #304                // Method dev/ftb/mods/ftblibrary/config/ListConfig."<init>":(Ldev/ftb/mods/ftblibrary/config/ConfigValue;)V
+      16: aload_2
+      17: aload         4
+      19: invokestatic  #322                // Method java/util/Collections.emptyList:()Ljava/util/List;
+      22: invokevirtual #209                // Method add:(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigValue;Ljava/lang/Object;Ljava/util/function/Consumer;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/ConfigValue;
+      25: checkcast     #301                // class dev/ftb/mods/ftblibrary/config/ListConfig
+      28: areturn
+
+  public dev.ftb.mods.ftblibrary.config.EnumConfig<dev.ftb.mods.ftblibrary.config.Tristate> addTristate(java.lang.String, dev.ftb.mods.ftblibrary.config.Tristate, java.util.function.Consumer<dev.ftb.mods.ftblibrary.config.Tristate>, dev.ftb.mods.ftblibrary.config.Tristate);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: aload_2
+       3: aload_3
+       4: getstatic     #335                // Field dev/ftb/mods/ftblibrary/config/Tristate.NAME_MAP:Ldev/ftb/mods/ftblibrary/config/NameMap;
+       7: aload         4
+       9: invokevirtual #292                // Method addEnum:(Ljava/lang/String;Ljava/lang/Object;Ljava/util/function/Consumer;Ldev/ftb/mods/ftblibrary/config/NameMap;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/EnumConfig;
+      12: areturn
+
+  public dev.ftb.mods.ftblibrary.config.EnumConfig<dev.ftb.mods.ftblibrary.config.Tristate> addTristate(java.lang.String, dev.ftb.mods.ftblibrary.config.Tristate, java.util.function.Consumer<dev.ftb.mods.ftblibrary.config.Tristate>);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: aload_2
+       3: aload_3
+       4: getstatic     #342                // Field dev/ftb/mods/ftblibrary/config/Tristate.DEFAULT:Ldev/ftb/mods/ftblibrary/config/Tristate;
+       7: invokevirtual #344                // Method addTristate:(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/Tristate;Ljava/util/function/Consumer;Ldev/ftb/mods/ftblibrary/config/Tristate;)Ldev/ftb/mods/ftblibrary/config/EnumConfig;
+      10: areturn
+
+  public dev.ftb.mods.ftblibrary.config.ItemStackConfig addItemStack(java.lang.String, net.minecraft.world.item.ItemStack, java.util.function.Consumer<net.minecraft.world.item.ItemStack>, net.minecraft.world.item.ItemStack, boolean, boolean);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: new           #351                // class dev/ftb/mods/ftblibrary/config/ItemStackConfig
+       5: dup
+       6: iload         5
+       8: iload         6
+      10: invokespecial #354                // Method dev/ftb/mods/ftblibrary/config/ItemStackConfig."<init>":(ZZ)V
+      13: aload_2
+      14: aload_3
+      15: aload         4
+      17: invokevirtual #209                // Method add:(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigValue;Ljava/lang/Object;Ljava/util/function/Consumer;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/ConfigValue;
+      20: checkcast     #351                // class dev/ftb/mods/ftblibrary/config/ItemStackConfig
+      23: areturn
+
+  public dev.ftb.mods.ftblibrary.config.ItemStackConfig addItemStack(java.lang.String, net.minecraft.world.item.ItemStack, java.util.function.Consumer<net.minecraft.world.item.ItemStack>, net.minecraft.world.item.ItemStack, int);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: new           #351                // class dev/ftb/mods/ftblibrary/config/ItemStackConfig
+       5: dup
+       6: iload         5
+       8: i2l
+       9: invokespecial #362                // Method dev/ftb/mods/ftblibrary/config/ItemStackConfig."<init>":(J)V
+      12: aload_2
+      13: aload_3
+      14: aload         4
+      16: invokevirtual #209                // Method add:(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigValue;Ljava/lang/Object;Ljava/util/function/Consumer;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/ConfigValue;
+      19: checkcast     #351                // class dev/ftb/mods/ftblibrary/config/ItemStackConfig
+      22: areturn
+
+  public dev.ftb.mods.ftblibrary.config.FluidConfig addFluidStack(java.lang.String, dev.architectury.fluid.FluidStack, java.util.function.Consumer<dev.architectury.fluid.FluidStack>, dev.architectury.fluid.FluidStack, boolean);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: new           #367                // class dev/ftb/mods/ftblibrary/config/FluidConfig
+       5: dup
+       6: iload         5
+       8: invokespecial #369                // Method dev/ftb/mods/ftblibrary/config/FluidConfig."<init>":(Z)V
+      11: aload_2
+      12: aload_3
+      13: aload         4
+      15: invokevirtual #209                // Method add:(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigValue;Ljava/lang/Object;Ljava/util/function/Consumer;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/ConfigValue;
+      18: checkcast     #367                // class dev/ftb/mods/ftblibrary/config/FluidConfig
+      21: areturn
+
+  public dev.ftb.mods.ftblibrary.config.FluidConfig addFluidStack(java.lang.String, dev.architectury.fluid.FluidStack, java.util.function.Consumer<dev.architectury.fluid.FluidStack>, dev.architectury.fluid.FluidStack, long);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: new           #367                // class dev/ftb/mods/ftblibrary/config/FluidConfig
+       5: dup
+       6: lload         5
+       8: invokespecial #374                // Method dev/ftb/mods/ftblibrary/config/FluidConfig."<init>":(J)V
+      11: aload_2
+      12: aload_3
+      13: aload         4
+      15: invokevirtual #209                // Method add:(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigValue;Ljava/lang/Object;Ljava/util/function/Consumer;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/ConfigValue;
+      18: checkcast     #367                // class dev/ftb/mods/ftblibrary/config/FluidConfig
+      21: areturn
+
+  public dev.ftb.mods.ftblibrary.config.ImageResourceConfig addImage(java.lang.String, net.minecraft.resources.ResourceLocation, java.util.function.Consumer<net.minecraft.resources.ResourceLocation>, net.minecraft.resources.ResourceLocation);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: new           #379                // class dev/ftb/mods/ftblibrary/config/ImageResourceConfig
+       5: dup
+       6: invokespecial #380                // Method dev/ftb/mods/ftblibrary/config/ImageResourceConfig."<init>":()V
+       9: aload_2
+      10: aload_3
+      11: aload         4
+      13: invokevirtual #209                // Method add:(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigValue;Ljava/lang/Object;Ljava/util/function/Consumer;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/ConfigValue;
+      16: checkcast     #379                // class dev/ftb/mods/ftblibrary/config/ImageResourceConfig
+      19: areturn
+
+  public dev.ftb.mods.ftblibrary.config.EntityFaceConfig addEntityFace(java.lang.String, net.minecraft.world.entity.EntityType<?>, java.util.function.Consumer<net.minecraft.world.entity.EntityType<?>>, net.minecraft.world.entity.EntityType<?>);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: new           #387                // class dev/ftb/mods/ftblibrary/config/EntityFaceConfig
+       5: dup
+       6: invokespecial #388                // Method dev/ftb/mods/ftblibrary/config/EntityFaceConfig."<init>":()V
+       9: aload_2
+      10: aload_3
+      11: aload         4
+      13: invokevirtual #209                // Method add:(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigValue;Ljava/lang/Object;Ljava/util/function/Consumer;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/ConfigValue;
+      16: checkcast     #387                // class dev/ftb/mods/ftblibrary/config/EntityFaceConfig
+      19: areturn
+
+  public dev.ftb.mods.ftblibrary.config.ColorConfig addColor(java.lang.String, dev.ftb.mods.ftblibrary.icon.Color4I, java.util.function.Consumer<dev.ftb.mods.ftblibrary.icon.Color4I>, dev.ftb.mods.ftblibrary.icon.Color4I);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: new           #396                // class dev/ftb/mods/ftblibrary/config/ColorConfig
+       5: dup
+       6: invokespecial #397                // Method dev/ftb/mods/ftblibrary/config/ColorConfig."<init>":()V
+       9: aload_2
+      10: aload_3
+      11: aload         4
+      13: invokevirtual #209                // Method add:(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigValue;Ljava/lang/Object;Ljava/util/function/Consumer;Ljava/lang/Object;)Ldev/ftb/mods/ftblibrary/config/ConfigValue;
+      16: checkcast     #396                // class dev/ftb/mods/ftblibrary/config/ColorConfig
+      19: areturn
+
+  public final java.util.Collection<dev.ftb.mods.ftblibrary.config.ConfigValue<?>> getValues();
+    Code:
+       0: aload_0
+       1: getfield      #41                 // Field values:Ljava/util/Map;
+       4: invokeinterface #404,  1          // InterfaceMethod java/util/Map.values:()Ljava/util/Collection;
+       9: areturn
+
+  public final java.util.Collection<dev.ftb.mods.ftblibrary.config.ConfigGroup> getSubgroups();
+    Code:
+       0: aload_0
+       1: getfield      #43                 // Field subgroups:Ljava/util/Map;
+       4: invokeinterface #404,  1          // InterfaceMethod java/util/Map.values:()Ljava/util/Collection;
+       9: areturn
+
+  public java.lang.String getPath();
+    Code:
+       0: aload_0
+       1: getfield      #36                 // Field parent:Ldev/ftb/mods/ftblibrary/config/ConfigGroup;
+       4: ifnonnull     14
+       7: aload_0
+       8: getfield      #34                 // Field id:Ljava/lang/String;
+      11: goto          30
+      14: aload_0
+      15: getfield      #36                 // Field parent:Ldev/ftb/mods/ftblibrary/config/ConfigGroup;
+      18: invokevirtual #98                 // Method getPath:()Ljava/lang/String;
+      21: aload_0
+      22: getfield      #34                 // Field id:Ljava/lang/String;
+      25: invokedynamic #411,  0            // InvokeDynamic #4:makeConcatWithConstants:(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+      30: areturn
+
+  public void save(boolean);
+    Code:
+       0: iload_1
+       1: ifeq          23
+       4: aload_0
+       5: getfield      #41                 // Field values:Ljava/util/Map;
+       8: invokeinterface #404,  1          // InterfaceMethod java/util/Map.values:()Ljava/util/Collection;
+      13: invokedynamic #420,  0            // InvokeDynamic #5:accept:()Ljava/util/function/Consumer;
+      18: invokeinterface #426,  2          // InterfaceMethod java/util/Collection.forEach:(Ljava/util/function/Consumer;)V
+      23: aload_0
+      24: getfield      #43                 // Field subgroups:Ljava/util/Map;
+      27: invokeinterface #404,  1          // InterfaceMethod java/util/Map.values:()Ljava/util/Collection;
+      32: invokeinterface #430,  1          // InterfaceMethod java/util/Collection.iterator:()Ljava/util/Iterator;
+      37: astore_2
+      38: aload_2
+      39: invokeinterface #435,  1          // InterfaceMethod java/util/Iterator.hasNext:()Z
+      44: ifeq          65
+      47: aload_2
+      48: invokeinterface #439,  1          // InterfaceMethod java/util/Iterator.next:()Ljava/lang/Object;
+      53: checkcast     #2                  // class dev/ftb/mods/ftblibrary/config/ConfigGroup
+      56: astore_3
+      57: aload_3
+      58: iload_1
+      59: invokevirtual #441                // Method save:(Z)V
+      62: goto          38
+      65: aload_0
+      66: getfield      #45                 // Field savedCallback:Ldev/ftb/mods/ftblibrary/config/ConfigCallback;
+      69: ifnull        82
+      72: aload_0
+      73: getfield      #45                 // Field savedCallback:Ldev/ftb/mods/ftblibrary/config/ConfigCallback;
+      76: iload_1
+      77: invokeinterface #444,  2          // InterfaceMethod dev/ftb/mods/ftblibrary/config/ConfigCallback.save:(Z)V
+      82: return
+
+  public int compareTo(dev.ftb.mods.ftblibrary.config.ConfigGroup);
+    Code:
+       0: aload_0
+       1: getfield      #51                 // Field displayOrder:I
+       4: aload_1
+       5: getfield      #51                 // Field displayOrder:I
+       8: invokestatic  #453                // Method java/lang/Integer.compare:(II)I
+      11: istore_2
+      12: iload_2
+      13: ifne          30
+      16: aload_0
+      17: invokevirtual #98                 // Method getPath:()Ljava/lang/String;
+      20: aload_1
+      21: invokevirtual #98                 // Method getPath:()Ljava/lang/String;
+      24: invokevirtual #457                // Method java/lang/String.compareToIgnoreCase:(Ljava/lang/String;)I
+      27: goto          31
+      30: iload_2
+      31: ireturn
+
+  public int compareTo(java.lang.Object);
+    Code:
+       0: aload_0
+       1: aload_1
+       2: checkcast     #2                  // class dev/ftb/mods/ftblibrary/config/ConfigGroup
+       5: invokevirtual #461                // Method compareTo:(Ldev/ftb/mods/ftblibrary/config/ConfigGroup;)I
+       8: ireturn
+
+  private static void lambda$addList$2(java.util.List, java.util.List);
+    Code:
+       0: aload_0
+       1: invokeinterface #467,  1          // InterfaceMethod java/util/List.clear:()V
+       6: aload_0
+       7: aload_1
+       8: invokeinterface #471,  2          // InterfaceMethod java/util/List.addAll:(Ljava/util/Collection;)Z
+      13: pop
+      14: return
+
+  private dev.ftb.mods.ftblibrary.config.ConfigGroup lambda$getOrCreateSubgroup$1(java.lang.String, int, java.lang.String);
+    Code:
+       0: new           #2                  // class dev/ftb/mods/ftblibrary/config/ConfigGroup
+       3: dup
+       4: aload_1
+       5: aload_0
+       6: aconst_null
+       7: iload_2
+       8: invokespecial #55                 // Method "<init>":(Ljava/lang/String;Ldev/ftb/mods/ftblibrary/config/ConfigGroup;Ldev/ftb/mods/ftblibrary/config/ConfigCallback;I)V
+      11: areturn
+
+  private static void lambda$createEditable$0(boolean, dev.ftb.mods.ftblibrary.snbt.config.SNBTConfig, boolean);
+    Code:
+       0: iload_2
+       1: ifeq          38
+       4: iload_0
+       5: ifeq          18
+       8: aload_1
+       9: invokestatic  #478                // Method dev/ftb/mods/ftblibrary/net/SyncConfigToServerPacket.create:(Ldev/ftb/mods/ftblibrary/snbt/config/SNBTConfig;)Ldev/ftb/mods/ftblibrary/net/SyncConfigToServerPacket;
+      12: invokestatic  #484                // Method dev/architectury/networking/NetworkManager.sendToServer:(Lnet/minecraft/network/protocol/common/custom/CustomPacketPayload;)V
+      15: goto          38
+      18: invokestatic  #490                // Method dev/ftb/mods/ftblibrary/config/manager/ConfigManager.getInstance:()Ldev/ftb/mods/ftblibrary/config/manager/ConfigManager;
+      21: aload_1
+      22: invokevirtual #495                // Method dev/ftb/mods/ftblibrary/snbt/config/SNBTConfig.getKey:()Ljava/lang/String;
+      25: invokevirtual #498                // Method dev/ftb/mods/ftblibrary/config/manager/ConfigManager.editedOnClient:(Ljava/lang/String;)V
+      28: invokestatic  #490                // Method dev/ftb/mods/ftblibrary/config/manager/ConfigManager.getInstance:()Ldev/ftb/mods/ftblibrary/config/manager/ConfigManager;
+      31: aload_1
+      32: invokevirtual #495                // Method dev/ftb/mods/ftblibrary/snbt/config/SNBTConfig.getKey:()Ljava/lang/String;
+      35: invokevirtual #500                // Method dev/ftb/mods/ftblibrary/config/manager/ConfigManager.save:(Ljava/lang/String;)V
+      38: return
+}

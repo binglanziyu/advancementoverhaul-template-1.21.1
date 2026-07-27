@@ -1,0 +1,11 @@
+---
+description: 
+alwaysApply: true
+enabled: true
+updatedAt: 2026-07-27T20:00:33.282Z
+provider: 
+---
+
+mc版本为1.21.1.加载器为neofroge。
+只在ide内进行代码编译
+语言环境：java21

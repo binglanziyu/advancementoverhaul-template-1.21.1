@@ -1,0 +1,33 @@
+Compiled from "AbstractThreePanelScreen.java"
+public abstract class dev.ftb.mods.ftblibrary.ui.misc.AbstractThreePanelScreen<T extends dev.ftb.mods.ftblibrary.ui.Panel> extends dev.ftb.mods.ftblibrary.ui.BaseScreen {
+  public static final com.mojang.datafixers.util.Pair<java.lang.Integer, java.lang.Integer> NO_INSET;
+  protected static final int BOTTOM_PANEL_H;
+  private static final int SCROLLBAR_WIDTH;
+  protected final dev.ftb.mods.ftblibrary.ui.Panel topPanel;
+  protected final T mainPanel;
+  protected final dev.ftb.mods.ftblibrary.ui.Panel bottomPanel;
+  protected final dev.ftb.mods.ftblibrary.ui.PanelScrollBar scrollBar;
+  private boolean showBottomPanel;
+  private boolean showCloseButton;
+  private boolean showScrollBar;
+  protected dev.ftb.mods.ftblibrary.ui.misc.AbstractThreePanelScreen();
+  public void addWidgets();
+  public void alignWidgets();
+  public dev.ftb.mods.ftblibrary.ui.Theme getTheme();
+  public void tick();
+  public boolean keyPressed(dev.ftb.mods.ftblibrary.ui.input.Key);
+  protected abstract void doCancel();
+  protected abstract void doAccept();
+  protected abstract int getTopPanelHeight();
+  protected abstract T createMainPanel();
+  protected com.mojang.datafixers.util.Pair<java.lang.Integer, java.lang.Integer> mainPanelInset();
+  protected int getBottomPanelHeight();
+  protected int getScrollbarWidth();
+  protected dev.ftb.mods.ftblibrary.ui.Panel createTopPanel();
+  protected dev.ftb.mods.ftblibrary.ui.Panel createBottomPanel();
+  public void showBottomPanel(boolean);
+  public void showCloseButton(boolean);
+  public boolean shouldShowCloseButton();
+  public void showScrollBar(boolean);
+  static {};
+}
