@@ -10,7 +10,7 @@ import com.example.advancementoverhaul.client.gui.cache.CircleCache;
 import com.example.advancementoverhaul.client.gui.cache.RoundedRectCache;
 
 import net.minecraft.client.Minecraft;
-import com.example.advancementoverhaul.network.C2SCommandPayload;
+import com.example.advancementoverhaul.network.payload.C2SCommandPayload;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -75,8 +75,8 @@ public final class GuiUtils {
 
     public static void drawPanelBg(GuiGraphics g, Font font, int px, int py, int pw, int ph,
                                    String title, int sw, int sh) {
-        // 全屏暗色遮罩由 AdvancementScreen 统一管理（hasOv() 分支），
-        // 此处仅绘制面板自身背景，避免 z=300 叠加造成双重变暗
+        // 注意：全屏暗色遮罩由各面板自己绘制（如 renderConfirm/renderStats），
+        // 此处仅绘制面板自身背景。PANEL 使用高不透明度确保内容清晰可读。
         g.fill(px, py, px + pw, py + ph, PANEL);
         g.renderOutline(px, py, pw, ph, DIVIDER);
         g.fill(px, py, px + pw, py + 3, ACCENT);
@@ -99,9 +99,10 @@ public final class GuiUtils {
         RoundedRectCache.fillRoundedRect(g, x, y, w, h, color);
     }
 
-    /** Draw a drop shadow under a card (offset by SHADOW_OFF pixels). */
+    /** Draw a soft 2-layer drop shadow under a card. */
     public static void drawCardShadow(GuiGraphics g, int x, int y, int w, int h) {
-        RoundedRectCache.fillRoundedRect(g, x + SHADOW_OFF, y + SHADOW_OFF, w, h, SHADOW_COL);
+        RoundedRectCache.fillRoundedRect(g, x + SHADOW_OFF, y + SHADOW_OFF, w, h, SHADOW_INNER);
+        RoundedRectCache.fillRoundedRect(g, x + 1, y + 1, w - 2, h - 2, SHADOW_COL);
     }
 
     /**

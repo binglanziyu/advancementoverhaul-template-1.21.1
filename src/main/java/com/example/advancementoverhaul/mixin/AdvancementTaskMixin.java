@@ -1,6 +1,6 @@
 package com.example.advancementoverhaul.mixin;
 
-import com.example.advancementoverhaul.compat.FtbQuestsBridge;
+import com.example.advancementoverhaul.compat.ftb.FtbQuestsBridge;
 import dev.ftb.mods.ftblibrary.config.ConfigGroup;
 import dev.ftb.mods.ftblibrary.util.KnownServerRegistries;
 import dev.ftb.mods.ftbquests.quest.task.AdvancementTask;

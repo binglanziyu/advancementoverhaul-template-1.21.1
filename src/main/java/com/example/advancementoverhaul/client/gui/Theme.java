@@ -117,9 +117,11 @@ public final class Theme {
     /** Card corner radius for rounded rectangle style. */
     public static final int CARD_RADIUS = 8;
     /** Drop shadow offset under cards (pixels). */
-    public static final int SHADOW_OFF  = 2;
-    /** Drop shadow color (pure black, very low alpha). */
-    public static final int SHADOW_COL  = 0x20000000;
+    public static final int SHADOW_OFF  = 3;
+    /** Drop shadow color (pure black, subtle alpha for softer look). */
+    public static final int SHADOW_COL  = 0x0C000000;
+    /** Inner shadow color (slightly darker, used for depth layering). */
+    public static final int SHADOW_INNER = 0x06000000;
     /** Junction dot diameter ratio relative to line thickness. */
     public static final float JUNCTION_DOT_RATIO = 2.5f;
 

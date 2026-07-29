@@ -63,17 +63,26 @@ public class DimensionPanel {
         Map<String, DimensionLock> locks = ClientDataStore.getInstance().getDimensionLocks();
         Set<String> allDims = new LinkedHashSet<>();
         Minecraft mc = Minecraft.getInstance();
-        // null 安全检查，避免连接断开瞬间 NPE
         if (mc.getConnection() != null) {
+            // 优先从连接同步的 level 列表获取所有维度（包括 mod 维度）
             try {
-                var access = mc.getConnection().registryAccess();
-                if (access != null) {
-                    access.registryOrThrow(Registries.DIMENSION).keySet().forEach(rl -> allDims.add(rl.toString()));
-                }
+                mc.getConnection().levels().forEach(rl -> allDims.add(rl.location().toString()));
             } catch (Exception e) {
-                LOGGER.debug("Dimension registry not available during panel load: {}", e.getMessage());
+                LOGGER.warn("Failed to read levels from connection: {}", e.getMessage());
+            }
+            // 若 levels() 返回空，回退到注册表读取
+            if (allDims.isEmpty()) {
+                try {
+                    var access = mc.getConnection().registryAccess();
+                    if (access != null) {
+                        access.registryOrThrow(Registries.DIMENSION).keySet().forEach(rl -> allDims.add(rl.toString()));
+                    }
+                } catch (Exception e) {
+                    LOGGER.warn("Dimension registry not available during panel load: {}", e.getMessage());
+                }
             }
         }
+        // 兜底：确保原版三维度始终出现
         allDims.add("minecraft:overworld");
         allDims.add("minecraft:the_nether");
         allDims.add("minecraft:the_end");

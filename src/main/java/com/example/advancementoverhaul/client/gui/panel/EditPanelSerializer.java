@@ -100,6 +100,7 @@ class EditPanelSerializer {
         data.put("y", panel.edY);
         data.put("hidden", panel.edHidden);
         if (panel.edIcon != null) data.put("icon", panel.edIcon);
+        if (panel.edLore != null && !panel.edLore.isEmpty()) data.put("lore", panel.edLore);
         data.put("tab", panel.edTab);
         if (!panel.edPrereqs.isEmpty()) data.put("prerequisites", new ArrayList<>(panel.edPrereqs));
         if (!panel.edConds.isEmpty()) {

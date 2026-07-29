@@ -5,6 +5,7 @@ import com.example.advancementoverhaul.ModInfo;
 import com.example.advancementoverhaul.data.DataStore;
 import com.example.advancementoverhaul.data.DataStore.*;
 import com.example.advancementoverhaul.data.model.CustomAdvancement;
+import com.example.advancementoverhaul.compat.ftb.FtbQuestsBridge;
 import com.example.advancementoverhaul.data.ServerDataStore;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;

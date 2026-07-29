@@ -66,6 +66,10 @@ public final class CompletionChime {
     /** 播放成就完成旋律 */
     public static void play(Minecraft mc) {
         if (mc == null) return;
+
+        // 优先使用自定义音效
+        if (com.example.advancementoverhaul.client.ResourceLoader.playCustomChime()) return;
+
         var mgr = mc.getSoundManager();
         if (mgr == null) return;
 

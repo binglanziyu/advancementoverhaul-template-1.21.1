@@ -51,12 +51,7 @@ public final class DisplayNameResolver {
                         }
                     }
                     case DIMENSION -> {
-                        return switch (targetId) {
-                            case "minecraft:overworld" -> Component.translatable(LangKeys.DIM_OVERWORLD).getString();
-                            case "minecraft:the_nether" -> Component.translatable(LangKeys.DIM_NETHER).getString();
-                            case "minecraft:the_end" -> Component.translatable(LangKeys.DIM_END).getString();
-                            default -> targetId;
-                        };
+                        return friendlyDimension(targetId);
                     }
                     default -> {}
                 }
@@ -72,7 +67,18 @@ public final class DisplayNameResolver {
             case "minecraft:overworld" -> Component.translatable(LangKeys.DIM_OVERWORLD).getString();
             case "minecraft:the_nether" -> Component.translatable(LangKeys.DIM_NETHER).getString();
             case "minecraft:the_end" -> Component.translatable(LangKeys.DIM_END).getString();
-            default -> dimId.replace("minecraft:", "").replace("_", " ");
+            default -> {
+                // 尝试读取维度自身的翻译键（mod 通常使用 "dimension.<namespace>.<path>" 格式）
+                ResourceLocation rl = ResourceLocation.tryParse(dimId);
+                if (rl != null) {
+                    String nativeKey = "dimension." + rl.getNamespace() + "." + rl.getPath();
+                    String translated = Component.translatable(nativeKey).getString();
+                    if (!translated.equals(nativeKey)) {
+                        yield translated;
+                    }
+                }
+                yield dimId.replace("minecraft:", "").replace("_", " ");
+            }
         };
     }
 }

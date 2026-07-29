@@ -132,11 +132,33 @@ public class ConditionSelector {
                     entries.add(new CondEntry(e.id(), e.displayName(), null));
             }
             case DIMENSION -> {
-                entries.add(new CondEntry("minecraft:overworld", TranslatedStrings.get(LangKeys.DIM_OVERWORLD), null));
-                entries.add(new CondEntry("minecraft:the_nether", TranslatedStrings.get(LangKeys.DIM_NETHER), null));
-                entries.add(new CondEntry("minecraft:the_end", TranslatedStrings.get(LangKeys.DIM_END), null));
+                var allDims = new java.util.LinkedHashSet<String>();
+                var mc = Minecraft.getInstance();
+                if (mc.getConnection() != null) {
+                    // 优先从连接同步的 level 列表获取所有维度（包括 mod 维度）
+                    try {
+                        mc.getConnection().levels().forEach(rl -> allDims.add(rl.location().toString()));
+                    } catch (Exception ignored) {}
+                    // 若 levels() 返回空，回退到注册表读取
+                    if (allDims.isEmpty()) {
+                        try {
+                            var access = mc.getConnection().registryAccess();
+                            if (access != null) {
+                                access.registryOrThrow(net.minecraft.core.registries.Registries.DIMENSION)
+                                        .keySet().forEach(rl -> allDims.add(rl.toString()));
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                }
+                // 兜底：确保三个原版维度始终出现
+                allDims.add("minecraft:overworld");
+                allDims.add("minecraft:the_nether");
+                allDims.add("minecraft:the_end");
                 var lk = ClientDataStore.getInstance().getDimensionLocks();
-                if (lk != null) for (String d : lk.keySet()) entries.add(new CondEntry(d, d, null));
+                if (lk != null) allDims.addAll(lk.keySet());
+                for (String d : allDims) {
+                    entries.add(new CondEntry(d, com.example.advancementoverhaul.data.DisplayNameResolver.friendlyDimension(d), null));
+                }
                 entries.sort(Comparator.comparing(CondEntry::display, String.CASE_INSENSITIVE_ORDER));
             }
             case NONE -> entries.add(new CondEntry("", TranslatedStrings.get(LangKeys.COND_ANY), null));

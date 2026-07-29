@@ -106,14 +106,10 @@ public final class RoundedRectCache {
         float blue = (color & 0xFF) / 255f;
 
         RenderSystem.enableBlend();
-        RenderSystem.setShaderColor(red, green, blue, a);
-        try {
-            g.blit(filledId, x, y, w, h,
-                    0f, 0f, TEX_SIZE, TEX_SIZE, TEX_SIZE, TEX_SIZE);
-        } finally {
-            RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
-            RenderSystem.disableBlend();
-        }
+        g.setColor(red, green, blue, a);
+        g.blit(filledId, x, y, w, h,
+                0f, 0f, TEX_SIZE, TEX_SIZE, TEX_SIZE, TEX_SIZE);
+        g.setColor(1f, 1f, 1f, 1f);
     }
 
     static void fallbackFill(GuiGraphics g, int x, int y, int w, int h, int color) {

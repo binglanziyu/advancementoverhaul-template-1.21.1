@@ -10,7 +10,7 @@ import com.example.advancementoverhaul.data.DataStore.NbtMatchMode;
 import com.example.advancementoverhaul.data.ServerDataStore;
 import com.example.advancementoverhaul.event.AdvCompletedEvent;
 import com.example.advancementoverhaul.event.AdvProgressEvent;
-import com.example.advancementoverhaul.network.ProgressSyncPayload;
+import com.example.advancementoverhaul.network.payload.ProgressSyncPayload;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
@@ -39,6 +39,7 @@ import java.util.UUID;
  *   <li><b>Instant（即时）</b> — 单次触发即完成（KILL_ENTITY, CHANGE_DIMENSION）</li>
  *   <li><b>Progress（累积）</b> — 按量累积（BREAK_BLOCK, PLACE_BLOCK, DEAL_DAMAGE, TAKE_DAMAGE）</li>
  *   <li><b>Stack-aware（物品感知）</b> — 物品 ID + NBT/Component 匹配（CRAFT_ITEM, GET_ITEM, FISH_ITEM）</li>
+ *   <li><b>StatReach（统计达成）</b> — 以当前统计值直接比较阈值（STAT_REACH），由 {@link #checkStatReach} 独立处理</li>
  * </ul>
  *
  * <h2>AND 逻辑</h2>
@@ -79,6 +80,50 @@ public final class ConditionEvaluator {
     public static void checkWithStack(ServerPlayer player, ConditionType type,
                                       String targetId, ItemStack stack, int amount) {
         evaluate(player, type, targetId, stack, amount, false);
+    }
+
+    /**
+     * STAT_REACH 评估：检查统计值是否达到成就条件的阈值。
+     * <p>
+     * 与 {@link #evaluate} 不同，此方法直接以当前统计值设置进度（而非累加），
+     * 因为统计值本身就是累加数据。当统计值 ≥ 条件要求的 count 时触发完成。
+     * <p>
+     * 由 {@code StatsEventHandler} 在每次更新统计值后调用。
+     *
+     * @param player  目标玩家
+     * @param statId  PlayerStats 字段名（如 "sunrisesViewed"）
+     * @param newValue 该统计的当前值
+     */
+    public static void checkStatReach(ServerPlayer player, String statId, long newValue) {
+        ServerDataStore store = ServerDataStore.getInstance();
+        UUID uuid = player.getUUID();
+
+        List<String> advIds = resolveAdvancementIds(store, ConditionType.STAT_REACH, statId);
+
+        for (String advId : advIds) {
+            if (store.isCompleted(uuid, advId)) continue;
+
+            CustomAdvancement adv = store.getAdvancement(advId);
+            if (adv == null) continue;
+
+            List<AdvancementCondition> conditions = adv.getConditions();
+            for (int i = 0; i < conditions.size(); i++) {
+                AdvancementCondition cond = conditions.get(i);
+                if (cond.getType() != ConditionType.STAT_REACH) continue;
+                if (!matchesTarget(cond.getTargetId(), statId)) continue;
+
+                // 直接设置为当前统计值（非累加，统计值本身就是累加结果）
+                int progress = (int) Math.min(newValue, Integer.MAX_VALUE);
+                store.setConditionProgress(uuid, advId, i, progress);
+
+                NeoForge.EVENT_BUS.post(new AdvProgressEvent(player, advId, progress, cond.getCount()));
+
+                if (allConditionsMet(uuid, advId, adv)) {
+                    tryComplete(player, advId);
+                }
+                break;
+            }
+        }
     }
 
     // ═══════════════ 统一评估核心 ═══════════════

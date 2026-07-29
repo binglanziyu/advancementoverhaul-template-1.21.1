@@ -1,9 +1,14 @@
 package com.example.advancementoverhaul.client.gui;
 
+import com.example.advancementoverhaul.client.ResourceLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.network.chat.Component;
+import net.neoforged.fml.loading.FMLPaths;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.Queue;
 
@@ -26,6 +31,7 @@ public final class CompletionPlaque {
     private static String advancementName = "";
     private static long spawnTime = 0;
     private static boolean active = false;
+    private static boolean textureChecked = false;
 
     // ═══════════════ Timing (ms) ═══════════════
 
@@ -56,19 +62,70 @@ public final class CompletionPlaque {
 
     // ═══════════════ Public API ═══════════════
 
+    /** 截图文件名前缀 */
+    private static String pendingScreenshotName = null;
+
+    /** 当前待展示的 lore 文本（用于 Action Bar） */
+    private static String pendingLore = null;
+
     /**
-     * 展示牌匾。
+     * 展示牌匾，同时将 lore 文本发送到 Action Bar。
      * 若当前已有牌匾在展示中，则将新名称加入队列等待展示。
      */
     public static void show(String name) {
+        show(name, null);
+    }
+
+    /**
+     * 展示牌匾 + Action Bar 风味文本。
+     */
+    public static void show(String name, String lore) {
         if (active) {
-            // 当前正在展示，加入队列
             queue.add(name);
         } else {
             advancementName = name;
             spawnTime = System.currentTimeMillis();
             active = true;
+            scheduleScreenshot(name);
+            // Bug 5 修复：仅在真正展示牌匾时显示 Action Bar，排队时延迟到出队
+            showLoreActionBar(name, lore);
         }
+    }
+
+    /** 在 Action Bar 显示风味文本，若无颜色代码则随机美化 */
+    private static void showLoreActionBar(String name, String lore) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc == null || mc.player == null) return;
+        if (lore == null || lore.isEmpty()) {
+            mc.player.displayClientMessage(Component.literal("\u2726 " + name), true);
+            return;
+        }
+        mc.player.displayClientMessage(Component.literal(applyLoreStyle(name, lore)), true);
+    }
+
+    /** 对无 § 颜色代码的 lore 应用随机美学风格 */
+    static String applyLoreStyle(String name, String lore) {
+        if (lore.contains("\u00a7")) return lore; // 已有样式代码，保持不变
+
+        // 基于文本内容 hash 选择稳定风格
+        int hash = Math.abs(lore.hashCode());
+        int styleIdx = hash % 8;
+
+        return switch (styleIdx) {
+            case 0 -> "\u00a76\u2726 \u00a7o" + lore + "\u00a7r";              // Golden Quill: 金色斜体
+            case 1 -> "\u00a7b\u2728 \u00a7o" + lore + "\u00a7r";              // Celestial: 浅蓝星尘
+            case 2 -> "\u00a7a\u2663 " + lore + "\u00a7r";                     // Verdant: 翠绿
+            case 3 -> "\u00a7d\u2736 \u00a7o" + lore + "\u00a7r";              // Arcane: 紫色奥术
+            case 4 -> "\u00a76\u2620 " + lore + "\u00a7r";                     // Scorched: 焦土金橙
+            case 5 -> "\u00a7b\u2744 " + lore + "\u00a7r";                     // Frost: 冰蓝
+            case 6 -> "\u00a77\u00a7o\u273f " + lore + "\u00a7r";              // Whisper: 灰色斜体低语
+            default -> "\u00a7e\u2606 " + lore + "\u00a7r";                    // Starlight: 黄色星光
+        };
+    }
+
+    /** 安排截图（在牌匾显示后延迟一帧执行，确保画面稳定） */
+    private static void scheduleScreenshot(String name) {
+        pendingScreenshotName = name;
     }
 
     /** 每帧由 GUI Layer 回调渲染。 */
@@ -77,6 +134,12 @@ public final class CompletionPlaque {
 
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.getWindow() == null || mc.font == null) return;
+
+        // 首次渲染时尝试加载自定义纹理（必须在渲染线程）
+        if (!textureChecked) {
+            textureChecked = true;
+            ResourceLoader.loadPlaqueTexture(mc, FMLPaths.CONFIGDIR.get());
+        }
 
         long elapsed = System.currentTimeMillis() - spawnTime;
 
@@ -95,6 +158,12 @@ public final class CompletionPlaque {
 
         int screenW = mc.getWindow().getGuiScaledWidth();
         Font font = mc.font;
+
+        // 截图捕获（延迟至牌匾显示后执行）
+        if (pendingScreenshotName != null && elapsed > 100) {
+            takeScreenshot(mc, pendingScreenshotName);
+            pendingScreenshotName = null;
+        }
 
         // --- Animation ---
         int alpha;
@@ -128,62 +197,77 @@ public final class CompletionPlaque {
         // Shadow
         GuiUtils.drawCardShadow(g, x, y, PLAQUE_W, PLAQUE_H);
 
+        // 优先使用自定义纹理
+        if (ResourceLoader.isPlaqueAvailable()) {
+            g.setColor(1f, 1f, 1f, a / 255f);
+            g.blit(ResourceLoader.getPlaqueTexture(), x, y, 0, 0, PLAQUE_W, PLAQUE_H, PLAQUE_W, PLAQUE_H);
+            g.setColor(1f, 1f, 1f, 1f);
+        } else {
+            // 默认代码绘制
+            renderDefaultPlaque(g, font, x, y, a);
+        }
+
+        // ── 文字叠加（自定义纹理上也显示）──
+        String title = "\u2726 \u6210\u5C31\u8FBE\u6210 \u2726"; // "✦ 成就达成 ✦"
+        int titleW = font.width(title);
+        g.drawString(font, title, x + (PLAQUE_W - titleW) / 2, y + 10,
+                (a << 24) | C_GOLD, false);
+
+        String displayName = GuiUtils.truncate(font, advancementName, PLAQUE_W - 40);
+        int nameW = font.width(displayName);
+        g.drawString(font, displayName, x + (PLAQUE_W - nameW) / 2, y + 29,
+                (a << 24) | C_TEXT, false);
+    }
+
+    /** 默认代码绘制的牌匾背景——优化版猫爪布局。 */
+    private static void renderDefaultPlaque(GuiGraphics g, Font font, int x, int y, int a) {
+
         // Outer background
         g.fill(x, y, x + PLAQUE_W, y + PLAQUE_H, (a << 24) | C_BG_OUTER);
 
-        // Inner glow region (lighter center)
-        int innerMargin = 4;
+        // Inner glow region — 左右留白更多，让爪印在深色区域更突出
+        int innerMargin = 6;
         g.fill(x + innerMargin, y + innerMargin,
                 x + PLAQUE_W - innerMargin, y + PLAQUE_H - innerMargin,
-                ((int)(a * 0.45f) << 24) | C_BG_INNER);
+                ((int)(a * 0.30f) << 24) | C_BG_INNER);
 
         // Border
         int borderA = (int)(a * 0.75f);
         g.renderOutline(x, y, PLAQUE_W, PLAQUE_H,
                 (borderA << 24) | C_BORDER);
 
-        // Top accent bar
+        // ── Top accent bar ──
         int accentA = (int)(a * 0.9f);
-        g.fill(x + 8, y + 2, x + PLAQUE_W - 8, y + 4,
+        g.fill(x + 10, y + 2, x + PLAQUE_W - 10, y + 4,
                 (accentA << 24) | C_ACCENT);
 
-        // ── Top sparkles ──
-        drawSparkle(g, x + 11, y + 7, 1.5f, (a << 24) | C_SPARKLE);
-        drawSparkle(g, x + PLAQUE_W - 11, y + 7, 1.5f, (a << 24) | C_SPARKLE);
+        // ── Top sparkles（下移，避开 accent bar）──
+        drawSparkle(g, x + 13, y + 8, 2.0f, (a << 24) | C_SPARKLE);
+        drawSparkle(g, x + PLAQUE_W - 13, y + 8, 2.0f, (a << 24) | C_SPARKLE);
 
-        // ── Paw + Title row ──
-        int pawA = a;
-        drawSmallCatPaw(g, x + 22, y + 6, 5, (pawA << 24) | C_PAW);
-        drawSmallCatPaw(g, x + PLAQUE_W - 22, y + 6, 5, (pawA << 24) | C_PAW, true);
-
-        String title = "\u2726 \u6210\u5C31\u8FBE\u6210 \u2726"; // "✦ 成就达成 ✦"
-        int titleW = font.width(title);
-        g.drawString(font, title, x + (PLAQUE_W - titleW) / 2, y + 10,
-                (a << 24) | C_GOLD, false);
+        // ── Top paw decorations（下移到文字下方，size 缩小使 toes 不溢出到 accent bar）──
+        drawSmallCatPaw(g, x + 16, y + 13, 4, (a << 24) | C_PAW);
+        drawSmallCatPaw(g, x + PLAQUE_W - 16, y + 13, 4, (a << 24) | C_PAW, true);
 
         // ── Divider ──
         int divX1 = x + 30;
         int divX2 = x + PLAQUE_W - 30;
-        int divY = y + 22;
+        int divY = y + 21;
         g.fill(divX1, divY, divX2, divY + 1, (a << 24) | C_DIVIDER);
 
-        // ── Center paw decorations ──
-        drawTinyPaw(g, x + 38, divY - 2, 3, ((int)(a * 0.7f) << 24) | C_PAW);
-        drawTinyPaw(g, x + PLAQUE_W - 41, divY - 2, 3, ((int)(a * 0.7f) << 24) | C_PAW);
+        // ── Center paw decorations：移到分隔线下方，清晰可见 ──
+        int pawMidY = y + 26;
+        drawTinyPaw(g, x + 44, pawMidY, 3, ((int)(a * 0.85f) << 24) | C_PAW);
+        drawTinyPaw(g, x + PLAQUE_W - 47, pawMidY, 3, ((int)(a * 0.85f) << 24) | C_PAW);
 
-        // ── Advancement name ──
-        String displayName = GuiUtils.truncate(font, advancementName, PLAQUE_W - 40);
-        int nameW = font.width(displayName);
-        g.drawString(font, displayName, x + (PLAQUE_W - nameW) / 2, y + 29,
-                (a << 24) | C_TEXT, false);
+        // ── Bottom paw trail（上移 + 放大，更醒目）──
+        int trailY = y + 40;
+        drawPawTrail(g, x + 18, trailY, 4, (a << 24) | C_PAW, 1);
+        drawPawTrail(g, x + PLAQUE_W - 18, trailY, 4, (a << 24) | C_PAW, -1);
 
-        // ── Bottom paw trail ──
-        drawPawTrail(g, x + 16, y + PLAQUE_H - 12, 3, (a << 24) | C_PAW, 1);
-        drawPawTrail(g, x + PLAQUE_W - 16, y + PLAQUE_H - 12, 3, (a << 24) | C_PAW, -1);
-
-        // ── Bottom corner sparkles ──
-        drawSparkle(g, x + 9, y + PLAQUE_H - 7, 1.0f, ((int)(a * 0.6f) << 24) | C_SPARKLE);
-        drawSparkle(g, x + PLAQUE_W - 9, y + PLAQUE_H - 7, 1.0f, ((int)(a * 0.6f) << 24) | C_SPARKLE);
+        // ── Bottom corner sparkles（放大 + 提高透明度）──
+        drawSparkle(g, x + 13, y + 49, 2.0f, ((int)(a * 0.75f) << 24) | C_SPARKLE);
+        drawSparkle(g, x + PLAQUE_W - 13, y + 49, 2.0f, ((int)(a * 0.75f) << 24) | C_SPARKLE);
     }
 
     // ═══════════════ Cat paw drawing ═══════════════
@@ -197,16 +281,16 @@ public final class CompletionPlaque {
                                          int color, boolean mirror) {
         int d = mirror ? -1 : 1;
 
-        // 主肉垫：圆角矩形
-        int pw = (int) (size * 1.6f);
-        int ph = (int) (size * 1.0f);
-        GuiUtils.fillRoundedCard(g, cx - pw / 2, cy + 2, pw, ph, color);
+        // 主肉垫：圆角矩形，更宽更扁像真实猫爪
+        int pw = (int) (size * 2.0f);
+        int ph = (int) (size * 1.1f);
+        GuiUtils.fillRoundedCard(g, cx - pw / 2, cy + 1, pw, ph, color);
 
-        // 4 个趾垫：弧形排列
-        int tr = Math.max(1, (int) (size * 0.3f));
-        int spread = (int) (size * 1.15f);
-        int outerY = cy - 2;
-        int innerY = cy - size + 1;
+        // 4 个趾垫：弧形排列，趾垫稍大更可爱
+        int tr = Math.max(1, (int) (size * 0.40f));
+        int spread = (int) (size * 1.1f);
+        int outerY = cy - size + 1;
+        int innerY = cy - size - 1;
 
         GuiUtils.fillCircle(g, cx - spread * d, outerY, tr, color);
         GuiUtils.fillCircle(g, cx - spread / 3 * d, innerY, tr, color);
@@ -219,39 +303,47 @@ public final class CompletionPlaque {
         drawSmallCatPaw(g, cx, cy, size, color, false);
     }
 
-    /** 绘制迷你猫爪（仅主垫+2 趾）。 */
+    /** 绘制迷你猫爪（仅主垫+2 趾），稍大更清晰。 */
     private static void drawTinyPaw(GuiGraphics g, int cx, int cy, int size, int color) {
-        int pw = (int) (size * 1.4f);
-        int ph = (int) (size * 0.8f);
-        GuiUtils.fillRoundedCard(g, cx - pw / 2, cy + 1, pw, ph, color);
-        int tr = Math.max(1, size / 3);
-        GuiUtils.fillCircle(g, cx - size / 2, cy - size / 3, tr, color);
-        GuiUtils.fillCircle(g, cx + size / 2, cy - size / 3, tr, color);
+        int pw = (int) (size * 1.8f);
+        int ph = (int) (size * 1.0f);
+        GuiUtils.fillRoundedCard(g, cx - pw / 2, cy, pw, ph, color);
+        int tr = Math.max(1, (int)(size * 0.45f));
+        GuiUtils.fillCircle(g, cx - size / 2, cy - size / 2, tr, color);
+        GuiUtils.fillCircle(g, cx + size / 2, cy - size / 2, tr, color);
     }
 
-    /** 绘制一对迷你爪印组成的脚印轨迹。 */
+    /** 绘制一对迷你爪印组成的脚印轨迹，每个爪印都有主垫+两趾的完整形状。 */
     private static void drawPawTrail(GuiGraphics g, int startX, int cy, int size,
                                       int color, int dir) {
         for (int i = 0; i < 2; i++) {
-            int cx = startX + i * size * 3 * dir;
-            int tr = Math.max(1, size / 3);
+            int cx = startX + i * size * 4 * dir;
+            int toeR = Math.max(1, (int)(size * 0.45f));
+            int padW = (int)(size * 1.6f);
+            int padH = (int)(size * 1.0f);
             // 主肉垫
-            GuiUtils.fillCircle(g, cx, cy + size / 2, size / 2, color);
-            // 趾垫
-            GuiUtils.fillCircle(g, cx - size * dir, cy - size / 3, tr, color);
-            GuiUtils.fillCircle(g, cx + size * dir, cy - size / 3, tr, color);
+            GuiUtils.fillRoundedCard(g, cx - padW / 2, cy, padW, padH, color);
+            // 两趾垫
+            GuiUtils.fillCircle(g, cx - size / 2 * dir, cy - size / 2, toeR, color);
+            GuiUtils.fillCircle(g, cx + size / 2 * dir, cy - size / 2, toeR, color);
         }
     }
 
     // ═══════════════ Sparkle drawing ═══════════════
 
-    /** 绘制四角星闪烁。 */
+    /** 绘制四角星闪烁（水平+垂直+两条对角线，更像星形光点）。 */
     private static void drawSparkle(GuiGraphics g, int cx, int cy, float size, int color) {
         int s = (int) size;
+        int hs = Math.max(1, s / 2);
         // 水平线
         g.fill(cx - s, cy, cx + s + 1, cy + 1, color);
         // 垂直线
         g.fill(cx, cy - s, cx + 1, cy + s + 1, color);
+        // 对角线（短一些，更有层次）
+        g.fill(cx - hs, cy - hs, cx - hs + 1, cy - hs + 1, color);
+        g.fill(cx + hs, cy - hs, cx + hs + 1, cy - hs + 1, color);
+        g.fill(cx - hs, cy + hs, cx - hs + 1, cy + hs + 1, color);
+        g.fill(cx + hs, cy + hs, cx + hs + 1, cy + hs + 1, color);
     }
 
     // ═══════════════ Easing functions ═══════════════
@@ -265,5 +357,42 @@ public final class CompletionPlaque {
 
     private static float easeInQuad(float t) {
         return t * t;
+    }
+
+    // ═══════════════ Screenshot ═══════════════
+
+    private static void takeScreenshot(Minecraft mc, String name) {
+        try {
+            Path dir = mc.gameDirectory.toPath().resolve("screenshots").resolve("advancements");
+            Files.createDirectories(dir);
+            String safeName = name.replaceAll("[^a-zA-Z0-9\\u4e00-\\u9fff _\\-]", "_").replaceAll("\\s+", "_");
+            String timestamp = java.time.LocalDateTime.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+            String filename = safeName + "_" + timestamp + ".png";
+            Path filePath = dir.resolve(filename);
+
+            net.minecraft.client.Screenshot.grab(
+                    mc.gameDirectory,
+                    mc.getMainRenderTarget(),
+                    msg -> {
+                        // 复制到我们的目录
+                        Path defaultFile = mc.gameDirectory.toPath().resolve("screenshots").resolve(filename);
+                        Path defaultPng = mc.gameDirectory.toPath().resolve("screenshots")
+                                .resolve(filename.replace(".png", "") + ".png");
+                        try {
+                            // 尝试移动文件
+                            java.io.File src = defaultFile.toFile();
+                            if (!src.exists()) src = defaultPng.toFile();
+                            if (src.exists()) {
+                                Files.move(src.toPath(), filePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                            }
+                        } catch (Exception ignored) {
+                            // 静默失败，截图功能不阻塞主流程
+                        }
+                    }
+            );
+        } catch (Exception e) {
+            // 静默失败
+        }
     }
 }

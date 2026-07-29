@@ -101,7 +101,8 @@ public class DataStore {
         DEAL_DAMAGE(DataSource.NONE),
         TAKE_DAMAGE(DataSource.NONE),
         FISH_ITEM(DataSource.ITEM),
-        FTB_QUEST_COMPLETE(DataSource.NONE);
+        FTB_QUEST_COMPLETE(DataSource.NONE),
+        STAT_REACH(DataSource.NONE);
 
         private final DataSource dataSource;
         ConditionType(DataSource dataSource) { this.dataSource = dataSource; }

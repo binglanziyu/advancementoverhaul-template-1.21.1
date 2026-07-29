@@ -34,6 +34,10 @@ public class OverlayRenderer {
 
     public OverlayRenderer(AdvancementScreen screen) { this.screen = screen; }
 
+    // ═══════════════ 详情面板滚动上限（供 InputManager 读取） ═══════════════
+    /** 详情面板当前帧的最大滚动值，在 renderDetail() 中更新 */
+    public static int detailMaxScroll = 0;
+
     // ═══════════════ TOOLTIP ═══════════════
 
     public void renderTooltip(GuiGraphics g, int mx, int my, String id) {
@@ -43,7 +47,8 @@ public class OverlayRenderer {
         boolean isVanilla = screen.isVanillaAdvId(id);
         CustomAdvancement adv = cs.getAdvancement(id);
         AdvancementScreen.VanillaAdv va = screen.getVanillaAdv(id);
-        String name = isVanilla ? (va != null ? va.getLocalizedName() : id) : (adv != null ? adv.getName() : id);
+        boolean hiddenUncompleted = !isVanilla && adv != null && adv.isHidden() && !cs.isCompleted(id);
+        String name = isVanilla ? (va != null ? va.getLocalizedName() : id) : (hiddenUncompleted ? TranslatedStrings.get(LangKeys.HIDDEN_LOCKED) : (adv != null ? adv.getName() : id));
         lines.add(name);
         if (isVanilla) {
             lines.add(TranslatedStrings.get(LangKeys.TIP_VANILLA_RO));
@@ -51,15 +56,19 @@ public class OverlayRenderer {
             lines.add(TranslatedStrings.get(cs.isVanillaEnabled(id) ? LangKeys.ADV_TT_ENABLED : LangKeys.ADV_TT_DISABLED));
         } else {
             if (adv != null) {
-                if (adv.getDescription() != null && !adv.getDescription().isEmpty()) lines.add(adv.getDescription());
-                lines.add(TranslatedStrings.get(cs.isCompleted(id) ? LangKeys.DETAIL_COMPLETED : LangKeys.DETAIL_NOT_COMPLETED));
-                if (adv.getPrerequisites() != null && !adv.getPrerequisites().isEmpty()) {
-                    List<String> pNames = new ArrayList<>();
-                    for (String pid : adv.getPrerequisites()) pNames.add(screen.prereqDisplayName(pid));
-                    lines.add(Component.translatable(LangKeys.DETAIL_PREREQ_PREFIX, String.join(", ", pNames)).getString());
+                if (hiddenUncompleted) {
+                    lines.add(TranslatedStrings.get(LangKeys.HIDDEN));
+                } else {
+                    if (adv.getDescription() != null && !adv.getDescription().isEmpty()) lines.add(adv.getDescription());
+                    lines.add(TranslatedStrings.get(cs.isCompleted(id) ? LangKeys.DETAIL_COMPLETED : LangKeys.DETAIL_NOT_COMPLETED));
+                    if (adv.getPrerequisites() != null && !adv.getPrerequisites().isEmpty()) {
+                        List<String> pNames = new ArrayList<>();
+                        for (String pid : adv.getPrerequisites()) pNames.add(screen.prereqDisplayName(pid));
+                        lines.add(Component.translatable(LangKeys.DETAIL_PREREQ_PREFIX, String.join(", ", pNames)).getString());
+                    }
+                    if (adv.getTab() != null && !adv.getTab().isEmpty())
+                        lines.add(Component.translatable(LangKeys.DETAIL_TAB_PREFIX, adv.getTab()).getString());
                 }
-                if (adv.getTab() != null && !adv.getTab().isEmpty())
-                    lines.add(Component.translatable(LangKeys.DETAIL_TAB_PREFIX, adv.getTab()).getString());
             }
         }
         // 自动换行：当单行超出屏幕宽度 60% 时按单词拆分
@@ -148,7 +157,8 @@ public class OverlayRenderer {
         // 计算每一行的内容（先不渲染，只收集行数据以确定总高度）
         java.util.List<DetailLine> lines = new java.util.ArrayList<>();
 
-        String name = isVanilla ? (va != null ? va.getLocalizedName() : id) : (adv != null ? adv.getName() : id);
+        boolean hiddenUncompleted = !isVanilla && adv != null && adv.isHidden() && !cs.isCompleted(id);
+        String name = isVanilla ? (va != null ? va.getLocalizedName() : id) : (hiddenUncompleted ? TranslatedStrings.get(LangKeys.HIDDEN_LOCKED) : (adv != null ? adv.getName() : id));
         lines.add(new DetailLine(name, TEXT_BR, 20));
 
         if (isVanilla) {
@@ -159,25 +169,34 @@ public class OverlayRenderer {
                     enabled ? 0xFF55FF55 : 0xFFFF5555, 16));
             lines.add(new DetailLine(TranslatedStrings.get(LangKeys.TIP_VANILLA_RO), TEXT_DIM, 24));
         } else if (adv != null) {
-            if (adv.getDescription() != null)
-                lines.add(new DetailLine(adv.getDescription(), TEXT, 16));
-            boolean done = cs.isCompleted(id);
-            lines.add(new DetailLine(TranslatedStrings.get(done ? LangKeys.DETAIL_COMPLETED : LangKeys.DETAIL_NOT_COMPLETED),
-                    done ? 0xFF55FF55 : 0xFFFF5555, 16));
-            if (adv.getTab() != null)
-                lines.add(new DetailLine(Component.translatable(LangKeys.DETAIL_TAB_PREFIX, adv.getTab()).getString(), TEXT_DIM, 16));
-            if (adv.getPrerequisites() != null) {
-                for (String pid : adv.getPrerequisites())
-                    lines.add(new DetailLine(Component.translatable(LangKeys.DETAIL_PREREQ_PREFIX, screen.prereqDisplayName(pid)).getString(), TEXT_DIM, 14));
-            }
-            if (adv.getConditions() != null && !adv.getConditions().isEmpty()) {
-                lines.add(new DetailLine(TranslatedStrings.get(LangKeys.CONDITIONS), TEXT_BR, 16));
-                for (var c : adv.getConditions()) {
-                    String line = c.getType() != null ? ConditionTypeStyle.of(c.getType()).displayName() : "???";
-                    String tgtName = DisplayNameResolver.resolve(c.getType(), c.getTargetId());
-                    if (!tgtName.isEmpty()) line += ": " + tgtName;
-                    line += " x" + c.getCount();
-                    lines.add(new DetailLine(line, TEXT_DIM, 14, 10));
+            if (hiddenUncompleted) {
+                lines.add(new DetailLine(TranslatedStrings.get(LangKeys.HIDDEN), TEXT_DIM, 16));
+            } else {
+                if (adv.getDescription() != null)
+                    lines.add(new DetailLine(adv.getDescription(), TEXT, 16));
+                boolean done = cs.isCompleted(id);
+                lines.add(new DetailLine(TranslatedStrings.get(done ? LangKeys.DETAIL_COMPLETED : LangKeys.DETAIL_NOT_COMPLETED),
+                        done ? 0xFF55FF55 : 0xFFFF5555, 16));
+                // Show lore text only when completed
+                if (done && adv.getLore() != null && !adv.getLore().isEmpty()) {
+                    lines.add(new DetailLine("", TEXT, 6));
+                    lines.add(new DetailLine("\u2728 " + adv.getLore(), 0xFFFFD700, 16));
+                }
+                if (adv.getTab() != null)
+                    lines.add(new DetailLine(Component.translatable(LangKeys.DETAIL_TAB_PREFIX, adv.getTab()).getString(), TEXT_DIM, 16));
+                if (adv.getPrerequisites() != null) {
+                    for (String pid : adv.getPrerequisites())
+                        lines.add(new DetailLine(Component.translatable(LangKeys.DETAIL_PREREQ_PREFIX, screen.prereqDisplayName(pid)).getString(), TEXT_DIM, 14));
+                }
+                if (adv.getConditions() != null && !adv.getConditions().isEmpty()) {
+                    lines.add(new DetailLine(TranslatedStrings.get(LangKeys.CONDITIONS), TEXT_BR, 16));
+                    for (var c : adv.getConditions()) {
+                        String line = c.getType() != null ? ConditionTypeStyle.of(c.getType()).displayName() : "???";
+                        String tgtName = DisplayNameResolver.resolve(c.getType(), c.getTargetId());
+                        if (!tgtName.isEmpty()) line += ": " + tgtName;
+                        line += " x" + c.getCount();
+                        lines.add(new DetailLine(line, TEXT_DIM, 14, 10));
+                    }
                 }
             }
         }
@@ -186,8 +205,9 @@ public class OverlayRenderer {
         int totalContentH = 0;
         for (DetailLine dl : lines) totalContentH += dl.height;
 
-        // 滚动范围
+        // 滚动范围（Bug 2 修复：暴露真实 maxScroll 供 InputManager 使用）
         int maxScroll = Math.max(0, totalContentH - contentH + 8);
+        detailMaxScroll = maxScroll;
         if (screen.overlay.detailScrollOff > maxScroll) screen.overlay.detailScrollOff = maxScroll;
         if (screen.overlay.detailScrollOff < 0) screen.overlay.detailScrollOff = 0;
 
@@ -283,106 +303,6 @@ public class OverlayRenderer {
     private void renderEditor(GuiGraphics g, int mx, int my) {
         Font font = screen.getFont();
         screen.editPanel.render(g, mx, my, font, screen.getScreenWidth(), screen.getScreenHeight());
-    }
-
-    // ═══════════════ STATS ═══════════════
-
-    /** 统计面板的实际渲染高度（不超过屏幕边界），供点击/关闭判断与渲染保持一致 */
-    public static int statsActualH = OverlayLayout.STATS_H;
-    /** 统计面板渲染坐标（供滚动条拖拽使用） */
-    public static int statsPanelX, statsPanelY, statsPanelW, statsContentTop, statsContentBottom;
-    /** 统计面板滚动条拖拽状态 */
-    public static boolean statsScrollDrag = false;
-    /** 统计面板最大滚动值 */
-    public static int statsMaxScroll = 0;
-
-    private void renderStats(GuiGraphics g, int mx, int my) {
-        Font font = screen.getFont();
-        int sw = OverlayLayout.STATS_W;
-        int screenH = screen.getScreenHeight();
-
-        ClientDataStore cs = ClientDataStore.getInstance();
-        int total = cs.getTotalCount();
-        int done = cs.getCompletedCount();
-        double rate = total > 0 ? (done * 100.0 / total) : 0;
-        List<String> lines = new ArrayList<>();
-        lines.add(TranslatedStrings.get(LangKeys.STAT_CUSTOM) + ": " + total);
-        lines.add(TranslatedStrings.get(LangKeys.STAT_DONE) + ": " + done);
-        lines.add(TranslatedStrings.get(LangKeys.STAT_RATE) + ": " + String.format("%.1f%%", rate));
-        int vanillaTotal = 0, vanillaDone = 0;
-        for (var va : cs.getVanillaAdvancements()) {
-            if (cs.isVanillaEnabled(va.id())) {
-                vanillaTotal++;
-                if (cs.isCompleted(va.id())) vanillaDone++;
-            }
-        }
-        lines.add(TranslatedStrings.get(LangKeys.STAT_VANILLA) + ": " + vanillaDone + "/" + vanillaTotal);
-        lines.add("");
-        lines.add(TranslatedStrings.get(LangKeys.STAT_TAB_PROG));
-        for (String tab : cs.getTabs()) {
-            int tabT = cs.getTabTotalCount(tab);
-            int tabD = cs.getTabCompletedCount(tab);
-            if (tabT > 0) lines.add("  " + tab + ": " + tabD + "/" + tabT);
-        }
-
-        // 动态面板高度：至少 STATS_H，最多不超过屏幕边缘
-        int sh = Math.min(OverlayLayout.STATS_H, screenH - 16);
-        statsActualH = sh;
-
-        int sx = screen.mid(sw);
-        int sy = Math.max(8, (screenH - sh) / 2);
-        if (sy + sh > screenH - 8) sy = Math.max(8, screenH - sh - 8);
-
-        // 存储面板坐标供滚动条拖拽使用
-        statsPanelX = sx;
-        statsPanelY = sy;
-        statsPanelW = sw;
-        int contentTop = sy + 28;
-        int contentBottom = sy + sh - 4;
-        statsContentTop = contentTop;
-        statsContentBottom = contentBottom;
-
-        GuiUtils.drawPanelBg(g, font, sx, sy, sw, sh,
-                TranslatedStrings.get(LangKeys.STATISTICS),
-                screen.getScreenWidth(), screenH);
-
-        // 计算内容总高度和滚动范围
-        int contentH = lines.size() * 16 + 8;
-        int availH = contentBottom - contentTop;
-        int maxScroll = Math.max(0, contentH - availH);
-        statsMaxScroll = maxScroll;
-        if (screen.overlay.statsScrollOff > maxScroll) screen.overlay.statsScrollOff = maxScroll;
-        if (screen.overlay.statsScrollOff < 0) screen.overlay.statsScrollOff = 0;
-
-        // 渲染滚动条
-        boolean needsScroll = maxScroll > 0;
-        if (needsScroll) {
-            int scrollBarX = sx + sw - 6;
-            int scrollBarH = availH;
-            g.fill(scrollBarX, contentTop, scrollBarX + 4, contentBottom, 0xFF222238);
-            double vRatio = maxScroll > 0 ? (double) screen.overlay.statsScrollOff / maxScroll : 0;
-            double vSize = Math.max(0.08, (double) availH / contentH);
-            int thumbH = Math.max(16, (int) (vSize * scrollBarH));
-            int thumbY = contentTop + (int) (vRatio * (scrollBarH - thumbH));
-            g.fill(scrollBarX, thumbY, scrollBarX + 4, thumbY + thumbH, 0xFF6666BB);
-        }
-
-        // 渲染内容
-        g.enableScissor(sx + 2, contentTop, sx + sw - 2, contentBottom);
-        int lineY = contentTop - screen.overlay.statsScrollOff;
-        for (String line : lines) {
-            if (lineY + 14 >= contentTop && lineY < contentBottom)
-                g.drawString(font, line, sx + 14, lineY, TEXT, false);
-            lineY += 16;
-        }
-        g.disableScissor();
-    }
-
-    public int calcStatsMaxScroll() {
-        int lineCount = 5 + ClientDataStore.getInstance().getTabs().size();
-        int contentH = lineCount * 16 + 8;
-        int availH = (statsContentBottom > statsContentTop) ? (statsContentBottom - statsContentTop) : 230;
-        return Math.max(0, contentH - availH);
     }
 
     // ═══════════════ CTX ═══════════════
@@ -770,17 +690,115 @@ public class OverlayRenderer {
     public int getHelpPw() { return helpPw; }
     public int getHelpPh() { return helpPh; }
 
+    // ═══════════════ JOURNAL ═══════════════
+
+    /** 冒险日志：按完成时间倒序展示已完成成就，配以风
+
+味文本和诗意排版 */
+    public void renderJournal(GuiGraphics g, int mx, int my, Font font, int sw, int sh) {
+        int jw = Math.min(sw - 60, 520);
+        int jh = Math.min(sh - 40, 420);
+        int jx = (sw - jw) / 2;
+        int jy = Math.max(20, (sh - jh) / 2);
+
+        GuiUtils.drawPanelBg(g, font, jx, jy, jw, jh,
+                TranslatedStrings.get(LangKeys.JOURNAL_TITLE), sw, sh);
+
+        ClientDataStore cs = ClientDataStore.getInstance();
+
+        // 收集已完成的成就
+        List<java.util.AbstractMap.SimpleEntry<String, String>> completed = new ArrayList<>();
+        for (var entry : cs.getAdvancements().entrySet()) {
+            if (cs.isCompleted(entry.getKey())) {
+                completed.add(new java.util.AbstractMap.SimpleEntry<>(
+                        entry.getKey(), entry.getValue().getName()));
+            }
+        }
+        // 也包含已完成的原版成就
+        for (var entry : cs.getVanillaAdvancements()) {
+            if (cs.isCompleted(entry.id())) {
+                completed.add(new java.util.AbstractMap.SimpleEntry<>(
+                        entry.id(), entry.name()));
+            }
+        }
+
+        if (completed.isEmpty()) {
+            String empty = TranslatedStrings.get(LangKeys.JOURNAL_EMPTY);
+            g.drawString(font, empty, jx + (jw - font.width(empty)) / 2, jy + jh / 2 - 10, TEXT_DIM, false);
+            return;
+        }
+
+        int contentTop = jy + 28;
+        int contentBottom = jy + jh - 14;
+        int contentH = contentBottom - contentTop;
+        int rowH = 28;
+        int totalH = completed.size() * rowH;
+        int maxScroll = Math.max(0, totalH - contentH);
+        if (screen.journalScrollOff > maxScroll) screen.journalScrollOff = maxScroll;
+        if (screen.journalScrollOff < 0) screen.journalScrollOff = 0;
+
+        boolean needsScroll = maxScroll > 0;
+        if (needsScroll) {
+            int sbX = jx + jw - 6;
+            g.fill(sbX, contentTop, sbX + 4, contentBottom, 0xFF222238);
+            double vRatio = maxScroll > 0 ? (double) screen.journalScrollOff / maxScroll : 0;
+            double vSize = Math.max(0.08, (double) contentH / totalH);
+            int thumbH = Math.max(16, (int) (vSize * contentH));
+            int thumbY = contentTop + (int) (vRatio * (contentH - thumbH));
+            g.fill(sbX, thumbY, sbX + 4, thumbY + thumbH, 0xFF6666BB);
+        }
+
+        g.enableScissor(jx + 1, contentTop, jx + jw - 1, contentBottom);
+        int ty = contentTop - screen.journalScrollOff;
+        int idx = 0;
+        for (var entry : completed) {
+            if (ty + rowH > contentTop && ty < contentBottom) {
+                String advId = entry.getKey();
+                String advName = entry.getValue();
+                CustomAdvancement adv = cs.getAdvancement(advId);
+
+                // 序号
+                String num = String.format("%2d.", idx + 1);
+                g.drawString(font, num, jx + 14, ty + 7, TEXT_DIM, false);
+
+                // 成就名称
+                String displayName = GuiUtils.truncate(font, advName, jw - 80);
+                g.drawString(font, displayName, jx + 44, ty + 7, TEXT_BR, false);
+
+                // Lore text if available
+                if (adv != null && adv.getLore() != null && !adv.getLore().isEmpty()) {
+                    String loreTrunc = GuiUtils.truncate(font, adv.getLore(), jw - 90);
+                    g.drawString(font, "\u2728 " + loreTrunc, jx + 54, ty + 19, 0xFFFFD700, false);
+                }
+
+                // 行分隔
+                g.fill(jx + 14, ty + rowH - 1, jx + jw - 20, ty + rowH, 0x10FFFFFF);
+            }
+            ty += rowH;
+            idx++;
+        }
+        g.disableScissor();
+
+        // 滚动条滚动处理
+        if (needsScroll) {
+            int sbX = jx + jw - 6;
+            int sbY = contentTop;
+            int sbH = contentH;
+            // 简化滚动（不在 OverlayRenderer 中处理鼠标事件，由 InputManager 处理）
+        }
+    }
+
     // ═══════════════ RENDER DISPATCH ═══════════════
 
     public void renderOv(GuiGraphics g, int mx, int my) {
         switch (screen.overlay.current) {
             case DETAIL: renderDetail(g, mx, my); break;
             case CREATE: case EDIT: renderEditor(g, mx, my); break;
-            case STATS: renderStats(g, mx, my); break;
             case CTX: renderCtx(g, mx, my); break;
             case CONFIRM: renderConfirm(g, mx, my); break;
             case TAB_INPUT: renderTabInput(g, mx, my); break;
             case TAB_MANAGE: renderTabManage(g, mx, my); break;
+            case JOURNAL: break; // Journal rendered separately
             default: break;
         }
     }

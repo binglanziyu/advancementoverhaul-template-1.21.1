@@ -12,11 +12,14 @@ import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -72,13 +75,21 @@ public class CommandHandler {
         return builder.buildFuture();
     }
 
-    /** 补全维度 ID（内置三个 + 已锁定的维度） */
+    /** 补全维度 ID（所有已注册维度，包括原版和 mod 维度） */
     private static CompletableFuture<Suggestions> suggestDimensions(
             CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
-        builder.suggest("minecraft:overworld");
-        builder.suggest("minecraft:the_nether");
-        builder.suggest("minecraft:the_end");
-        for (String dim : ServerDataStore.getInstance().getDimensionLocks().keySet()) {
+        Set<String> allDims = new LinkedHashSet<>();
+        try {
+            var access = ctx.getSource().getServer().registryAccess();
+            access.registryOrThrow(Registries.DIMENSION).keySet().forEach(rl -> allDims.add(rl.toString()));
+        } catch (Exception e) {
+            LOGGER.debug("Failed to enumerate dimension registry for suggestions: {}", e.getMessage());
+        }
+        // 兜底：确保三个原版维度始终出现
+        allDims.add("minecraft:overworld");
+        allDims.add("minecraft:the_nether");
+        allDims.add("minecraft:the_end");
+        for (String dim : allDims) {
             builder.suggest(dim);
         }
         return builder.buildFuture();
@@ -121,6 +132,7 @@ public class CommandHandler {
      */
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("adv")
+                .requires(source -> source.hasPermission(2))
                 // ── 玩家操作 ──
                 .then(Commands.literal("complete")
                         .then(Commands.argument("id", StringArgumentType.greedyString())
@@ -268,6 +280,13 @@ public class CommandHandler {
         ServerDataStore.getInstance().forceReload();
         AdvancementRegistry.syncAllRuntime(ctx.getSource().getServer());
         SyncManager.syncAll(ctx.getSource().getServer());
+
+        // 重载叙事配置（独白文本、故地回声、统计模板、成就描述）
+        com.example.advancementoverhaul.data.NarrativeConfigLoader.getInstance()
+                .reload(net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get());
+        // 重置客户端独白冷却和回声状态
+        com.example.advancementoverhaul.event.EchoEventHandler.resetAll();
+
         ctx.getSource().sendSuccess(
                 () -> Component.translatable(LangKeys.CMD_RELOAD_DONE), false);
         return 1;

@@ -90,14 +90,10 @@ public final class CircleCache {
         float blue = (color & 0xFF) / 255f;
 
         RenderSystem.enableBlend();
-        RenderSystem.setShaderColor(red, green, blue, a);
-        try {
-            g.blit(filledId, cx - r, cy - r, size, size,
-                    0f, 0f, TEX_SIZE, TEX_SIZE, TEX_SIZE, TEX_SIZE);
-        } finally {
-            RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
-            RenderSystem.disableBlend();
-        }
+        g.setColor(red, green, blue, a);
+        g.blit(filledId, cx - r, cy - r, size, size,
+                0f, 0f, TEX_SIZE, TEX_SIZE, TEX_SIZE, TEX_SIZE);
+        g.setColor(1f, 1f, 1f, 1f);
     }
 
     public static void drawCircleOutline(GuiGraphics g, int cx, int cy, int r, int color) {
@@ -110,14 +106,10 @@ public final class CircleCache {
         float blue = (color & 0xFF) / 255f;
 
         RenderSystem.enableBlend();
-        RenderSystem.setShaderColor(red, green, blue, a);
-        try {
-            g.blit(outlineId, cx - r, cy - r, size, size,
-                    0f, 0f, TEX_SIZE, TEX_SIZE, TEX_SIZE, TEX_SIZE);
-        } finally {
-            RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
-            RenderSystem.disableBlend();
-        }
+        g.setColor(red, green, blue, a);
+        g.blit(outlineId, cx - r, cy - r, size, size,
+                0f, 0f, TEX_SIZE, TEX_SIZE, TEX_SIZE, TEX_SIZE);
+        g.setColor(1f, 1f, 1f, 1f);
     }
 
     // ── Fallback (original pixel-by-pixel) ──

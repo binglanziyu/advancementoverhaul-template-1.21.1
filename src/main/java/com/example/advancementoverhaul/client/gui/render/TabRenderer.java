@@ -237,7 +237,11 @@ public class TabRenderer {
                 GuiUtils.inRect(mx, my, cx, cy, s, s), false);
         cx -= s + gap;
         GuiUtils.drawIconBtn(g, font, cx, cy, s, "\u2691",
-                GuiUtils.inRect(mx, my, cx, cy, s, s), screen.overlay.current == Ov.STATS);
+                GuiUtils.inRect(mx, my, cx, cy, s, s), false);
+        cx -= s + gap;
+        // 冒险日志按钮
+        GuiUtils.drawIconBtn(g, font, cx, cy, s, "\uD83D\uDCD6",
+                GuiUtils.inRect(mx, my, cx, cy, s, s), screen.overlay.current == Ov.JOURNAL);
         cx -= s + gap;
         // 标签管理按钮
         GuiUtils.drawIconBtn(g, font, cx, cy, s, "\u2630",
@@ -254,7 +258,7 @@ public class TabRenderer {
         g.drawString(font, resetIcon, -font.width(resetIcon) / 2, -4, resetHov ? ACCENT : TEXT, false);
         g.pose().popPose();
 
-        boolean canEdit = Minecraft.getInstance().player != null && !Minecraft.getInstance().player.isSpectator();
+        boolean canEdit = Minecraft.getInstance().player != null && Minecraft.getInstance().player.hasPermissions(2);
         int by = screen.height - BOTTOM_H - p - s;
         cx = screen.width - p - s;
 
@@ -273,7 +277,7 @@ public class TabRenderer {
             by -= s + gap;
         }
         // FTB 通知模式切换（仅编辑模式 + FTB Quests 已加载）
-        if (canEdit && screen.editMode && com.example.advancementoverhaul.compat.FtbQuestsBridge.isLoaded()) {
+        if (canEdit && screen.editMode && com.example.advancementoverhaul.compat.ftb.FtbQuestsBridge.isLoaded()) {
             String ftbLabel = switch (com.example.advancementoverhaul.client.gui.AdvancementScreen.ftbNotifMode) {
                 case 1 -> "\u2205";   // ⊘ 关闭
                 case 2 -> "\u21C4";   // ⇄ 替换
@@ -303,6 +307,9 @@ public class TabRenderer {
         GuiUtils.drawHoverTooltip(g, font, mx, my, cx, cy, s, s,
                 Component.translatable(LangKeys.BTN_TT_STATS).getString(), sw, sh);
         cx -= s + gap;
+        GuiUtils.drawHoverTooltip(g, font, mx, my, cx, cy, s, s,
+                Component.translatable(LangKeys.JOURNAL_BTN_TT).getString(), sw, sh);
+        cx -= s + gap;
         // 标签管理 tooltip
         GuiUtils.drawHoverTooltip(g, font, mx, my, cx, cy, s, s,
                 Component.translatable(LangKeys.BTN_TT_TABS).getString(), sw, sh);
@@ -310,7 +317,7 @@ public class TabRenderer {
         GuiUtils.drawHoverTooltip(g, font, mx, my, cx, cy, s, s,
                 Component.translatable(LangKeys.BTN_TT_RESET).getString(), sw, sh);
 
-        boolean canEdit = Minecraft.getInstance().player != null && !Minecraft.getInstance().player.isSpectator();
+        boolean canEdit = Minecraft.getInstance().player != null && Minecraft.getInstance().player.hasPermissions(2);
         int by = sh - BOTTOM_H - p - s;
         cx = sw - p - s;
         GuiUtils.drawHoverTooltip(g, font, mx, my, cx, by, s, s,
@@ -328,7 +335,7 @@ public class TabRenderer {
             by -= s + gap;
         }
         // FTB 通知模式 tooltip
-        if (canEdit && screen.editMode && com.example.advancementoverhaul.compat.FtbQuestsBridge.isLoaded()) {
+        if (canEdit && screen.editMode && com.example.advancementoverhaul.compat.ftb.FtbQuestsBridge.isLoaded()) {
             String modeKey = switch (com.example.advancementoverhaul.client.gui.AdvancementScreen.ftbNotifMode) {
                 case 1 -> LangKeys.FTB_MODE_DISABLE;
                 case 2 -> LangKeys.FTB_MODE_REPLACE;

@@ -40,6 +40,7 @@ class EditPanelRenderer {
     void renderWidgets(GuiGraphics g, int mx, int my, float pt) {
         if (panel.nameBox != null && panel.nameBox.isVisible()) panel.nameBox.render(g, mx, my, pt);
         if (panel.descBox != null && panel.descBox.isVisible()) panel.descBox.render(g, mx, my, pt);
+        if (panel.loreBox != null && panel.loreBox.isVisible()) panel.loreBox.render(g, mx, my, pt);
         if (panel.condCountBox != null && panel.condCountBox.isVisible()) panel.condCountBox.render(g, mx, my, pt);
     }
 
@@ -114,8 +115,19 @@ class EditPanelRenderer {
         }
         ty += 26;
 
+        // ── Row 2.5: 风味文本（日记） ──
+        if (!panel.vanillaEditMode && panel.loreActive) {
+            panel.loreBox.setX(panel.panelX + 14); panel.loreBox.setY(ty); panel.loreBox.setWidth(pw - 28);
+            panel.loreBox.setVisible(true);
+        } else {
+            panel.loreBox.setVisible(false);
+            drawFieldArea(g, font, panel.panelX + 14, ty, pw - 28, 20,
+                    panel.edLore, TranslatedStrings.get(LangKeys.LORE_PLACEHOLDER));
+        }
+        ty += 24;
+
         // ── 计算前置于下拉区域的 Y 坐标（稍后在条件列表上方渲染） ──
-        int prereqDropdownY = panel.panelY + 28 + 28 + 22;
+        int prereqDropdownY = panel.panelY + 28 + 28 + 22 + 24;
 
         // ── 分割线 ──
         g.fill(panel.panelX + 10, ty, panel.panelX + pw - 10, ty + 1, DIVIDER);

@@ -27,10 +27,6 @@ class OverlayClickHandler {
             case CREATE: case EDIT:
                 if (btn == 0) { clickEditor(screen, mx, my); return true; }
                 return true;
-            case STATS:
-                if (btn == 0) clickStats(screen, mx, my);
-                else screen.overlay.close();
-                return true;
             case CTX:
                 if (btn == 0) clickCtx(screen, mx, my);
                 else screen.overlay.close();
@@ -44,6 +40,10 @@ class OverlayClickHandler {
                 return true;
             case CONFIRM:
                 if (btn == 0) clickConfirm(screen, mx, my);
+                return true;
+            case JOURNAL:
+                if (btn == 0) clickJournal(screen, mx, my);
+                else screen.overlay.close();
                 return true;
             default:
                 return false;
@@ -93,36 +93,6 @@ class OverlayClickHandler {
         } else {
             screen.editPanel.close();
             screen.overlay.close();
-        }
-    }
-
-    private static void clickStats(AdvancementScreen screen, double mx, double my) {
-        var or = screen.overlayRenderer;
-        int px = or.statsPanelX;
-        int py = or.statsPanelY;
-        int pw = or.statsPanelW;
-        int sh = or.statsActualH;
-
-        // 关闭按钮
-        if (GuiUtils.closeHit(mx, my, px, py, pw)) {
-            screen.overlay.close();
-            return;
-        }
-        // 面板外点击关闭
-        if (GuiUtils.outsidePanel(mx, my, px, py, pw, sh)) {
-            screen.overlay.close();
-            return;
-        }
-
-        // 滚动条拖拽
-        if (or.statsMaxScroll > 0) {
-            int sbX = px + pw - 6;
-            int sbY = or.statsContentTop;
-            int sbH = or.statsContentBottom - or.statsContentTop;
-            if (mx >= sbX && mx < sbX + 4 && my >= sbY && my < sbY + sbH) {
-                or.statsScrollDrag = true;
-                return;
-            }
         }
     }
 
@@ -237,5 +207,22 @@ class OverlayClickHandler {
 
         if (GuiUtils.outsidePanel(mx, my, px, py, OverlayLayout.CONFIRM_W, OverlayLayout.CONFIRM_H))
             screen.overlay.close();
+    }
+
+    private static void clickJournal(AdvancementScreen screen, double mx, double my) {
+        int sw = screen.getScreenWidth(), sh = screen.getScreenHeight();
+        int jw = Math.min(sw - 60, 520);
+        int jh = Math.min(sh - 40, 420);
+        int jx = (sw - jw) / 2;
+        int jy = Math.max(20, (sh - jh) / 2);
+
+        if (GuiUtils.closeHit(mx, my, jx, jy, jw)) {
+            screen.overlay.close();
+            return;
+        }
+        if (GuiUtils.outsidePanel(mx, my, jx, jy, jw, jh)) {
+            screen.overlay.close();
+            return;
+        }
     }
 }

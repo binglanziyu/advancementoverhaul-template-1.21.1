@@ -19,6 +19,8 @@ public class CustomAdvancement {
     private String tab;
     private boolean hidden;
     private String icon;
+    /** Narrative lore text revealed upon completion, enhancing immersion */
+    private String lore;
     private List<String> prerequisites;
     private List<AdvancementCondition> conditions;
 
@@ -26,6 +28,7 @@ public class CustomAdvancement {
         this.prerequisites = new ArrayList<>();
         this.conditions = new ArrayList<>();
         this.hidden = false;
+        this.lore = null;
     }
 
     public CustomAdvancement(String id, String name, String description, int x, int y) {
@@ -35,6 +38,7 @@ public class CustomAdvancement {
         this.x = x;
         this.y = y;
         this.hidden = false;
+        this.lore = null;
         this.prerequisites = new ArrayList<>();
         this.conditions = new ArrayList<>();
     }
@@ -45,6 +49,7 @@ public class CustomAdvancement {
         c.tab = tab;
         c.hidden = hidden;
         c.icon = icon;
+        c.lore = lore;
         c.prerequisites = new ArrayList<>(prerequisites != null ? prerequisites : List.of());
         c.conditions = new ArrayList<>();
         if (conditions != null) {
@@ -64,6 +69,7 @@ public class CustomAdvancement {
     public String getTab() { return tab; }
     public boolean isHidden() { return hidden; }
     public String getIcon() { return icon; }
+    public String getLore() { return lore; }
     public List<String> getPrerequisites() {
         return prerequisites != null ? Collections.unmodifiableList(prerequisites) : List.of();
     }
@@ -80,6 +86,7 @@ public class CustomAdvancement {
     public void setTab(String tab) { this.tab = tab; }
     public void setHidden(boolean hidden) { this.hidden = hidden; }
     public void setIcon(String icon) { this.icon = icon; }
+    public void setLore(String lore) { this.lore = lore; }
     public void setPrerequisites(List<String> prerequisites) { this.prerequisites = prerequisites; }
     public void setConditions(List<AdvancementCondition> conditions) { this.conditions = conditions; }
 }

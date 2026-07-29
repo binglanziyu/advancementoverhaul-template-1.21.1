@@ -1,11 +1,12 @@
 package com.example.advancementoverhaul;
 
 import com.example.advancementoverhaul.client.ClientEvents;
-import com.example.advancementoverhaul.client.gui.ImageManager;
 import com.example.advancementoverhaul.command.CommandHandler;
 import com.example.advancementoverhaul.compat.AdvancementRegistry;
 import com.example.advancementoverhaul.data.ServerDataStore;
+import com.example.advancementoverhaul.event.MonologueEventHandler;
 import com.example.advancementoverhaul.event.ServerEventHandler;
+import com.example.advancementoverhaul.event.StatsEventHandler;
 import com.example.advancementoverhaul.network.NetworkHandler;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -66,13 +67,21 @@ public class AdvancementOverhaul {
 
         // 注册到 NeoForge 事件总线
         NeoForge.EVENT_BUS.register(ServerEventHandler.class);
+        NeoForge.EVENT_BUS.register(StatsEventHandler.class);
+        NeoForge.EVENT_BUS.register(MonologueEventHandler.class);
         NeoForge.EVENT_BUS.addListener(CommandHandler::registerCommands);
         NeoForge.EVENT_BUS.addListener(AdvancementOverhaul::onServerStopping);
+
+        // 叙事配置加载器（客户端+服务端 都需要）
+        com.example.advancementoverhaul.data.NarrativeConfigLoader.getInstance()
+                .init(FMLPaths.CONFIGDIR.get());
 
         // 客户端专用初始化
         if (FMLEnvironment.dist.isClient()) {
             try {
                 ClientEvents.init(modBus);
+                com.example.advancementoverhaul.client.gui.ImageManager.init(FMLPaths.CONFIGDIR.get());
+                com.example.advancementoverhaul.client.ResourceLoader.init(FMLPaths.CONFIGDIR.get());
             } catch (Exception e) {
                 LOGGER.error("Failed to initialize client events", e);
             }
@@ -85,7 +94,6 @@ public class AdvancementOverhaul {
      */
     private void onCommonSetup(FMLCommonSetupEvent event) {
         ServerDataStore.getInstance().init(FMLPaths.CONFIGDIR.get());
-        ImageManager.init(FMLPaths.CONFIGDIR.get());
 
         // 注册成就变更回调：每次新增/更新/删除成就时自动增量更新 runtime Map
         // 使 FTB Quests 能实时读取变更，无需全量 rebuild

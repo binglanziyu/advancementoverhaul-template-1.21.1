@@ -17,7 +17,7 @@ public final class ModInfo {
 
     /** 网络协议版本号（自定义 Payload 的协议标识）。
      *  由 injectModInfo task 在编译前替换为 gradle.properties 中的 network_protocol 值 */
-    public static final String NETWORK_PROTOCOL = "7";
+    public static final String NETWORK_PROTOCOL = "8";
 
     private ModInfo() {}
 }

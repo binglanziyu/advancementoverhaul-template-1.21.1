@@ -40,7 +40,7 @@ public class Config {
         b.push("interface");
         HIDE_VANILLA = b
                 .comment("Replace vanilla advancements screen with custom canvas UI")
-                .define("hideVanilla", false);
+                .define("hideVanilla", true);
         b.pop();
 
         b.push("permission");

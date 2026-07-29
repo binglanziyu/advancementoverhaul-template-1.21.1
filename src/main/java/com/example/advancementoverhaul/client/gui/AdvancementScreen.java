@@ -113,12 +113,15 @@ public class AdvancementScreen extends Screen {
     public AdvancementScreen() { super(Component.translatable(LangKeys.TITLE)); }
     public net.minecraft.client.gui.Font getFont() { return this.font; }
     public boolean hasOv() { return overlay.current != Ov.NONE || showDim || showSel || showHelp || tabDrag.overDDOpen; }
+    /** 冒险日志滚动偏移 */
+    public int journalScrollOff = 0;
     public boolean blocksCanvas() {
         return showDim || showSel || showHelp
                 || overlay.current == Ov.DETAIL || overlay.current == Ov.CREATE
-                || overlay.current == Ov.EDIT || overlay.current == Ov.STATS
-                || overlay.current == Ov.CONFIRM || overlay.current == Ov.TAB_INPUT
-                || overlay.current == Ov.TAB_MANAGE;
+                || overlay.current == Ov.EDIT || overlay.current == Ov.CONFIRM
+                || overlay.current == Ov.TAB_INPUT || overlay.current == Ov.TAB_MANAGE
+                || overlay.current == Ov.JOURNAL
+                || overlay.current == Ov.CTX;
     }
     public int mid(int w) { return (width - w) / 2; }
     public int midY(int h) { return Math.max(20, (height - h) / 2); }
@@ -235,6 +238,8 @@ public class AdvancementScreen extends Screen {
                 // "原有成就" 分类：保持在所有自定义进度下方居中
                 baseX = 20;
                 layerY = vanillaTabY;
+                // Bug 3 修复：仅 TAB_VANILLA 更新全局起始 Y
+                vanillaTabY = Math.max(vanillaTabY, layerY + 40);
             } else {
                 // 自定义分类：放在该分类已有自定义进度的右侧
                 int rightEdge = 20;
@@ -262,8 +267,6 @@ public class AdvancementScreen extends Screen {
                     vanillaPos.put(ids.get(i), new int[]{layerStartX + i * gapX, layerY});
                 layerY += gapY;
             }
-            // 更新全局 TAB_VANILLA 起始 Y，防止后续组重叠
-            vanillaTabY = Math.max(vanillaTabY, layerY + 40);
         }
     }
 
@@ -289,7 +292,7 @@ public class AdvancementScreen extends Screen {
 
         dimPanel = new DimensionPanel(this);
         listSel = new ListSelector();
-        editMode = persistEdit;
+        editMode = persistEdit && minecraft.player != null && minecraft.player.hasPermissions(2);
         canvas.scrollX = PERSIST.scrollX; canvas.scrollY = PERSIST.scrollY; canvas.zoom = PERSIST.zoom;
         anim.lastTime = Util.getMillis();
         vanillaPositionsDirty = true;
@@ -370,7 +373,9 @@ public class AdvancementScreen extends Screen {
 
     /** Scrolled canvas region: grid, connections, cards, box selection, scroll indicators. */
     private void renderCanvasContent(GuiGraphics g, int mx, int my) {
-        g.enableScissor(0, TAB_H, width, height - BOTTOM_H);
+        // Bug 4 修复：扩展 scissor 区域，防止 hover zoom 时边缘卡片被截断
+        int hovPad = (int) (CARD_W * canvas.zoom * HOVER_ZOOM);
+        g.enableScissor(-hovPad, TAB_H - hovPad, width + hovPad * 2, height - BOTTOM_H + hovPad);
         cardRenderer.renderGrid(g);
         if (!blocksCanvas()) {
             cardRenderer.renderConnections(g);
@@ -389,7 +394,8 @@ public class AdvancementScreen extends Screen {
         if (showSel) {
             g.fill(0, 0, width, height, 0xFF1A1A2E);
         } else if (hasOv()) {
-            g.fill(0, TAB_H, width, height - BOTTOM_H, 0x80000000);
+            // 完全不透明遮罩，防止 renderItem 3D 四边形穿透覆盖层面板（Bug 1 修复）
+            g.fill(0, TAB_H, width, height - BOTTOM_H, 0xFF1A1A2E);
         }
     }
 
@@ -414,6 +420,7 @@ public class AdvancementScreen extends Screen {
         g.pose().translate(0, 0, 300);
 
         overlayRenderer.renderOv(g, mx, my);
+        if (overlay.current == Ov.JOURNAL) overlayRenderer.renderJournal(g, mx, my, font, width, height);
         if (showDim) dimPanel.render(g, mx, my);
         if (showSel) listSel.render(g, mx, my);
         if (showHelp) overlayRenderer.renderHelp(g, mx, my, font, width, height);
@@ -614,13 +621,45 @@ public class AdvancementScreen extends Screen {
         overlay.ctxActions.add(new OverlayState.CtxAct(
                 Component.translatable(LangKeys.IMAGE_SCALE_DOWN).getString(),
                 () -> { img.setScale(img.getScale() * 0.8f); ImageManager.save(imageElements); }));
+        if (img.getScale() != 1.0f) {
+            overlay.ctxActions.add(new OverlayState.CtxAct(
+                    Component.translatable(LangKeys.IMAGE_SCALE_RESET).getString(),
+                    () -> { img.setScale(1.0f); ImageManager.save(imageElements); }));
+        }
         overlay.ctxActions.add(new OverlayState.CtxAct(
                 Component.translatable(img.isLocked() ? LangKeys.IMAGE_UNLOCK : LangKeys.IMAGE_LOCK).getString(),
                 () -> { img.setLocked(!img.isLocked()); ImageManager.save(imageElements); }));
+
+        // 层级调整
+        int idx = imageElements.indexOf(img);
+        if (idx < imageElements.size() - 1) {
+            overlay.ctxActions.add(new OverlayState.CtxAct(
+                    Component.translatable(LangKeys.IMAGE_TO_FRONT).getString(),
+                    () -> { imageElements.remove(img); imageElements.add(img); ImageManager.save(imageElements); }));
+        }
+        if (idx > 0) {
+            overlay.ctxActions.add(new OverlayState.CtxAct(
+                    Component.translatable(LangKeys.IMAGE_TO_BACK).getString(),
+                    () -> { imageElements.remove(img); imageElements.add(0, img); ImageManager.save(imageElements); }));
+        }
+
         overlay.ctxActions.add(new OverlayState.CtxAct(
                 Component.translatable(LangKeys.IMAGE_DELETE).getString(),
-                () -> { imageElements.remove(img); selectedImageId = null; ImageManager.save(imageElements); }));
+                () -> requestImageDelete(imageId)));
         overlay.current = Ov.CTX;
+    }
+
+    /** 图片删除确认对话框 */
+    private void requestImageDelete(String imageId) {
+        ImageElement img = findImageById(imageId);
+        if (img == null) return;
+        overlay.confirmText = Component.translatable(LangKeys.CONFIRM_IMAGE_DELETE, img.getPath()).getString();
+        overlay.confirmAction = () -> {
+            imageElements.removeIf(i -> i.getId().equals(imageId));
+            if (imageId.equals(selectedImageId)) selectedImageId = null;
+            ImageManager.save(imageElements);
+        };
+        overlay.current = Ov.CONFIRM;
     }
 
     /** 非编辑模式下右键卡片：仅显示"详情"选项 */
@@ -724,10 +763,14 @@ public class AdvancementScreen extends Screen {
         PERSIST.scrollY = canvas.scrollY;
         PERSIST.zoom = canvas.zoom;
         tabDrag.reset();
-        overlay.statsScrollOff = 0;
+        drag.reset();
+        journalScrollOff = 0;
         canvasManager.resetScrollDrag();
         editPanel.closeCondSel();
         markFilteredDirty();
+
+        // 清理图片纹理缓存，防止 DynamicTexture 泄漏
+        ImageManager.clearCache();
 
         if (this.minecraft != null) this.minecraft.setScreen(null);
     }

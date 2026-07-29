@@ -246,7 +246,6 @@ public class InputManager {
     // ═══════════════ MOUSE RELEASE ═══════════════
 
     public boolean onMouseReleased(double mx, double my, int btn) {
-        screen.overlayRenderer.statsScrollDrag = false;
         if (screen.showDim) { screen.dimPanel.mouseReleased(mx, my, btn); }
         if (screen.showSel) { screen.listSel.mouseReleased(mx, my, btn); }
         if (screen.editPanel.isVisible()) {
@@ -294,19 +293,6 @@ public class InputManager {
     // ═══════════════ MOUSE DRAG ═══════════════
 
     public boolean onMouseDragged(double mx, double my, int btn, double dx, double dy) {
-        // 统计面板滚动条拖拽
-        if (screen.overlayRenderer.statsScrollDrag) {
-            int contentTop = com.example.advancementoverhaul.client.gui.render.OverlayRenderer.statsContentTop;
-            int contentBottom = com.example.advancementoverhaul.client.gui.render.OverlayRenderer.statsContentBottom;
-            int sbH = contentBottom - contentTop;
-            if (sbH > 0) {
-                double ratio = Math.clamp((my - contentTop) / (double) sbH, 0, 1);
-                int ms = com.example.advancementoverhaul.client.gui.render.OverlayRenderer.statsMaxScroll;
-                screen.overlay.statsScrollOff = (int) (ratio * ms);
-            }
-            return true;
-        }
-
         if (screen.showDim && screen.dimPanel.mouseDragged(mx, my, btn, dx, dy)) return true;
         if (screen.showSel && screen.listSel.mouseDragged(mx, my, btn, dx, dy)) return true;
         if (screen.editPanel.isVisible()) {
@@ -392,22 +378,25 @@ public class InputManager {
             }
         }
 
-        if (screen.overlay.current == Ov.STATS) {
-            int lineCount = 5 + ClientDataStore.getInstance().getTabs().size();
-            int contentH = lineCount * 16 + 8;
-            int availH = Math.max(0,
-                    com.example.advancementoverhaul.client.gui.render.OverlayRenderer.statsActualH - 32);
-            int ms = Math.max(0, contentH - availH);
-            if (ms > 0) {
-                screen.overlay.statsScrollOff = (int) Math.clamp(screen.overlay.statsScrollOff - sy * 30, 0, ms);
-                return true;
-            }
+        if (screen.overlay.current == Ov.DETAIL) {
+            // Bug 2 修复：使用 OverlayRenderer 中计算的真实 maxScroll
+            int ms = com.example.advancementoverhaul.client.gui.render.OverlayRenderer.detailMaxScroll;
+            screen.overlay.detailScrollOff = (int) Math.clamp(
+                    screen.overlay.detailScrollOff - sy * 30, 0, ms);
+            return true;
         }
 
-        if (screen.overlay.current == Ov.DETAIL) {
-            // 详情面板滚动（需要先计算内容高度来确定 maxScroll，这里用一个安全的上限）
-            screen.overlay.detailScrollOff = (int) Math.clamp(
-                    screen.overlay.detailScrollOff - sy * 30, 0, 10000);
+        if (screen.overlay.current == Ov.JOURNAL) {
+            ClientDataStore cs = ClientDataStore.getInstance();
+            int count = 0;
+            for (var entry : cs.getAdvancements().entrySet())
+                if (cs.isCompleted(entry.getKey())) count++;
+            for (var entry : cs.getVanillaAdvancements())
+                if (cs.isCompleted(entry.id())) count++;
+            int totalH = count * 28;
+            int availH = Math.min(screen.getScreenHeight() - 40, 420) - 42;
+            int ms = Math.max(0, totalH - availH);
+            screen.journalScrollOff = (int) Math.clamp(screen.journalScrollOff - sy * 30, 0, ms);
             return true;
         }
 

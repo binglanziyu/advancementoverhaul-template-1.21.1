@@ -16,10 +16,6 @@ public final class OverlayLayout {
     /** 详情面板内容区底部偏移（按钮栏上方） */
     public static final int DETAIL_CONTENT_BOTTOM = 30;
 
-    // ── Stats panel ──
-    public static final int STATS_W = 300;
-    public static final int STATS_H = 260;
-
     // ── Tab input dialog ──
     public static final int TAB_INPUT_W = 260;
     public static final int TAB_INPUT_H = 100;

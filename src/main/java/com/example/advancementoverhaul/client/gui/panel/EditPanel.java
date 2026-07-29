@@ -32,7 +32,7 @@ public class EditPanel {
     private static final Logger LOGGER = LogUtils.getLogger();
 
     static final int PANEL_W = 380;
-    static final int PANEL_H = 300;
+    static final int PANEL_H = 340;
     static final int COND_ROW_H = 22;
     private static final int MAX_COUNT = 999;
 
@@ -63,7 +63,7 @@ public class EditPanel {
     // ── 状态 ──
     boolean visible;
     String edId;
-    String edName, edDesc, edTab, edIcon;
+    String edName, edDesc, edTab, edIcon, edLore;
     int edX, edY;
     boolean edHidden;
     List<String> edPrereqs;
@@ -71,6 +71,7 @@ public class EditPanel {
 
     boolean nameActive = false;
     boolean descActive = false;
+    boolean loreActive = false;
     int inlineCondIdx = -1;
     boolean inlineEditingCount = false;
     final ScrollBar condScrollBar = new ScrollBar(6, 0xFF222238, 0xFF6666BB);
@@ -81,7 +82,7 @@ public class EditPanel {
     int condListStartY, condListVisibleH;
 
     AdvancementScreen screen;
-    EditBox nameBox, descBox, condCountBox;
+    EditBox nameBox, descBox, loreBox, condCountBox;
     Font font;
     boolean vanillaEditMode = false;
 
@@ -98,18 +99,18 @@ public class EditPanel {
 
     public void init(Font font) { this.font = font; }
     public void setScreen(AdvancementScreen screen) { this.screen = screen; }
-    public EditBox[] getWidgets() { return new EditBox[]{ nameBox, descBox, condCountBox }; }
+    public EditBox[] getWidgets() { return new EditBox[]{ nameBox, descBox, loreBox, condCountBox }; }
 
     // ═══════════════ 打开/关闭 ═══════════════
 
     public void openCreate(Font font) {
         this.font = font;
         vanillaEditMode = false;
-        edId = null; edName = ""; edDesc = "";
+        edId = null; edName = ""; edDesc = ""; edLore = "";
         edTab = DataStore.TAB_DEFAULT; edIcon = null;
         edX = 0; edY = 0; edHidden = false;
         edPrereqs = new ArrayList<>(); edConds = new ArrayList<>();
-        nameActive = false; descActive = false;
+        nameActive = false; descActive = false; loreActive = false;
         inlineCondIdx = -1; inlineEditingCount = false; condScrollBar.setScroll(0);
         condSelector.close();
         createEditBoxes();
@@ -123,13 +124,14 @@ public class EditPanel {
         edId = adv.getId();
         edName = adv.getName() != null ? adv.getName() : "";
         edDesc = adv.getDescription() != null ? adv.getDescription() : "";
+        edLore = adv.getLore() != null ? adv.getLore() : "";
         edTab = adv.getTab(); edIcon = adv.getIcon();
         edX = adv.getX(); edY = adv.getY(); edHidden = adv.isHidden();
         edPrereqs = new ArrayList<>(adv.getPrerequisites() != null ? adv.getPrerequisites() : List.of());
         edConds = new ArrayList<>();
         if (adv.getConditions() != null) for (var c : adv.getConditions()) edConds.add(c.deepCopy());
         if (edTab == null || edTab.isEmpty()) edTab = DataStore.TAB_DEFAULT;
-        nameActive = false; descActive = false;
+        nameActive = false; descActive = false; loreActive = false;
         inlineCondIdx = -1; inlineEditingCount = false; condScrollBar.setScroll(0);
         condSelector.close();
         createEditBoxes();
@@ -145,6 +147,7 @@ public class EditPanel {
         edId = vanillaId;
         edName = displayName != null ? displayName : vanillaId;
         edDesc = displayDesc != null ? displayDesc : "";
+        edLore = "";
         edIcon = null;
         edHidden = false;
         edX = 0; edY = 0;
@@ -161,7 +164,7 @@ public class EditPanel {
                 : new ArrayList<>();
         edConds = new ArrayList<>();
 
-        nameActive = false; descActive = false;
+        nameActive = false; descActive = false; loreActive = false;
         inlineCondIdx = -1; inlineEditingCount = false; condScrollBar.setScroll(0);
         prereqDropdownOpen = false;
         condSelector.close();
@@ -175,6 +178,8 @@ public class EditPanel {
         nameBox.setMaxLength(256); nameBox.setValue(edName != null ? edName : ""); nameBox.setTextColor(TEXT_BR);
         descBox = new EditBox(font, 0, 0, 150, 20, Component.empty());
         descBox.setMaxLength(1024); descBox.setValue(edDesc != null ? edDesc : ""); descBox.setTextColor(TEXT_BR);
+        loreBox = new EditBox(font, 0, 0, 200, 20, Component.empty());
+        loreBox.setMaxLength(2048); loreBox.setValue(edLore != null ? edLore : ""); loreBox.setTextColor(TEXT_BR);
         condCountBox = new EditBox(font, 0, 0, COND_CNT_W, 18, Component.empty());
         condCountBox.setMaxLength(3); condCountBox.setValue("1"); condCountBox.setTextColor(ACCENT);
         condCountBox.setBordered(false);
@@ -182,7 +187,7 @@ public class EditPanel {
     }
 
     public void close() {
-        visible = false; nameActive = false; descActive = false;
+        visible = false; nameActive = false; descActive = false; loreActive = false;
         inlineCondIdx = -1; inlineEditingCount = false;
         prereqDropdownOpen = false;
         condSelector.close();
@@ -211,11 +216,13 @@ public class EditPanel {
     public void updateVisibility(boolean editorVisible) {
         if (nameBox != null) nameBox.setVisible(nameActive && editorVisible);
         if (descBox != null) descBox.setVisible(descActive && editorVisible);
+        if (loreBox != null) loreBox.setVisible(loreActive && editorVisible);
     }
 
     public EditBox getLastFocusedWidget() {
         if (nameBox != null && nameBox.isFocused()) return nameBox;
         if (descBox != null && descBox.isFocused()) return descBox;
+        if (loreBox != null && loreBox.isFocused()) return loreBox;
         if (condCountBox != null && condCountBox.isFocused()) return condCountBox;
         return null;
     }
@@ -289,6 +296,12 @@ public class EditPanel {
             return true;
         }
         ty += 26;
+
+        // Row 2.5: lore text
+        if (!vanillaEditMode && GuiUtils.inRect(mx, my, px + 14, ty, pw - 28, 20)) {
+            activateLore(); return true;
+        }
+        ty += 24;
 
         // ── 条件 "+" 按钮（vanillaEditMode 下禁用） ──
         if (!vanillaEditMode && GuiUtils.inRect(mx, my, px + pw - 34, ty + 6, 20, 18)) {
@@ -395,18 +408,24 @@ public class EditPanel {
     // ═══════════════ 名称/描述编辑 ═══════════════
 
     private void activateName() {
-        nameActive = true; descActive = false;
+        nameActive = true; descActive = false; loreActive = false;
         if (nameBox != null) { nameBox.setVisible(true); nameBox.setFocused(true); if (screen != null) screen.setFocused(nameBox); }
     }
 
     private void activateDesc() {
-        descActive = true; nameActive = false;
+        descActive = true; nameActive = false; loreActive = false;
         if (descBox != null) { descBox.setVisible(true); descBox.setFocused(true); if (screen != null) screen.setFocused(descBox); }
+    }
+
+    private void activateLore() {
+        loreActive = true; nameActive = false; descActive = false;
+        if (loreBox != null) { loreBox.setVisible(true); loreBox.setFocused(true); if (screen != null) screen.setFocused(loreBox); }
     }
 
     void commitNameAndDesc() {
         if (nameActive && nameBox != null) { edName = nameBox.getValue().trim(); nameActive = false; nameBox.setFocused(false); nameBox.setVisible(false); }
         if (descActive && descBox != null) { edDesc = descBox.getValue().trim(); descActive = false; descBox.setFocused(false); descBox.setVisible(false); }
+        if (loreActive && loreBox != null) { edLore = loreBox.getValue().trim(); loreActive = false; loreBox.setFocused(false); loreBox.setVisible(false); }
     }
 
     // ═══════════════ 内联数量 ═══════════════

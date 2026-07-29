@@ -1,12 +1,9 @@
 package com.example.advancementoverhaul.client;
 
-import com.example.advancementoverhaul.Config;
-import com.example.advancementoverhaul.client.gui.AdvancementScreen;
 import com.example.advancementoverhaul.client.gui.CompletionPlaque;
 import com.example.advancementoverhaul.client.gui.TranslatedStrings;
-import com.example.advancementoverhaul.compat.FtbQuestsBridge;
+import com.example.advancementoverhaul.compat.ftb.FtbQuestsBridge;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.screens.advancements.AdvancementsScreen;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -19,14 +16,11 @@ import net.neoforged.neoforge.common.NeoForge;
  *
  * <h2>核心功能</h2>
  * <ul>
- *   <li>拦截原版进度界面打开，替换为自定义 Canvas UI</li>
+ *   <li>原版进度界面替换由 {@code SetScreenMixin} 在字节码层面处理，无闪烁</li>
  *   <li>检测客户端语言切换，清除翻译缓存</li>
  *   <li>注册成就完成牌匾 HUD 覆盖层</li>
  *   <li>客户端侧 FTB Quests KnownServerRegistries 注入</li>
  * </ul>
- * <p>
- * 使用 ClientTickEvent.Post 每帧检测，
- * 在玩家按 L 键打开原版进度界面时瞬间替换。
  */
 public class ClientEvents {
 
@@ -51,7 +45,7 @@ public class ClientEvents {
      * @param modBus 模组事件总线
      */
     public static void init(IEventBus modBus) {
-        // 只将 onTick 注册到 NeoForge 主总线（不能注册整个类，因为 RegisterGuiLayersEvent 是 ModBus 事件）
+        // 将事件处理器注册到 NeoForge 主总线（不能注册整个类，因为 RegisterGuiLayersEvent 是 ModBus 事件）
         NeoForge.EVENT_BUS.addListener(ClientEvents::onTick);
         modBus.addListener(ClientEvents::onRegisterGuiLayers);
     }
@@ -69,7 +63,6 @@ public class ClientEvents {
      * 每帧客户端 Tick 后执行。
      * <ol>
      *   <li>检测语言切换 → 清除 {@link TranslatedStrings} 缓存</li>
-     *   <li>检测原版进度界面打开 → 替换为自定义界面</li>
      *   <li>尝试向 FTB Quests KnownServerRegistries 注入客户端侧进度 ID</li>
      * </ol>
      */
@@ -86,25 +79,20 @@ public class ClientEvents {
             }
         }
 
-        // UI 替换：当原版进度界面打开时，替换为自定义界面
-        if (mc.screen instanceof AdvancementsScreen && Config.HIDE_VANILLA.get()) {
-            mc.setScreen(new AdvancementScreen());
-        }
-
-        // FTB Quests 客户端侧 KSR 维护（每 20 tick 检查一次，持续进行）
+        // FTB Quests 客户端侧 KSR 维护（每 200 tick = 10 秒检查一次，持续进行）
         // 因为 SyncKnownServerRegistriesPacket 会在玩家登录时替换整个 KSR.client，
         // 所以必须持续检测缺失并重新注入，不能只做一次就停止。
         // 传入 null 让 syncClientKnownServerRegistries 从原版 AdvancementTree 自动扫描，
         // 不依赖 ClientDataStore 是否已同步。
         ftbKsrRetryTick++;
-        if (ftbKsrRetryTick % 20 == 0) {
+        if (ftbKsrRetryTick % 200 == 0) {
             if (FtbQuestsBridge.syncClientKnownServerRegistries(null)) {
                 ftbKsrEverSucceeded = true;
                 ftbKsrFailCount = 0;
             } else {
                 ftbKsrFailCount++;
-                if (ftbKsrFailCount == 60) {
-                    // 连续失败 60 次（约 60 秒）时输出一次警告
+                if (ftbKsrFailCount == 30) {
+                    // 连续失败 30 次（约 60 秒）时输出一次警告
                     org.slf4j.LoggerFactory.getLogger("AdvancementOverhaul/FTBQuests")
                             .warn("Client KSR sync has failed 60 consecutive times — " +
                             "AdvancementReward NPE crash risk remains");

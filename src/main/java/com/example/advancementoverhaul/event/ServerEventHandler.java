@@ -3,7 +3,7 @@ package com.example.advancementoverhaul.event;
 import com.example.advancementoverhaul.LangKeys;
 import com.example.advancementoverhaul.ModInfo;
 import com.example.advancementoverhaul.compat.AdvancementRegistry;
-import com.example.advancementoverhaul.compat.FtbQuestsBridge;
+import com.example.advancementoverhaul.compat.ftb.FtbQuestsBridge;
 import com.example.advancementoverhaul.data.*;
 import com.example.advancementoverhaul.data.DataStore.ConditionType;
 import com.example.advancementoverhaul.data.model.CustomAdvancement;
@@ -29,6 +29,8 @@ import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.*;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,6 +57,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * </pre>
  */
 public class ServerEventHandler {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ServerEventHandler.class);
 
     /** 维度锁定冷却时间表（防止同一 tick 内多次弹出消息） */
     private static final ConcurrentHashMap<UUID, Long> lastDimLockTime = new ConcurrentHashMap<>();
@@ -128,6 +132,10 @@ public class ServerEventHandler {
     public static void onEntityKill(LivingDeathEvent event) {
         if (!(event.getSource().getEntity() instanceof ServerPlayer player)) return;
         ResourceLocation typeId = BuiltInRegistries.ENTITY_TYPE.getKey(event.getEntity().getType());
+        if (typeId == null) {
+            LOGGER.debug("Skipping KILL_ENTITY check: unregistered entity type {}", event.getEntity().getType());
+            return;
+        }
         ConditionEvaluator.checkInstant(player, ConditionType.KILL_ENTITY, typeId.toString());
     }
 
@@ -138,6 +146,10 @@ public class ServerEventHandler {
         ItemStack crafted = event.getCrafting();
         if (crafted.isEmpty()) return;
         ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(crafted.getItem());
+        if (itemId == null) {
+            LOGGER.debug("Skipping CRAFT_ITEM check: unregistered item {}", crafted.getItem());
+            return;
+        }
         ConditionEvaluator.checkWithStack(player, ConditionType.CRAFT_ITEM,
                 itemId.toString(), crafted, crafted.getCount());
     }
@@ -147,6 +159,10 @@ public class ServerEventHandler {
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         if (!(event.getPlayer() instanceof ServerPlayer player)) return;
         ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(event.getState().getBlock());
+        if (blockId == null) {
+            LOGGER.debug("Skipping BREAK_BLOCK check: unregistered block {}", event.getState().getBlock());
+            return;
+        }
         ConditionEvaluator.checkProgress(player, ConditionType.BREAK_BLOCK, blockId.toString(), 1);
     }
 
@@ -155,6 +171,10 @@ public class ServerEventHandler {
     public static void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(event.getState().getBlock());
+        if (blockId == null) {
+            LOGGER.debug("Skipping PLACE_BLOCK check: unregistered block {}", event.getState().getBlock());
+            return;
+        }
         ConditionEvaluator.checkProgress(player, ConditionType.PLACE_BLOCK, blockId.toString(), 1);
     }
 
@@ -267,6 +287,10 @@ public class ServerEventHandler {
         for (ItemStack stack : event.getDrops()) {
             if (stack.isEmpty()) continue;
             ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+            if (itemId == null) {
+                LOGGER.debug("Skipping FISH_ITEM check: unregistered item {}", stack.getItem());
+                continue;
+            }
             ConditionEvaluator.checkWithStack(player, ConditionType.FISH_ITEM,
                     itemId.toString(), stack, 1);
         }

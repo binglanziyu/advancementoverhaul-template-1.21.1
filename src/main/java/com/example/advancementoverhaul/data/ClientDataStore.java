@@ -103,6 +103,11 @@ public class ClientDataStore {
     private volatile Map<String, String> vanillaParentMap = new HashMap<>();
     private volatile List<String> tabOrder = new ArrayList<>();
 
+    /** 玩家叙事统计数据（来自服务端同步） */
+    private volatile PlayerStats playerStats = new PlayerStats();
+    /** PlayerStats 版本计数器（每次 setPlayerStats 递增，供 UI 检测刷新） */
+    private volatile int statsVersion = 0;
+
     // ═══════════════ 标签页缓存（脏标记 + 延迟重建） ═══════════════
 
     private volatile boolean tabsDirty = true;
@@ -243,6 +248,16 @@ public class ClientDataStore {
         this.vanillaParentMap = map != null ? map : new HashMap<>();
     }
     public Map<String, String> getVanillaParentMap() { return vanillaParentMap; }
+
+    // ═══════════════ 玩家叙事统计 ═══════════════
+
+    /** 设置玩家叙事统计数据（来自服务端全量同步） */
+    public void setPlayerStats(PlayerStats stats) {
+        this.playerStats = stats != null ? stats : new PlayerStats();
+        this.statsVersion++;
+    }
+    public PlayerStats getPlayerStats() { return playerStats; }
+    public int getStatsVersion() { return statsVersion; }
 
     /**
      * 获取原版进度所属的显示标签页。

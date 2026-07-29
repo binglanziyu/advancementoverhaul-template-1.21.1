@@ -12,5 +12,5 @@ public class DragState {
     public boolean dragMoved = false;
     public double dragStartMX, dragStartMY, lastDragMX, lastDragMY;
     public boolean boxSel = false; public double bsx, bsy, bex, bey;
-    public void reset() { dragCardId = null; dragMoved = false; boxSel = false; }
+    public void reset() { dragCardId = null; dragImageId = null; dragMoved = false; boxSel = false; }
 }

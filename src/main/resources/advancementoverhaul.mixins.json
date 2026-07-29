@@ -9,9 +9,10 @@
     "AdvancementRewardMixin"
   ],
   "client": [
-    "FtbToastMixin",
-    "FtbSoundMixin",
-    "SyncKsrMixin",
+    "SetScreenMixin",
+    "ftb.FtbToastMixin",
+    "ftb.FtbSoundMixin",
+    "ftb.SyncKsrMixin",
     "AdvancementTaskMixin",
     "EnumConfigMixin"
   ],

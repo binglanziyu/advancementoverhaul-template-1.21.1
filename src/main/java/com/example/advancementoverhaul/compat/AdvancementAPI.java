@@ -7,7 +7,7 @@ import com.example.advancementoverhaul.data.model.CustomAdvancement;
 import com.example.advancementoverhaul.event.AdvResetEvent;
 import com.example.advancementoverhaul.logic.ConditionEvaluator;
 import com.example.advancementoverhaul.network.SyncManager;
-import com.example.advancementoverhaul.network.ProgressSyncPayload;
+import com.example.advancementoverhaul.network.payload.ProgressSyncPayload;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.common.NeoForge;
@@ -54,7 +54,7 @@ public final class AdvancementAPI {
             try { ct = DataStore.ConditionType.valueOf(type.toUpperCase()); }
             catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Unknown condition type: " + type
-                        + ". Valid: kill_entity, craft_item, get_item, break_block, place_block, change_dimension, deal_damage, take_damage, fish_item, ftb_quest_complete");
+                        + ". Valid: kill_entity, craft_item, get_item, break_block, place_block, change_dimension, deal_damage, take_damage, fish_item, ftb_quest_complete, stat_reach");
             }
             conditions.add(new AdvancementCondition(ct, target != null ? target : "", count));
             return this;

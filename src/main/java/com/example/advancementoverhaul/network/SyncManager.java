@@ -2,8 +2,12 @@ package com.example.advancementoverhaul.network;
 
 import com.example.advancementoverhaul.ModInfo;
 import com.example.advancementoverhaul.data.DataStore;
+import com.example.advancementoverhaul.data.PlayerStats;
+import com.example.advancementoverhaul.data.PlayerStatsStore;
 import com.example.advancementoverhaul.data.model.VanillaAdvMeta;
 import com.example.advancementoverhaul.data.ServerDataStore;
+import com.example.advancementoverhaul.network.payload.SyncChunkPayload;
+import com.example.advancementoverhaul.network.payload.SyncPayload;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.advancements.DisplayInfo;
@@ -94,6 +98,7 @@ public final class SyncManager {
         UUID uuid = player.getUUID();
 
         VanillaCollection vanillaData = getOrRebuildVanillaData(player);
+        PlayerStats playerStats = PlayerStatsStore.getInstance().getOrCreate(uuid);
 
         SyncPayload payload = SyncPayload.fromServer(
                 store.getAdvancements(),
@@ -107,7 +112,8 @@ public final class SyncManager {
                 store.getVanillaMetaMap(),
                 vanillaData.parentMap(),
                 store.getTabOrder(),
-                store.getPendingAdvancements(uuid)
+                store.getPendingAdvancements(uuid),
+                playerStats
         );
 
         String json = payload.data();

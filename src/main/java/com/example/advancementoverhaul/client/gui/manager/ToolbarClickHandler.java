@@ -2,6 +2,7 @@ package com.example.advancementoverhaul.client.gui.manager;
 
 import com.example.advancementoverhaul.client.gui.AdvancementScreen;
 import com.example.advancementoverhaul.client.gui.GuiUtils;
+import com.example.advancementoverhaul.client.gui.NarrativeStatsScreen;
 import net.minecraft.client.Minecraft;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,30 +26,40 @@ class ToolbarClickHandler {
         if (GuiUtils.inRect(mx, my, cx, cy, s, s)) { screen.onClose(); return true; }
         cx -= s + gap;
 
-        // [2] Stats
+        // [2] Stats — 打开叙事统计界面
         if (GuiUtils.inRect(mx, my, cx, cy, s, s)) {
-            screen.overlay.current = screen.overlay.current == com.example.advancementoverhaul.client.gui.state.OverlayState.Ov.STATS
-                    ? com.example.advancementoverhaul.client.gui.state.OverlayState.Ov.NONE
-                    : com.example.advancementoverhaul.client.gui.state.OverlayState.Ov.STATS;
+            screen.overlay.current = com.example.advancementoverhaul.client.gui.state.OverlayState.Ov.NONE;
             screen.showDim = false;
-            screen.overlay.statsScrollOff = 0;
+            screen.journalScrollOff = 0;
+            Minecraft.getInstance().setScreen(new NarrativeStatsScreen());
             return true;
         }
         cx -= s + gap;
 
-        // [3] Tab management
+        // [3] Journal
+        if (GuiUtils.inRect(mx, my, cx, cy, s, s)) {
+            screen.overlay.current = screen.overlay.current == com.example.advancementoverhaul.client.gui.state.OverlayState.Ov.JOURNAL
+                    ? com.example.advancementoverhaul.client.gui.state.OverlayState.Ov.NONE
+                    : com.example.advancementoverhaul.client.gui.state.OverlayState.Ov.JOURNAL;
+            screen.showDim = false;
+            screen.journalScrollOff = 0;
+            return true;
+        }
+        cx -= s + gap;
+
+        // [4] Tab management
         if (GuiUtils.inRect(mx, my, cx, cy, s, s)) { screen.openTabManage(); return true; }
         cx -= s + gap;
 
-        // [4] Reset view
+        // [5] Reset view
         if (GuiUtils.inRect(mx, my, cx, cy, s, s)) { canvasMgr.resetView(); return true; }
 
         // ── Bottom-right buttons ──
-        boolean canEdit = Minecraft.getInstance().player != null && !Minecraft.getInstance().player.isSpectator();
+        boolean canEdit = Minecraft.getInstance().player != null && Minecraft.getInstance().player.hasPermissions(2);
         int by = screen.getScreenHeight() - BOTTOM_H - p - s;
         cx = screen.getScreenWidth() - p - s;
 
-        // [5] Export
+        // [6] Export
         if (GuiUtils.inRect(mx, my, cx, by, s, s)) { GuiUtils.sendCommand("adv export"); return true; }
         by -= s + gap;
 
@@ -71,7 +82,7 @@ class ToolbarClickHandler {
         }
 
         // [8.5] FTB notification mode toggle (edit mode only, FTB Quests loaded)
-        if (canEdit && screen.editMode && com.example.advancementoverhaul.compat.FtbQuestsBridge.isLoaded()) {
+        if (canEdit && screen.editMode && com.example.advancementoverhaul.compat.ftb.FtbQuestsBridge.isLoaded()) {
             if (GuiUtils.inRect(mx, my, cx, by, s, s)) {
                 AdvancementScreen.ftbNotifMode = (AdvancementScreen.ftbNotifMode + 1) % 3;
                 return true;

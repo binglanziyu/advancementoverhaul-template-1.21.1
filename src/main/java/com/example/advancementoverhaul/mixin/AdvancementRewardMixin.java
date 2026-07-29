@@ -3,7 +3,7 @@ package com.example.advancementoverhaul.mixin;
 import com.example.advancementoverhaul.LangKeys;
 import com.example.advancementoverhaul.ModInfo;
 import com.example.advancementoverhaul.compat.AdvancementRegistry;
-import com.example.advancementoverhaul.compat.FtbQuestsBridge;
+import com.example.advancementoverhaul.compat.ftb.FtbQuestsBridge;
 import com.example.advancementoverhaul.data.ServerDataStore;
 import com.example.advancementoverhaul.logic.ConditionEvaluator;
 import dev.ftb.mods.ftblibrary.config.ConfigGroup;
@@ -12,6 +12,8 @@ import dev.ftb.mods.ftbquests.quest.reward.AdvancementReward;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.injection.At;
@@ -38,6 +40,8 @@ import java.util.UUID;
 @Mixin(value = AdvancementReward.class, remap = false)
 public abstract class AdvancementRewardMixin {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(AdvancementRewardMixin.class);
+
     @Accessor("advancement")
     public abstract ResourceLocation getCurrentAdvancement();
 
@@ -54,7 +58,8 @@ public abstract class AdvancementRewardMixin {
                     map.put(currentAdv, FtbQuestsBridge.createClientAdvancementInfo(currentAdv));
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            LOGGER.debug("fillConfigGroup KSR injection failed", e);
         }
     }
 
@@ -90,7 +95,8 @@ public abstract class AdvancementRewardMixin {
                 player.sendSystemMessage(Component.translatable(LangKeys.CMD_ADV_CONDITIONS_NOT_MET));
             }
             // 条件满足则放行，让 FTB 正常 award，后续由 AdvancementEarnEvent 同步到自定义系统
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            LOGGER.debug("claim condition check failed", e);
         }
     }
 }

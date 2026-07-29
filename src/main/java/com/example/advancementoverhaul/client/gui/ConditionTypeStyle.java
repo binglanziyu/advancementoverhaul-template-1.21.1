@@ -40,6 +40,7 @@ public final class ConditionTypeStyle {
         STYLES.put(ConditionType.TAKE_DAMAGE,      new Style(LangKeys.COND_TAKE_DAMAGE,     0xFF795548));
         STYLES.put(ConditionType.FISH_ITEM,        new Style(LangKeys.COND_FISH_ITEM,       0xFF00BCD4));
         STYLES.put(ConditionType.FTB_QUEST_COMPLETE, new Style(LangKeys.COND_FTB_QUEST,      0xFF00C853));
+        STYLES.put(ConditionType.STAT_REACH,         new Style(LangKeys.COND_STAT_REACH,      0xFF9C27B0));
     }
 
     private static final Style DEFAULT_STYLE = new Style("unknown", 0xFFFFFFFF);

@@ -178,7 +178,7 @@ public class CardRenderer {
 
     /** 表示一个需要渲染的卡片条目（自定义或原版），避免每帧重复查找 ClientDataStore */
     private record CardEntry(String id, String name, String icon,
-                             int wx, int wy, boolean done, boolean showId, boolean enabled) {}
+                             int wx, int wy, boolean done, boolean showId, boolean enabled, boolean hidden) {}
 
     /** 将世界坐标编码为网格单元格 key */
     private static long cellKey(int worldX, int worldY) {
@@ -201,7 +201,8 @@ public class CardRenderer {
             long key = cellKey(a.getX(), a.getY());
             spatialGrid.computeIfAbsent(key, k -> new ArrayList<>())
                     .add(new CardEntry(a.getId(), a.getName(), a.getIcon(),
-                            a.getX(), a.getY(), cs.isCompleted(a.getId()), false, true));
+                            a.getX(), a.getY(), cs.isCompleted(a.getId()), false, true,
+                            a.isHidden() && !cs.isCompleted(a.getId())));
         }
 
         // 索引原版进度
@@ -213,7 +214,7 @@ public class CardRenderer {
             spatialGrid.computeIfAbsent(key, k -> new ArrayList<>())
                     .add(new CardEntry(va.id(), va.getLocalizedName(), va.icon(),
                             p[0], p[1], cs.isCompleted(va.id()), false,
-                            cs.isVanillaEnabled(va.id())));
+                            cs.isVanillaEnabled(va.id()), false));
         }
     }
 
@@ -518,7 +519,7 @@ public class CardRenderer {
                     if (entries == null) continue;
                     for (CardEntry entry : entries) {
                         renderIconCard(g, mx, my, cv, entry.id(), entry.name(), entry.icon(),
-                                entry.wx(), entry.wy(), entry.done(), entry.showId(), entry.enabled());
+                                entry.wx(), entry.wy(), entry.done(), entry.showId(), entry.enabled(), entry.hidden());
                     }
                 }
             }
@@ -528,7 +529,8 @@ public class CardRenderer {
             for (var a : screen.frameFiltered) {
                 if (!shouldRenderCard(a, cs)) continue;
                 renderIconCard(g, mx, my, cv, a.getId(), a.getName(), a.getIcon(),
-                        a.getX(), a.getY(), cs.isCompleted(a.getId()), false, true);
+                        a.getX(), a.getY(), cs.isCompleted(a.getId()), false, true,
+                        a.isHidden() && !cs.isCompleted(a.getId()));
             }
             for (var va : screen.vanillaAdvs) {
                 if (!screen.shouldShowVanilla(va.id())) continue;
@@ -536,7 +538,7 @@ public class CardRenderer {
                 if (p == null) continue;
                 boolean enabled = cs.isVanillaEnabled(va.id());
                 renderIconCard(g, mx, my, cv, va.id(), va.getLocalizedName(), va.icon(),
-                        p[0], p[1], cs.isCompleted(va.id()), false, enabled);
+                        p[0], p[1], cs.isCompleted(va.id()), false, enabled, false);
             }
         }
 
@@ -570,7 +572,7 @@ public class CardRenderer {
     private void renderIconCard(GuiGraphics g, int mx, int my,
                                 CanvasState cv,
                                 String id, String name, String iconStr,
-                                int wx, int wy, boolean done, boolean showId, boolean enabled) {
+                                int wx, int wy, boolean done, boolean showId, boolean enabled, boolean hidden) {
         int cardW = cv.screenW(CARD_W);
         int cardH = cv.screenH(CARD_H);
         int x = cv.toScreenX(wx);
@@ -622,7 +624,11 @@ public class CardRenderer {
         GuiUtils.drawRoundedBorder(g, x, y, cardW, cardH, borderCol, bgCol);
 
         ItemStack iconStack = resolveIcon(iconStr);
-        if (!iconStack.isEmpty()) {
+        if (hidden) {
+            // 隐藏且未完成的成就：显示 "?" 代替真实图标和名称
+            String q = "?";
+            g.drawString(screen.getFont(), q, cx - screen.getFont().width(q) / 2, cy - 4, TEXT_DIM, false);
+        } else if (!iconStack.isEmpty()) {
             int iconSize = (int) (16 * cv.zoom);
             g.pose().pushPose();
             g.pose().translate(cx - iconSize / 2.0, cy - iconSize / 2.0, 0);
