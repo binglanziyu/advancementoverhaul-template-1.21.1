@@ -17,6 +17,9 @@ import com.example.advancementoverhaul.network.payload.StatsRequestPayload;
 import com.example.advancementoverhaul.network.payload.StatsSyncPayload;
 import com.example.advancementoverhaul.network.payload.SyncChunkPayload;
 import com.example.advancementoverhaul.network.payload.SyncPayload;
+import com.example.advancementoverhaul.network.payload.TimelineRequestPayload;
+import com.example.advancementoverhaul.network.payload.TimelineSyncPayload;
+import com.example.advancementoverhaul.network.handler.TimelineNetworkHandler;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.network.chat.Component;
@@ -127,6 +130,12 @@ public class NetworkHandler {
         // S2C：PlayerStats 增量同步
         registrar.playToClient(StatsSyncPayload.TYPE, StatsSyncPayload.CODEC,
                 NetworkHandler::handleStatsSyncDelegate);
+
+        // Timeline
+        registrar.playToClient(TimelineSyncPayload.TYPE, TimelineSyncPayload.CODEC,
+                NetworkHandler::handleTimelineSyncDelegate);
+        registrar.playToServer(TimelineRequestPayload.TYPE, TimelineRequestPayload.CODEC,
+                TimelineNetworkHandler::handleTimelineRequest);
     }
 
     // ═══════════════ S2C 中间处理方法（仅在客户端被调用） ═══════════════
@@ -149,6 +158,10 @@ public class NetworkHandler {
 
     private static void handleStatsSyncDelegate(StatsSyncPayload payload, IPayloadContext context) {
         NetworkHandlerClient.handleStatsSync(payload, context);
+    }
+
+    private static void handleTimelineSyncDelegate(TimelineSyncPayload payload, IPayloadContext context) {
+        NetworkHandlerClient.handleTimelineSync(payload, context);
     }
 
     // ═══════════════ C2S 命令处理 ═══════════════

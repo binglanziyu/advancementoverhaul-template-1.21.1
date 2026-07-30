@@ -285,7 +285,7 @@ public class CommandHandler {
         com.example.advancementoverhaul.data.NarrativeConfigLoader.getInstance()
                 .reload(net.neoforged.fml.loading.FMLPaths.CONFIGDIR.get());
         // 重置客户端独白冷却和回声状态
-        com.example.advancementoverhaul.event.EchoEventHandler.resetAll();
+        com.example.advancementoverhaul.narrative.event.EchoEventHandler.resetAll();
 
         ctx.getSource().sendSuccess(
                 () -> Component.translatable(LangKeys.CMD_RELOAD_DONE), false);

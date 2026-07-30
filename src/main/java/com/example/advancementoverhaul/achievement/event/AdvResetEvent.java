@@ -1,4 +1,4 @@
-package com.example.advancementoverhaul.event;
+package com.example.advancementoverhaul.achievement.event;
 
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.Event;

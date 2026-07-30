@@ -1,12 +1,15 @@
 package com.example.advancementoverhaul;
 
+import com.example.advancementoverhaul.achievement.bridge.AchievementBridgeImpl;
 import com.example.advancementoverhaul.client.ClientEvents;
 import com.example.advancementoverhaul.command.CommandHandler;
 import com.example.advancementoverhaul.compat.AdvancementRegistry;
 import com.example.advancementoverhaul.data.ServerDataStore;
-import com.example.advancementoverhaul.event.MonologueEventHandler;
-import com.example.advancementoverhaul.event.ServerEventHandler;
+import com.example.advancementoverhaul.narrative.event.MonologueEventHandler;
+import com.example.advancementoverhaul.achievement.event.ServerEventHandler;
 import com.example.advancementoverhaul.event.StatsEventHandler;
+import com.example.advancementoverhaul.milestone.event.TimelineEventHandler;
+import com.example.advancementoverhaul.milestone.bridge.BridgeRegistry;
 import com.example.advancementoverhaul.network.NetworkHandler;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -22,21 +25,18 @@ import org.slf4j.LoggerFactory;
 /**
  * Advancement Overhaul 模组主入口。
  *
- * <h2>模组职责</h2>
- * 彻底替换 Minecraft 原版进度系统，提供：
+ * <h2>架构分层</h2>
+ * 模组采用分层架构，核心分为两大子系统：
  * <ul>
- *   <li>自定义 Canvas 画布 UI（可缩放、可平移）</li>
- *   <li>9 种条件类型的自定义进度创建/编辑</li>
- *   <li>前置条件依赖链 + 级联完成</li>
- *   <li>维度锁定（完成指定进度前无法进入）</li>
- *   <li>原版进度启用/禁用管理</li>
- *   <li>完整的 /adv 命令系统</li>
- *   <li>KubeJS API 支持</li>
+ *   <li><b>成就系统 (achievement/)</b> — 自定义 Canvas UI、9 种条件类型、前置依赖、维度锁定</li>
+ *   <li><b>里程碑系统 (milestone/)</b> — 时间线解锁、统计计数器、自动成就的里程碑</li>
  * </ul>
+ * 两大系统通过 {@link com.example.advancementoverhaul.milestone.bridge.AchievementBridge} 桥接接口解耦。
  *
  * <h2>初始化流程</h2>
  * <ol>
  *   <li>注册配置文件（COMMON 类型）</li>
+ *   <li>注册桥接实现（里程碑 ↔ 成就）</li>
  *   <li>注册网络包处理器（Sync / Progress / C2S Command）</li>
  *   <li>注册服务端事件处理器（游戏事件 → 条件评估）</li>
  *   <li>注册命令系统（/adv）</li>
@@ -59,6 +59,9 @@ public class AdvancementOverhaul {
         // 注册配置文件（COMMON 类型，服务端+客户端共享）
         container.registerConfig(ModConfig.Type.COMMON, Config.COMMON_SPEC);
 
+        // 注册桥接实现：里程碑系统 ↔ 成就系统
+        BridgeRegistry.setAchievementBridge(new AchievementBridgeImpl());
+
         // 注册网络包处理器（必须在 CommonSetup 之前）
         modBus.addListener(NetworkHandler::registerPayloads);
 
@@ -69,6 +72,7 @@ public class AdvancementOverhaul {
         NeoForge.EVENT_BUS.register(ServerEventHandler.class);
         NeoForge.EVENT_BUS.register(StatsEventHandler.class);
         NeoForge.EVENT_BUS.register(MonologueEventHandler.class);
+        NeoForge.EVENT_BUS.register(TimelineEventHandler.class);
         NeoForge.EVENT_BUS.addListener(CommandHandler::registerCommands);
         NeoForge.EVENT_BUS.addListener(AdvancementOverhaul::onServerStopping);
 

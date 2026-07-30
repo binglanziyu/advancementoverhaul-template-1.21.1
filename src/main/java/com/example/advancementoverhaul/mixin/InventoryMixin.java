@@ -1,6 +1,6 @@
 package com.example.advancementoverhaul.mixin;
 
-import com.example.advancementoverhaul.event.ServerEventHandler;
+import com.example.advancementoverhaul.achievement.event.ServerEventHandler;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;

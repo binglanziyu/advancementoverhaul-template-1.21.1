@@ -1,4 +1,4 @@
-package com.example.advancementoverhaul.event;
+package com.example.advancementoverhaul.achievement.event;
 
 import com.example.advancementoverhaul.LangKeys;
 import com.example.advancementoverhaul.ModInfo;

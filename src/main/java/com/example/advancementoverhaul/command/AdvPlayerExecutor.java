@@ -5,7 +5,7 @@ import com.example.advancementoverhaul.compat.AdvancementRegistry;
 import com.example.advancementoverhaul.data.DataStore;
 import com.example.advancementoverhaul.data.model.CustomAdvancement;
 import com.example.advancementoverhaul.data.ServerDataStore;
-import com.example.advancementoverhaul.event.AdvResetEvent;
+import com.example.advancementoverhaul.achievement.event.AdvResetEvent;
 import com.example.advancementoverhaul.logic.ConditionEvaluator;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.StringArgumentType;

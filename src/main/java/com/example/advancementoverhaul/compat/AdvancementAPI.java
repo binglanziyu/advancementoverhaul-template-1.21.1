@@ -4,7 +4,7 @@ import com.example.advancementoverhaul.data.DataStore;
 import com.example.advancementoverhaul.data.ServerDataStore;
 import com.example.advancementoverhaul.data.model.AdvancementCondition;
 import com.example.advancementoverhaul.data.model.CustomAdvancement;
-import com.example.advancementoverhaul.event.AdvResetEvent;
+import com.example.advancementoverhaul.achievement.event.AdvResetEvent;
 import com.example.advancementoverhaul.logic.ConditionEvaluator;
 import com.example.advancementoverhaul.network.SyncManager;
 import com.example.advancementoverhaul.network.payload.ProgressSyncPayload;

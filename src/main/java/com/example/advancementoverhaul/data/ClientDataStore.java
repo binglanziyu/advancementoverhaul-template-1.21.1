@@ -259,6 +259,18 @@ public class ClientDataStore {
     public PlayerStats getPlayerStats() { return playerStats; }
     public int getStatsVersion() { return statsVersion; }
 
+    // ═══════════════ Timeline 数据 ═══════════════
+
+    private volatile String timelineData = "[]";
+    private volatile int timelineVersion = 0;
+
+    public void setTimelineData(String json) {
+        this.timelineData = json != null ? json : "[]";
+        this.timelineVersion++;
+    }
+    public String getTimelineData() { return timelineData; }
+    public int getTimelineVersion() { return timelineVersion; }
+
     /**
      * 获取原版进度所属的显示标签页。
      * 优先使用元数据中配置的 tab，无配置时默认使用 TAB_VANILLA。
