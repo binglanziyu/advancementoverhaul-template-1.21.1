@@ -86,7 +86,7 @@ public class MilestoneDefinition {
         String nameKey = MilestoneDefinition.getString(obj, "name_key", "");
         String descKey = MilestoneDefinition.getString(obj, "description_key", "");
         String icon = MilestoneDefinition.getString(obj, "icon", "minecraft:paper");
-        String category = MilestoneDefinition.getString(obj, "category", "journey");
+        String category = MilestoneDefinition.getString(obj, "category", "normal");
         MilestoneTrigger trigger = MilestoneDefinition.parseTrigger(MilestoneDefinition.getString(obj, "trigger", "CUSTOM"));
         String triggerParam = MilestoneDefinition.getString(obj, "trigger_param", null);
         long threshold = obj.has("trigger_threshold") ? obj.get("trigger_threshold").getAsLong() : 1L;

@@ -1,53 +1,3 @@
-/*
- * Decompiled with CFR 0.152.
- * 
- * Could not load the following classes:
- *  net.minecraft.core.BlockPos
- *  net.minecraft.core.registries.BuiltInRegistries
- *  net.minecraft.resources.ResourceKey
- *  net.minecraft.resources.ResourceLocation
- *  net.minecraft.server.MinecraftServer
- *  net.minecraft.server.level.ServerLevel
- *  net.minecraft.server.level.ServerPlayer
- *  net.minecraft.tags.FluidTags
- *  net.minecraft.world.entity.Entity
- *  net.minecraft.world.entity.LivingEntity
- *  net.minecraft.world.entity.animal.Animal
- *  net.minecraft.world.entity.npc.WanderingTrader
- *  net.minecraft.world.entity.player.Player
- *  net.minecraft.world.inventory.AbstractContainerMenu
- *  net.minecraft.world.inventory.MerchantMenu
- *  net.minecraft.world.item.ItemStack
- *  net.minecraft.world.item.Items
- *  net.minecraft.world.item.NameTagItem
- *  net.minecraft.world.level.Level
- *  net.minecraft.world.level.biome.Biome
- *  net.minecraft.world.level.block.BambooSaplingBlock
- *  net.minecraft.world.level.block.Block
- *  net.minecraft.world.level.block.CropBlock
- *  net.minecraft.world.level.block.NetherWartBlock
- *  net.minecraft.world.level.block.SaplingBlock
- *  net.minecraft.world.level.block.StemBlock
- *  net.minecraft.world.level.block.SweetBerryBushBlock
- *  net.minecraft.world.level.block.TorchBlock
- *  net.minecraft.world.level.storage.LevelResource
- *  net.neoforged.bus.api.SubscribeEvent
- *  net.neoforged.neoforge.event.entity.EntityStruckByLightningEvent
- *  net.neoforged.neoforge.event.entity.living.AnimalTameEvent
- *  net.neoforged.neoforge.event.entity.living.LivingDeathEvent
- *  net.neoforged.neoforge.event.entity.living.LivingFallEvent
- *  net.neoforged.neoforge.event.entity.player.PlayerEvent$ItemCraftedEvent
- *  net.neoforged.neoforge.event.entity.player.PlayerEvent$PlayerChangedDimensionEvent
- *  net.neoforged.neoforge.event.entity.player.PlayerEvent$PlayerLoggedOutEvent
- *  net.neoforged.neoforge.event.entity.player.PlayerInteractEvent$EntityInteract
- *  net.neoforged.neoforge.event.level.BlockEvent$BreakEvent
- *  net.neoforged.neoforge.event.level.BlockEvent$EntityPlaceEvent
- *  net.neoforged.neoforge.event.server.ServerStartedEvent
- *  net.neoforged.neoforge.event.server.ServerStoppingEvent
- *  net.neoforged.neoforge.event.tick.ServerTickEvent$Post
- *  org.slf4j.Logger
- *  org.slf4j.LoggerFactory
- */
 package com.example.advancementoverhaul.event;
 
 import com.example.advancementoverhaul.data.PlayerStats;
@@ -106,12 +56,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class StatsEventHandler {
-    private static final Logger LOGGER = LoggerFactory.getLogger((String)"AdvancementOverhaul/StatsEvent");
-    private static final Set<UUID> sunriseChecked = new HashSet<UUID>();
-    private static final Set<UUID> sunsetChecked = new HashSet<UUID>();
-    private static final Set<UUID> wasSleeping = new HashSet<UUID>();
-    private static final Map<UUID, String> merchantTypeMap = new HashMap<UUID, String>();
-    private static final Map<UUID, ItemStack> prevResultSlot = new HashMap<UUID, ItemStack>();
+    private static final Logger LOGGER = LoggerFactory.getLogger("AdvancementOverhaul/StatsEvent");
+    private static final Set<UUID> sunriseChecked = new HashSet<>();
+    private static final Set<UUID> sunsetChecked = new HashSet<>();
+    private static final Set<UUID> wasSleeping = new HashSet<>();
+    private static final Map<UUID, String> merchantTypeMap = new HashMap<>();
+    private static final Map<UUID, ItemStack> prevResultSlot = new HashMap<>();
     private static int syncTickCounter = 0;
     private static final int SYNC_INTERVAL_TICKS = 600;
     private static final int INVENTORY_SCAN_INTERVAL = 100;
@@ -140,7 +90,7 @@ public class StatsEventHandler {
 
     @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
-        boolean doSync = ++syncTickCounter >= 600;
+        boolean doSync = ++syncTickCounter >= SYNC_INTERVAL_TICKS;
         MinecraftServer server = ServerDataStore.getInstance().getServer();
         if (server == null) {
             return;
@@ -152,14 +102,11 @@ public class StatsEventHandler {
         boolean isSunset = gameTime % 24000L >= 12700L && gameTime % 24000L <= 13100L;
         boolean isRaining = server.overworld().isRaining();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            int playerY;
-            double dz;
-            ResourceLocation biomeKey;
-            BlockPos pos;
             UUID uuid = player.getUUID();
             PlayerStats stats = store.getOrCreate(uuid);
             ServerLevel level = player.serverLevel();
-            if (level.canSeeSky(pos = player.blockPosition())) {
+            BlockPos pos = player.blockPosition();
+            if (level.canSeeSky(pos)) {
                 float yaw = player.getYRot() % 360.0f;
                 if (yaw < -180.0f) {
                     yaw += 360.0f;
@@ -189,12 +136,13 @@ public class StatsEventHandler {
                 sunsetChecked.remove(uuid);
             }
             if (isRaining && level.canSeeSky(pos)) {
-                if (((Biome)level.getBiome(pos).value()).coldEnoughToSnow(pos)) {
+                Biome biome = level.getBiome(pos).value();
+                if (biome.coldEnoughToSnow(pos)) {
                     ++stats.snowTicks;
                     if (stats.snowTicks % 20L == 0L) {
                         ConditionEvaluator.checkStatReach(player, "snowTicks", stats.snowTicks);
                     }
-                } else if (((Biome)level.getBiome(pos).value()).hasPrecipitation()) {
+                } else if (biome.hasPrecipitation()) {
                     ++stats.rainTicks;
                     if (stats.rainTicks % 20L == 0L) {
                         ConditionEvaluator.checkStatReach(player, "rainTicks", stats.rainTicks);
@@ -202,7 +150,8 @@ public class StatsEventHandler {
                 }
                 store.markDirty(uuid);
             }
-            if ((biomeKey = (ResourceLocation)level.getBiome(pos).unwrapKey().map(ResourceKey::location).orElse(null)) != null) {
+            ResourceLocation biomeKey = level.getBiome(pos).unwrapKey().map(ResourceKey::location).orElse(null);
+            if (biomeKey != null) {
                 String biomeId = biomeKey.toString();
                 stats.biomeTimes.merge(biomeId, 1L, Long::sum);
             }
@@ -221,13 +170,15 @@ public class StatsEventHandler {
                 store.markDirty(uuid);
             }
             BlockPos spawn = level.getSharedSpawnPos();
-            double dx = player.getX() - (double)spawn.getX();
-            double dist = Math.sqrt(dx * dx + (dz = player.getZ() - (double)spawn.getZ()) * dz);
+            double dx = player.getX() - (double) spawn.getX();
+            double dz = player.getZ() - (double) spawn.getZ();
+            double dist = Math.sqrt(dx * dx + dz * dz);
             if (dist > stats.furthestDistance) {
                 stats.furthestDistance = dist;
                 store.markDirty(uuid);
             }
-            if ((playerY = player.blockPosition().getY()) < stats.lowestY) {
+            int playerY = player.blockPosition().getY();
+            if (playerY < stats.lowestY) {
                 stats.lowestY = playerY;
                 store.markDirty(uuid);
             }
@@ -235,7 +186,7 @@ public class StatsEventHandler {
                 stats.highestY = playerY;
                 store.markDirty(uuid);
             }
-            if (syncTickCounter % 100 == 0) {
+            if (syncTickCounter % INVENTORY_SCAN_INTERVAL == 0) {
                 if (stats.firstDiamondDay < 0) {
                     for (ItemStack stack : player.getInventory().items) {
                         if (!stack.is(Items.DIAMOND)) continue;
@@ -287,12 +238,11 @@ public class StatsEventHandler {
     private static void trackTrades(ServerPlayer player, PlayerStats stats, PlayerStatsStore store) {
         UUID uuid = player.getUUID();
         AbstractContainerMenu abstractContainerMenu = player.containerMenu;
-        if (abstractContainerMenu instanceof MerchantMenu) {
-            String type;
-            MerchantMenu mm = (MerchantMenu)abstractContainerMenu;
+        if (abstractContainerMenu instanceof MerchantMenu mm) {
             ItemStack result = mm.getSlot(2).getItem();
             ItemStack prev = prevResultSlot.get(uuid);
-            if (prev != null && !prev.isEmpty() && result.isEmpty() && "wandering_trader".equals(type = merchantTypeMap.getOrDefault(uuid, "unknown"))) {
+            String type = merchantTypeMap.getOrDefault(uuid, "unknown");
+            if (prev != null && !prev.isEmpty() && result.isEmpty() && "wandering_trader".equals(type)) {
                 ++stats.wanderingTraderTrades;
                 store.markDirty(uuid);
                 ConditionEvaluator.checkStatReach(player, "wanderingTraderTrades", stats.wanderingTraderTrades);
@@ -307,10 +257,9 @@ public class StatsEventHandler {
     @SubscribeEvent
     public static void onPlayerDeath(LivingDeathEvent event) {
         LivingEntity livingEntity = event.getEntity();
-        if (!(livingEntity instanceof ServerPlayer)) {
+        if (!(livingEntity instanceof ServerPlayer player)) {
             return;
         }
-        ServerPlayer player = (ServerPlayer)livingEntity;
         UUID uuid = player.getUUID();
         PlayerStats stats = PlayerStatsStore.getInstance().getOrCreate(uuid);
         PlayerStatsStore store = PlayerStatsStore.getInstance();
@@ -330,10 +279,9 @@ public class StatsEventHandler {
     @SubscribeEvent
     public static void onDimensionChange(PlayerEvent.PlayerChangedDimensionEvent event) {
         Player player = event.getEntity();
-        if (!(player instanceof ServerPlayer)) {
+        if (!(player instanceof ServerPlayer player2)) {
             return;
         }
-        ServerPlayer player2 = (ServerPlayer)player;
         UUID uuid = player2.getUUID();
         PlayerStats stats = PlayerStatsStore.getInstance().getOrCreate(uuid);
         PlayerStatsStore store = PlayerStatsStore.getInstance();
@@ -351,10 +299,9 @@ public class StatsEventHandler {
     @SubscribeEvent
     public static void onAnimalTame(AnimalTameEvent event) {
         Player player = event.getTamer();
-        if (!(player instanceof ServerPlayer)) {
+        if (!(player instanceof ServerPlayer player2)) {
             return;
         }
-        ServerPlayer player2 = (ServerPlayer)player;
         UUID uuid = player2.getUUID();
         PlayerStats stats = PlayerStatsStore.getInstance().getOrCreate(uuid);
         PlayerStatsStore store = PlayerStatsStore.getInstance();
@@ -368,12 +315,10 @@ public class StatsEventHandler {
 
     @SubscribeEvent
     public static void onBlockPlace(BlockEvent.EntityPlaceEvent event) {
-        String blockName;
         Entity entity = event.getEntity();
-        if (!(entity instanceof ServerPlayer)) {
+        if (!(entity instanceof ServerPlayer player)) {
             return;
         }
-        ServerPlayer player = (ServerPlayer)entity;
         UUID uuid = player.getUUID();
         PlayerStats stats = PlayerStatsStore.getInstance().getOrCreate(uuid);
         PlayerStatsStore store = PlayerStatsStore.getInstance();
@@ -397,11 +342,14 @@ public class StatsEventHandler {
             ConditionEvaluator.checkStatReach(player, "blocksPlacedInWater", stats.blocksPlacedInWater);
         }
         boolean cropPlanted = false;
-        if (block instanceof CropBlock || block instanceof StemBlock || block instanceof SaplingBlock || block instanceof NetherWartBlock || block instanceof SweetBerryBushBlock || block instanceof BambooSaplingBlock) {
+        if (block instanceof CropBlock || block instanceof StemBlock || block instanceof SaplingBlock
+                || block instanceof NetherWartBlock || block instanceof SweetBerryBushBlock
+                || block instanceof BambooSaplingBlock) {
             ++stats.cropsPlanted;
             cropPlanted = true;
         }
-        if ((blockName = BuiltInRegistries.BLOCK.getKey(block).toString()).equals("minecraft:pitcher_crop") || blockName.equals("minecraft:torchflower_crop")) {
+        String blockName = BuiltInRegistries.BLOCK.getKey(block).toString();
+        if (blockName.equals("minecraft:pitcher_crop") || blockName.equals("minecraft:torchflower_crop")) {
             ++stats.cropsPlanted;
             cropPlanted = true;
         }
@@ -414,10 +362,9 @@ public class StatsEventHandler {
     @SubscribeEvent
     public static void onBlockBreak(BlockEvent.BreakEvent event) {
         Player player = event.getPlayer();
-        if (!(player instanceof ServerPlayer)) {
+        if (!(player instanceof ServerPlayer player2)) {
             return;
         }
-        ServerPlayer player2 = (ServerPlayer)player;
         UUID uuid = player2.getUUID();
         PlayerStats stats = PlayerStatsStore.getInstance().getOrCreate(uuid);
         ++stats.blocksBroken;
@@ -428,10 +375,9 @@ public class StatsEventHandler {
     @SubscribeEvent
     public static void onItemCrafted(PlayerEvent.ItemCraftedEvent event) {
         Player player = event.getEntity();
-        if (!(player instanceof ServerPlayer)) {
+        if (!(player instanceof ServerPlayer player2)) {
             return;
         }
-        ServerPlayer player2 = (ServerPlayer)player;
         UUID uuid = player2.getUUID();
         PlayerStats stats = PlayerStatsStore.getInstance().getOrCreate(uuid);
         ++stats.itemsCrafted;
@@ -442,10 +388,9 @@ public class StatsEventHandler {
     @SubscribeEvent
     public static void onLightningStrike(EntityStruckByLightningEvent event) {
         Entity entity = event.getEntity();
-        if (!(entity instanceof ServerPlayer)) {
+        if (!(entity instanceof ServerPlayer player)) {
             return;
         }
-        ServerPlayer player = (ServerPlayer)entity;
         UUID uuid = player.getUUID();
         PlayerStats stats = PlayerStatsStore.getInstance().getOrCreate(uuid);
         ++stats.lightningStrikes;
@@ -456,10 +401,9 @@ public class StatsEventHandler {
     @SubscribeEvent
     public static void onFallDamage(LivingFallEvent event) {
         LivingEntity livingEntity = event.getEntity();
-        if (!(livingEntity instanceof ServerPlayer)) {
+        if (!(livingEntity instanceof ServerPlayer player)) {
             return;
         }
-        ServerPlayer player = (ServerPlayer)livingEntity;
         if (event.getDistance() <= 3.0f) {
             return;
         }
@@ -472,12 +416,10 @@ public class StatsEventHandler {
 
     @SubscribeEvent
     public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
-        Animal animal;
         Player player = event.getEntity();
-        if (!(player instanceof ServerPlayer)) {
+        if (!(player instanceof ServerPlayer player2)) {
             return;
         }
-        ServerPlayer player2 = (ServerPlayer)player;
         ItemStack handItem = player2.getItemInHand(event.getHand());
         if (handItem.isEmpty()) {
             return;
@@ -492,7 +434,7 @@ public class StatsEventHandler {
             return;
         }
         Entity target = event.getTarget();
-        if (target instanceof Animal && (animal = (Animal)target).isFood(handItem)) {
+        if (target instanceof Animal animal && animal.isFood(handItem)) {
             ++stats.animalsFed;
             store.markDirty(uuid);
             ConditionEvaluator.checkStatReach(player2, "animalsFed", stats.animalsFed);
@@ -502,4 +444,3 @@ public class StatsEventHandler {
         }
     }
 }
-

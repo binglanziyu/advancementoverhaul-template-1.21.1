@@ -1,10 +1,3 @@
-/*
- * Decompiled with CFR 0.152.
- * 
- * Could not load the following classes:
- *  javax.annotation.Nullable
- *  net.minecraft.server.level.ServerPlayer
- */
 package com.example.advancementoverhaul.compat.kubejs;
 
 import com.example.advancementoverhaul.compat.AdvancementAPI;
@@ -57,4 +50,3 @@ public final class KubeJSBindings {
         return AdvancementAPI.builder(id);
     }
 }
-

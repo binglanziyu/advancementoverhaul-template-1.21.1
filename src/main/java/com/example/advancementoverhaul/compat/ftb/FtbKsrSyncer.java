@@ -1,40 +1,9 @@
-/*
- * Decompiled with CFR 0.152.
- * 
- * Could not load the following classes:
- *  com.google.gson.JsonElement
- *  net.minecraft.advancements.AdvancementHolder
- *  net.minecraft.advancements.AdvancementNode
- *  net.minecraft.advancements.DisplayInfo
- *  net.minecraft.client.Minecraft
- *  net.minecraft.client.multiplayer.ClientAdvancements
- *  net.minecraft.core.registries.BuiltInRegistries
- *  net.minecraft.network.chat.Component
- *  net.minecraft.resources.ResourceLocation
- *  net.minecraft.server.MinecraftServer
- *  net.minecraft.world.item.Item
- *  net.minecraft.world.item.ItemStack
- *  net.minecraft.world.item.Items
- *  net.minecraft.world.level.ItemLike
- *  org.slf4j.Logger
- *  org.slf4j.LoggerFactory
- */
 package com.example.advancementoverhaul.compat.ftb;
 
 import com.example.advancementoverhaul.compat.AdvancementRegistry;
-import com.example.advancementoverhaul.compat.ftb.FtbQuestsBridge;
-import com.example.advancementoverhaul.compat.ftb.FtbReflectionHelper;
 import com.example.advancementoverhaul.data.ServerDataStore;
 import com.example.advancementoverhaul.data.model.CustomAdvancement;
 import com.google.gson.JsonElement;
-import java.lang.reflect.Method;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Set;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.advancements.AdvancementNode;
 import net.minecraft.advancements.DisplayInfo;
@@ -51,11 +20,14 @@ import net.minecraft.world.level.ItemLike;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Method;
+import java.util.*;
+
 public final class FtbKsrSyncer {
-    private static final Logger LOGGER = LoggerFactory.getLogger((String)"AdvancementOverhaul/KsrSyncer");
+    private static final Logger LOGGER = LoggerFactory.getLogger("AdvancementOverhaul/KsrSyncer");
     private static volatile boolean ksrSynced = false;
-    private static final Set<String> serverInjectedIds = new HashSet<String>();
-    private static final Set<String> clientInjectedIds = new HashSet<String>();
+    private static final Set<String> serverInjectedIds = new HashSet<>();
+    private static final Set<String> clientInjectedIds = new HashSet<>();
     private static int clientKsrConsecutiveFailures = 0;
 
     private FtbKsrSyncer() {
@@ -85,11 +57,16 @@ public final class FtbKsrSyncer {
             ServerDataStore store = ServerDataStore.getInstance();
             int added = 0;
             for (CustomAdvancement adv : store.getAdvancements().values()) {
-                ItemStack icon;
-                Component name;
-                Object info;
                 ResourceLocation vanillaId = AdvancementRegistry.toVanillaId(adv.getId());
-                if (clientMap.containsKey(vanillaId) || (info = FtbReflectionHelper.createAdvancementInfo(vanillaId, name = FtbKsrSyncer.resolveServerName(server, vanillaId, adv.getName()), icon = FtbKsrSyncer.resolveServerIcon(server, vanillaId, adv.getIcon()))) == null) continue;
+                if (clientMap.containsKey(vanillaId)) {
+                    continue;
+                }
+                Component name = FtbKsrSyncer.resolveServerName(server, vanillaId, adv.getName());
+                ItemStack icon = FtbKsrSyncer.resolveServerIcon(server, vanillaId, adv.getIcon());
+                Object info = FtbReflectionHelper.createAdvancementInfo(vanillaId, name, icon);
+                if (info == null) {
+                    continue;
+                }
                 clientMap.put(vanillaId, info);
                 serverMap.put(vanillaId, info);
                 serverInjectedIds.add(vanillaId.toString());
@@ -98,11 +75,19 @@ public final class FtbKsrSyncer {
             Map<String, JsonElement> vanillaCache = store.getVanillaAdvRawCache();
             if (vanillaCache != null) {
                 for (String advId : vanillaCache.keySet()) {
-                    ItemStack icon;
-                    Component name;
-                    Object info;
-                    ResourceLocation rl;
-                    if (!store.isVanillaEnabled(advId) || (rl = ResourceLocation.tryParse((String)advId)) == null || clientMap.containsKey(rl) || (info = FtbReflectionHelper.createAdvancementInfo(rl, name = FtbKsrSyncer.resolveServerName(server, rl, advId), icon = FtbKsrSyncer.resolveServerIcon(server, rl, null))) == null) continue;
+                    if (!store.isVanillaEnabled(advId)) {
+                        continue;
+                    }
+                    ResourceLocation rl = ResourceLocation.tryParse(advId);
+                    if (rl == null || clientMap.containsKey(rl)) {
+                        continue;
+                    }
+                    Component name = FtbKsrSyncer.resolveServerName(server, rl, advId);
+                    ItemStack icon = FtbKsrSyncer.resolveServerIcon(server, rl, null);
+                    Object info = FtbReflectionHelper.createAdvancementInfo(rl, name, icon);
+                    if (info == null) {
+                        continue;
+                    }
                     clientMap.put(rl, info);
                     serverMap.put(rl, info);
                     serverInjectedIds.add(rl.toString());
@@ -111,11 +96,10 @@ public final class FtbKsrSyncer {
             }
             if (added > 0) {
                 ksrSynced = true;
-                LOGGER.info("Synced {} advancements to KSR (custom + enabled vanilla)", (Object)added);
+                LOGGER.info("Synced {} advancements to KSR (custom + enabled vanilla)", added);
             }
-        }
-        catch (Exception e) {
-            LOGGER.warn("Failed to sync KnownServerRegistries (FTB version: {}): {}", (Object)FtbQuestsBridge.getFtbVersion(), (Object)e.getMessage());
+        } catch (Exception e) {
+            LOGGER.warn("Failed to sync KnownServerRegistries (FTB version: {}): {}", FtbQuestsBridge.getFtbVersion(), e.getMessage());
         }
     }
 
@@ -128,7 +112,7 @@ public final class FtbKsrSyncer {
             advancementIds = FtbKsrSyncer.getCustomAdvancementIdsFromVanillaTree();
             if (advancementIds.isEmpty()) {
                 if (++clientKsrConsecutiveFailures % 100 == 1) {
-                    LOGGER.warn("Cannot find custom advancement IDs in client tree (failures: {})", (Object)clientKsrConsecutiveFailures);
+                    LOGGER.warn("Cannot find custom advancement IDs in client tree (failures: {})", clientKsrConsecutiveFailures);
                 }
                 customIdsFound = false;
             } else {
@@ -136,7 +120,6 @@ public final class FtbKsrSyncer {
             }
         }
         try {
-            int removed;
             Object clientKsr = FtbReflectionHelper.getKsrClient();
             if (clientKsr == null) {
                 LOGGER.debug("KSR.client is null, will retry later");
@@ -151,40 +134,46 @@ public final class FtbKsrSyncer {
             int added = 0;
             int scanned = advancementIds.size();
             for (String customId : advancementIds) {
-                Object info;
-                ItemStack icon;
+                ResourceLocation vanillaId = customId.contains(":") ? ResourceLocation.parse(customId) : AdvancementRegistry.toVanillaId(customId);
+                if (clientMap.containsKey(vanillaId)) {
+                    continue;
+                }
                 Component name;
-                ResourceLocation vanillaId = customId.contains(":") ? ResourceLocation.parse((String)customId) : AdvancementRegistry.toVanillaId(customId);
-                if (clientMap.containsKey(vanillaId)) continue;
+                ItemStack icon;
                 DisplayInfo display = clientDisplayMap.get(vanillaId);
                 if (display != null) {
                     name = display.getTitle();
                     icon = display.getIcon();
                 } else {
-                    name = Component.literal((String)customId);
+                    name = Component.literal(customId);
                     icon = ItemStack.EMPTY;
                 }
-                if ((info = FtbReflectionHelper.createAdvancementInfo(vanillaId, name, icon)) == null) continue;
+                Object info = FtbReflectionHelper.createAdvancementInfo(vanillaId, name, icon);
+                if (info == null) {
+                    continue;
+                }
                 clientMap.put(vanillaId, info);
                 clientInjectedIds.add(vanillaId.toString());
                 ++added;
             }
-            if (customIdsFound && (removed = FtbKsrSyncer.removeStaleClientKsrEntries(clientMap, advancementIds)) > 0) {
-                LOGGER.debug("Client KSR: cleaned up {} stale entries", (Object)removed);
+            if (customIdsFound) {
+                int removed = FtbKsrSyncer.removeStaleClientKsrEntries(clientMap, advancementIds);
+                if (removed > 0) {
+                    LOGGER.debug("Client KSR: cleaned up {} stale entries", removed);
+                }
             }
             if (added > 0) {
-                LOGGER.debug("Client KSR: injected {} custom IDs (scanned {}, map size {})", new Object[]{added, scanned, clientMap.size()});
+                LOGGER.debug("Client KSR: injected {} custom IDs (scanned {}, map size {})", added, scanned, clientMap.size());
             }
             return true;
-        }
-        catch (Exception e) {
-            LOGGER.warn("Failed to sync client KnownServerRegistries (will retry): {}", (Object)e.getMessage());
+        } catch (Exception e) {
+            LOGGER.warn("Failed to sync client KnownServerRegistries (will retry): {}", e.getMessage());
             return false;
         }
     }
 
     private static Set<String> getCustomAdvancementIdsFromVanillaTree() {
-        LinkedHashSet<String> ids = new LinkedHashSet<String>();
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
         try {
             Minecraft mc = Minecraft.getInstance();
             if (mc.player == null || mc.player.connection == null) {
@@ -195,12 +184,13 @@ public final class FtbKsrSyncer {
                 return ids;
             }
             try {
-                Method getTreeMethod = clientAdvancements.getClass().getMethod("getTree", new Class[0]);
-                Object tree = getTreeMethod.invoke((Object)clientAdvancements, new Object[0]);
+                Method getTreeMethod = clientAdvancements.getClass().getMethod("getTree");
+                Object tree = getTreeMethod.invoke(clientAdvancements);
                 if (tree != null) {
-                    Method rootsMethod = tree.getClass().getMethod("roots", new Class[0]);
+                    Method rootsMethod = tree.getClass().getMethod("roots");
+                    // 反射调用，类型擦除导致的unchecked强制转换不可避免
                     @SuppressWarnings("unchecked")
-                    Iterable<AdvancementNode> roots = (Iterable<AdvancementNode>)rootsMethod.invoke(tree, new Object[0]);
+                    Iterable<AdvancementNode> roots = (Iterable<AdvancementNode>) rootsMethod.invoke(tree);
                     for (AdvancementNode root : roots) {
                         FtbKsrSyncer.collectCustomAdvancementIds(root, ids);
                     }
@@ -208,27 +198,27 @@ public final class FtbKsrSyncer {
                         return ids;
                     }
                 }
-            }
-            catch (NoSuchMethodException e) {
+            } catch (NoSuchMethodException e) {
                 LOGGER.debug("getTree() not available, trying progress map fallback");
             }
             try {
-                Method progressMapMethod = clientAdvancements.getClass().getMethod("progress", new Class[0]);
+                Method progressMapMethod = clientAdvancements.getClass().getMethod("progress");
+                // 反射调用，类型擦除导致的unchecked强制转换不可避免
                 @SuppressWarnings("unchecked")
-                Map<ResourceLocation, ?> progressMap = (Map<ResourceLocation, ?>)progressMapMethod.invoke((Object)clientAdvancements, new Object[0]);
+                Map<ResourceLocation, ?> progressMap = (Map<ResourceLocation, ?>) progressMapMethod.invoke(clientAdvancements);
                 if (progressMap != null) {
                     for (ResourceLocation key : progressMap.keySet()) {
-                        if (!AdvancementRegistry.isCustomAdvancement(key)) continue;
+                        if (!AdvancementRegistry.isCustomAdvancement(key)) {
+                            continue;
+                        }
                         ids.add(key.toString());
                     }
                 }
-            }
-            catch (NoSuchMethodException e) {
+            } catch (NoSuchMethodException e) {
                 LOGGER.debug("progress() not available either");
             }
-        }
-        catch (Exception e) {
-            LOGGER.warn("Client KSR scan failed: {}", (Object)e.getMessage());
+        } catch (Exception e) {
+            LOGGER.warn("Client KSR scan failed: {}", e.getMessage());
         }
         return ids;
     }
@@ -244,7 +234,7 @@ public final class FtbKsrSyncer {
     }
 
     private static int removeStaleClientKsrEntries(Map<ResourceLocation, Object> clientMap, Collection<String> advancementIds) {
-        HashSet<String> validIds = new HashSet<String>();
+        HashSet<String> validIds = new HashSet<>();
         for (String id : advancementIds) {
             if (id.contains(":")) {
                 validIds.add(id);
@@ -257,8 +247,10 @@ public final class FtbKsrSyncer {
         Iterator<String> iterator = clientInjectedIds.iterator();
         while (iterator.hasNext()) {
             String injectedId = iterator.next();
-            if (validIds.contains(injectedId)) continue;
-            ResourceLocation rl = ResourceLocation.tryParse((String)injectedId);
+            if (validIds.contains(injectedId)) {
+                continue;
+            }
+            ResourceLocation rl = ResourceLocation.tryParse(injectedId);
             if (rl != null) {
                 clientMap.remove(rl);
             }
@@ -272,27 +264,25 @@ public final class FtbKsrSyncer {
         try {
             AdvancementHolder holder = server.getAdvancements().get(id);
             if (holder != null && holder.value().display().isPresent()) {
-                return ((DisplayInfo)holder.value().display().get()).getTitle();
+                return holder.value().display().get().getTitle();
             }
-        }
-        catch (Exception exception) {
-            // empty catch block
+        } catch (Exception ignored) {
+            LOGGER.debug("Failed to resolve server advancement name for {}", id, ignored);
         }
         if (fallbackName != null && !fallbackName.isEmpty()) {
-            return Component.literal((String)fallbackName);
+            return Component.literal(fallbackName);
         }
-        return Component.literal((String)id.toString());
+        return Component.literal(id.toString());
     }
 
     public static ItemStack resolveServerIcon(MinecraftServer server, ResourceLocation id, String fallbackIcon) {
         try {
             AdvancementHolder holder = server.getAdvancements().get(id);
             if (holder != null && holder.value().display().isPresent()) {
-                return ((DisplayInfo)holder.value().display().get()).getIcon();
+                return holder.value().display().get().getIcon();
             }
-        }
-        catch (Exception exception) {
-            // empty catch block
+        } catch (Exception ignored) {
+            LOGGER.debug("Failed to resolve server advancement name for {}", id, ignored);
         }
         return FtbKsrSyncer.parseItemIcon(fallbackIcon);
     }
@@ -302,20 +292,19 @@ public final class FtbKsrSyncer {
             return ItemStack.EMPTY;
         }
         try {
-            ResourceLocation rl = ResourceLocation.tryParse((String)itemId);
+            ResourceLocation rl = ResourceLocation.tryParse(itemId);
             if (rl == null) {
                 return ItemStack.EMPTY;
             }
             Item item = BuiltInRegistries.ITEM.getOptional(rl).orElse(Items.NETHER_STAR);
-            return new ItemStack((ItemLike)item);
-        }
-        catch (Exception e) {
+            return new ItemStack((ItemLike) item);
+        } catch (Exception e) {
             return ItemStack.EMPTY;
         }
     }
 
     private static Map<ResourceLocation, DisplayInfo> collectClientDisplayMap() {
-        HashMap<ResourceLocation, DisplayInfo> map = new HashMap<ResourceLocation, DisplayInfo>();
+        HashMap<ResourceLocation, DisplayInfo> map = new HashMap<>();
         try {
             Minecraft mc = Minecraft.getInstance();
             if (mc.player == null || mc.player.connection == null) {
@@ -325,19 +314,19 @@ public final class FtbKsrSyncer {
             if (clientAdvancements == null) {
                 return map;
             }
-            Method getTreeMethod = clientAdvancements.getClass().getMethod("getTree", new Class[0]);
-            Object tree = getTreeMethod.invoke((Object)clientAdvancements, new Object[0]);
+            Method getTreeMethod = clientAdvancements.getClass().getMethod("getTree");
+            Object tree = getTreeMethod.invoke(clientAdvancements);
             if (tree != null) {
-                Method rootsMethod = tree.getClass().getMethod("roots", new Class[0]);
+                Method rootsMethod = tree.getClass().getMethod("roots");
+                // 反射调用，类型擦除导致的unchecked强制转换不可避免
                 @SuppressWarnings("unchecked")
-                Iterable<AdvancementNode> roots = (Iterable<AdvancementNode>)rootsMethod.invoke(tree, new Object[0]);
+                Iterable<AdvancementNode> roots = (Iterable<AdvancementNode>) rootsMethod.invoke(tree);
                 for (AdvancementNode root : roots) {
                     FtbKsrSyncer.collectDisplayInfo(root, map);
                 }
             }
-        }
-        catch (Exception e) {
-            LOGGER.debug("Failed to collect client advancement display map: {}", (Object)e.getMessage());
+        } catch (Exception e) {
+            LOGGER.debug("Failed to collect client advancement display map: {}", e.getMessage());
         }
         return map;
     }
@@ -350,15 +339,15 @@ public final class FtbKsrSyncer {
     }
 
     public static DisplayInfo findDisplayInfo(AdvancementNode node, ResourceLocation id) {
-        if (id.equals((Object)node.holder().id()) && node.holder().value().display().isPresent()) {
-            return (DisplayInfo)node.holder().value().display().get();
+        if (id.equals(node.holder().id()) && node.holder().value().display().isPresent()) {
+            return node.holder().value().display().get();
         }
         for (AdvancementNode child : node.children()) {
             DisplayInfo found = FtbKsrSyncer.findDisplayInfo(child, id);
-            if (found == null) continue;
-            return found;
+            if (found != null) {
+                return found;
+            }
         }
         return null;
     }
 }
-

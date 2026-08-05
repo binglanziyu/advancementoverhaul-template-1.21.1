@@ -1,6 +1,3 @@
-/*
- * Decompiled with CFR 0.152.
- */
 package com.example.advancementoverhaul.data.model;
 
 public class EchoEntry {
@@ -116,14 +113,12 @@ public class EchoEntry {
         }
     }
 
-    public static enum EchoConditionType {
+    public enum EchoConditionType {
         BIOME,
         Y_BELOW,
         Y_ABOVE,
         FIRST_TIME,
         DIMENSION,
-        STRUCTURE;
-
+        STRUCTURE
     }
 }
-

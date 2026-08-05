@@ -475,13 +475,13 @@ final class AdvCrudExecutor {
         if (rawMessage == null) return "Unknown JSON error";
         String msg = rawMessage.toLowerCase();
         if (msg.contains("expected begin_object"))
-            return "JSON 格式错误：需要以 { 开头的对象";
+            return Component.translatable(LangKeys.JSON_ERR_BRACE).getString();
         if (msg.contains("expected begin_array"))
-            return "JSON 格式错误：需要以 [ 开头的数组";
+            return Component.translatable(LangKeys.JSON_ERR_BRACKET).getString();
         if (msg.contains("unterminated"))
-            return "JSON 格式错误：字符串或对象未正确闭合";
+            return Component.translatable(LangKeys.JSON_ERR_STRING).getString();
         if (msg.contains("malformed"))
-            return "JSON 格式错误：数值或转义字符格式不正确";
+            return Component.translatable(LangKeys.JSON_ERR_NUMBER).getString();
         return rawMessage;
     }
 }

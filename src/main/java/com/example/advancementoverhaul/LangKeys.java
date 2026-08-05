@@ -230,6 +230,26 @@ public final class LangKeys {
     public static final String JOURNAL_BTN_TT   = "advancementoverhaul.btn.journal";
     public static final String HIDDEN_LOCKED    = "advancementoverhaul.ui.hidden_locked";
 
+    // ── 完成牌匾 ──
+    public static final String COMPLETION_TITLE  = "advancementoverhaul.completion.title";
+
+    // ── JSON 错误消息（命令反馈） ──
+    public static final String JSON_ERR_BRACE    = "advancementoverhaul.cmd.json_err_brace";
+    public static final String JSON_ERR_BRACKET  = "advancementoverhaul.cmd.json_err_bracket";
+    public static final String JSON_ERR_STRING   = "advancementoverhaul.cmd.json_err_string";
+    public static final String JSON_ERR_NUMBER   = "advancementoverhaul.cmd.json_err_number";
+
+    // ── 图片错误消息 ──
+    public static final String IMAGE_DIR_NOT_FOUND   = "advancementoverhaul.gui.image_dir_not_found";
+    public static final String IMAGE_FILE_NOT_FOUND  = "advancementoverhaul.gui.image_file_not_found";
+    public static final String IMAGE_FILE_TOO_LARGE  = "advancementoverhaul.gui.image_file_too_large";
+    public static final String IMAGE_PARSE_FAIL      = "advancementoverhaul.gui.image_parse_fail";
+    public static final String UNKNOWN_ERROR         = "advancementoverhaul.gui.unknown_error";
+
+    // ── 编辑模式开关 ──
+    public static final String TOGGLE_EDIT_ON   = "advancementoverhaul.ui.toggle_edit_on";
+    public static final String TOGGLE_EDIT_OFF  = "advancementoverhaul.ui.toggle_edit_off";
+
     // ── 叙事统计 ──
     public static final String NARR_TITLE          = "advancementoverhaul.narrative.title";
     public static final String NARR_CAT_JOURNEY    = "advancementoverhaul.narrative.cat_journey";
@@ -294,6 +314,15 @@ public final class LangKeys {
     public static final String NARR_RAIDS_WON             = "advancementoverhaul.narrative.stat_raidsWon";
     public static final String NARR_TARGETS_HIT           = "advancementoverhaul.narrative.stat_targetsHit";
     public static final String NARR_BELLS_RUNG            = "advancementoverhaul.narrative.stat_bellsRung";
+
+    // ── 成就统计 ──
+    public static final String STATS_TITLE               = "advancementoverhaul.stats.title";
+    public static final String STATS_ALL_TAB             = "advancementoverhaul.stats.all_tab";
+    public static final String STATS_UNCOMPLETED         = "advancementoverhaul.stats.uncompleted";
+    public static final String STATS_EMPTY               = "advancementoverhaul.stats.empty";
+    public static final String STATS_CLICK_HINT          = "advancementoverhaul.stats.click_hint";
+    public static final String STATS_CUSTOM             = "advancementoverhaul.stats.custom";
+    public static final String STATS_COUNT              = "advancementoverhaul.stats.count";
 
     private LangKeys() {}
 }

@@ -1,0 +1,43 @@
+{
+  "name": "decompile-cleanup",
+  "mainConversationId": "6ea293f795734064801f08c6e1daf498",
+  "workspacePath": "c:/Users/Dreamer/Desktop/advancementoverhaul-template-1.21.1",
+  "createdAt": "2026-08-04T14:18:00.023Z",
+  "options": {
+    "workspacePath": "c:/Users/Dreamer/Desktop/advancementoverhaul-template-1.21.1",
+    "isAutoTeam": false
+  },
+  "isAutoTeam": false,
+  "members": [
+    {
+      "memberId": "payload-cleaner@decompile-cleanup",
+      "name": "payload-cleaner",
+      "role": "清理11个payload文件",
+      "sessionId": "81ea49a71307418eb0c27139e0bff8ec"
+    },
+    {
+      "memberId": "network-data-cleaner@decompile-cleanup",
+      "name": "network-data-cleaner",
+      "role": "清理网络+事件+数据文件",
+      "sessionId": "789d5ba5c13a43a69b0d7b2d00c7a52a"
+    },
+    {
+      "memberId": "client-gui-cleaner@decompile-cleanup",
+      "name": "client-gui-cleaner",
+      "role": "清理客户端和GUI文件",
+      "sessionId": "32d58694582040798f83ceda166c5832"
+    },
+    {
+      "memberId": "compat-mixin-cleaner@decompile-cleanup",
+      "name": "compat-mixin-cleaner",
+      "role": "清理兼容层和Mixin文件",
+      "sessionId": "3d03e78199f84bc2b2ee175b4bc9be32"
+    },
+    {
+      "memberId": "milestone-store-cleaner@decompile-cleanup",
+      "name": "milestone-store-cleaner",
+      "role": "清理milestone store 2个文件",
+      "sessionId": "04c4b547868649b19d28e81721f75199"
+    }
+  ]
+}

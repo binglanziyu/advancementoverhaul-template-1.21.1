@@ -1,6 +1,3 @@
-/*
- * Decompiled with CFR 0.152.
- */
 package com.example.advancementoverhaul.data;
 
 public class SpatialMarker {
@@ -114,4 +111,3 @@ public class SpatialMarker {
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 }
-

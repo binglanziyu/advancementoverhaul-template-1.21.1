@@ -1,20 +1,5 @@
-/*
- * Decompiled with CFR 0.152.
- * 
- * Could not load the following classes:
- *  dev.latvian.mods.kubejs.event.EventGroup
- *  dev.latvian.mods.kubejs.event.EventGroupRegistry
- *  dev.latvian.mods.kubejs.event.EventHandler
- *  dev.latvian.mods.kubejs.event.KubeEvent
- *  dev.latvian.mods.kubejs.plugin.KubeJSPlugin
- *  dev.latvian.mods.kubejs.script.BindingRegistry
- *  net.minecraft.server.level.ServerPlayer
- *  net.neoforged.bus.api.SubscribeEvent
- *  net.neoforged.neoforge.common.NeoForge
- */
 package com.example.advancementoverhaul.compat.kubejs;
 
-import com.example.advancementoverhaul.compat.kubejs.KubeJSBindings;
 import com.example.advancementoverhaul.achievement.event.AdvCompletedEvent;
 import com.example.advancementoverhaul.achievement.event.AdvProgressEvent;
 import com.example.advancementoverhaul.achievement.event.AdvResetEvent;
@@ -28,45 +13,49 @@ import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.NeoForge;
 
-public class AdvancementOverhaulKubeJSPlugin
-implements KubeJSPlugin {
-    public static final EventGroup GROUP = EventGroup.of((String)"AdvancementOverhaul");
+public class AdvancementOverhaulKubeJSPlugin implements KubeJSPlugin {
+    public static final EventGroup GROUP = EventGroup.of("AdvancementOverhaul");
     public static final EventHandler COMPLETED = GROUP.server("completed", () -> CompletedEventJS.class);
     public static final EventHandler PROGRESS = GROUP.server("progress", () -> ProgressEventJS.class);
     public static final EventHandler RESET = GROUP.server("reset", () -> ResetEventJS.class);
 
+    @Override
     public void registerEvents(EventGroupRegistry registry) {
         registry.register(GROUP);
     }
 
+    @Override
     public void registerBindings(BindingRegistry bindings) {
         bindings.add("AdvancementOverhaul", KubeJSBindings.class);
     }
 
+    @Override
     public void init() {
-        NeoForge.EVENT_BUS.register((Object)this);
+        NeoForge.EVENT_BUS.register(this);
     }
 
     @SubscribeEvent
     public void onAdvCompleted(AdvCompletedEvent event) {
-        COMPLETED.post((KubeEvent)new CompletedEventJS(event.getPlayer(), event.getAdvancementId(), event.getAdvancementName()));
+        COMPLETED.post(new CompletedEventJS(event.getPlayer(), event.getAdvancementId(), event.getAdvancementName()));
     }
 
     @SubscribeEvent
     public void onAdvProgress(AdvProgressEvent event) {
-        PROGRESS.post((KubeEvent)new ProgressEventJS(event.getPlayer(), event.getAdvancementId(), event.getProgress(), event.getTotal()));
+        PROGRESS.post(new ProgressEventJS(event.getPlayer(), event.getAdvancementId(), event.getProgress(), event.getTotal()));
     }
 
     @SubscribeEvent
     public void onAdvReset(AdvResetEvent event) {
-        RESET.post((KubeEvent)new ResetEventJS(event.getPlayer(), event.getAdvancementId()));
+        RESET.post(new ResetEventJS(event.getPlayer(), event.getAdvancementId()));
     }
 
-    public static class CompletedEventJS
-    implements KubeEvent {
-        private final ServerPlayer player;
-        private final String advancementId;
-        private final String advancementName;
+    public static class CompletedEventJS implements KubeEvent {
+        private ServerPlayer player;
+        private String advancementId;
+        private String advancementName;
+
+        public CompletedEventJS() {
+        }
 
         public CompletedEventJS(ServerPlayer player, String advancementId, String advancementName) {
             this.player = player;
@@ -87,12 +76,14 @@ implements KubeJSPlugin {
         }
     }
 
-    public static class ProgressEventJS
-    implements KubeEvent {
-        private final ServerPlayer player;
-        private final String advancementId;
-        private final int progress;
-        private final int total;
+    public static class ProgressEventJS implements KubeEvent {
+        private ServerPlayer player;
+        private String advancementId;
+        private int progress;
+        private int total;
+
+        public ProgressEventJS() {
+        }
 
         public ProgressEventJS(ServerPlayer player, String advancementId, int progress, int total) {
             this.player = player;
@@ -122,10 +113,12 @@ implements KubeJSPlugin {
         }
     }
 
-    public static class ResetEventJS
-    implements KubeEvent {
-        private final ServerPlayer player;
-        private final String advancementId;
+    public static class ResetEventJS implements KubeEvent {
+        private ServerPlayer player;
+        private String advancementId;
+
+        public ResetEventJS() {
+        }
 
         public ResetEventJS(ServerPlayer player, String advancementId) {
             this.player = player;
@@ -141,4 +134,3 @@ implements KubeJSPlugin {
         }
     }
 }
-

@@ -9,6 +9,7 @@ import dev.ftb.mods.ftblibrary.ui.input.MouseButton;
 import net.minecraft.resources.ResourceLocation;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -24,6 +25,7 @@ import java.lang.reflect.Constructor;
  * 循环切换到下一个值。本模组过滤后 KSR 通常只剩少量条目，导致目标/结果里的成就
  * 选择变成点击切换，而不是列表。因此当枚举值为 ResourceLocation 时直接强制弹出列表。
  */
+@Pseudo
 @Mixin(value = EnumConfig.class, remap = false)
 public class EnumConfigMixin<E> {
 

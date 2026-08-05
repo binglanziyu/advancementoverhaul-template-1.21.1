@@ -1,6 +1,3 @@
-/*
- * Decompiled with CFR 0.152.
- */
 package com.example.advancementoverhaul.data;
 
 import java.util.LinkedHashMap;
@@ -45,7 +42,7 @@ public class PlayerStats {
     public double furthestDistance;
     public int lowestY = Integer.MAX_VALUE;
     public int highestY = Integer.MIN_VALUE;
-    public Map<String, Long> biomeTimes = new LinkedHashMap<String, Long>();
+    public Map<String, Long> biomeTimes = new LinkedHashMap<>();
 
     public static int gameDay(long gameTime) {
         return (int)(gameTime / 24000L) + 1;
@@ -60,7 +57,17 @@ public class PlayerStats {
     }
 
     public boolean hasAnyData() {
-        return this.sunrisesViewed > 0 || this.sunsetsViewed > 0 || this.animalsTamed > 0 || this.nameTagsUsed > 0 || this.blocksPlaced > 0 || this.blocksBroken > 0 || this.wanderingTraderTrades > 0 || this.lightningStrikes > 0 || this.rainTicks > 0L || this.snowTicks > 0L || this.cropsPlanted > 0 || this.itemsCrafted > 0 || this.fallDamageEvents > 0 || this.torchesPlaced > 0 || this.blocksPlacedInWater > 0 || this.animalsFed > 0 || this.firstDeathRecorded || this.firstBlockPlacedRecorded || this.firstNetherDay > 0 || this.firstEndDay > 0 || this.firstDiamondDay > 0 || this.firstEnchantDay > 0 || this.firstTameDay > 0 || this.firstRainSleepDay > 0 || this.furthestDistance > 0.0 || this.hasLowestY() || this.hasHighestY() || this.mostFrequentBiome != null && !this.mostFrequentBiome.isEmpty();
+        return this.sunrisesViewed > 0 || this.sunsetsViewed > 0 || this.animalsTamed > 0
+                || this.nameTagsUsed > 0 || this.blocksPlaced > 0 || this.blocksBroken > 0
+                || this.wanderingTraderTrades > 0 || this.lightningStrikes > 0
+                || this.rainTicks > 0L || this.snowTicks > 0L || this.cropsPlanted > 0
+                || this.itemsCrafted > 0 || this.fallDamageEvents > 0 || this.torchesPlaced > 0
+                || this.blocksPlacedInWater > 0 || this.animalsFed > 0
+                || this.firstDeathRecorded || this.firstBlockPlacedRecorded
+                || this.firstNetherDay > 0 || this.firstEndDay > 0 || this.firstDiamondDay > 0
+                || this.firstEnchantDay > 0 || this.firstTameDay > 0 || this.firstRainSleepDay > 0
+                || this.furthestDistance > 0.0 || this.hasLowestY() || this.hasHighestY()
+                || this.mostFrequentBiome != null && !this.mostFrequentBiome.isEmpty();
     }
 
     public long getStatValue(String fieldName) {
@@ -85,4 +92,3 @@ public class PlayerStats {
         };
     }
 }
-

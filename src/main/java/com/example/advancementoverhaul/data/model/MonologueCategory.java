@@ -1,6 +1,3 @@
-/*
- * Decompiled with CFR 0.152.
- */
 package com.example.advancementoverhaul.data.model;
 
 import java.util.List;
@@ -46,4 +43,3 @@ public class MonologueCategory {
         }
     }
 }
-

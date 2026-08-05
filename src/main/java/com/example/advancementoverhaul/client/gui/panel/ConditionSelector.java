@@ -138,7 +138,9 @@ public class ConditionSelector {
                     // 优先从连接同步的 level 列表获取所有维度（包括 mod 维度）
                     try {
                         mc.getConnection().levels().forEach(rl -> allDims.add(rl.location().toString()));
-                    } catch (Exception ignored) {}
+                    } catch (Exception e) {
+                        LogUtils.getLogger().debug("Failed to read dimension levels: {}", e.getMessage());
+                    }
                     // 若 levels() 返回空，回退到注册表读取
                     if (allDims.isEmpty()) {
                         try {
@@ -147,7 +149,9 @@ public class ConditionSelector {
                                 access.registryOrThrow(net.minecraft.core.registries.Registries.DIMENSION)
                                         .keySet().forEach(rl -> allDims.add(rl.toString()));
                             }
-                        } catch (Exception ignored) {}
+                        } catch (Exception e) {
+                            LogUtils.getLogger().debug("Failed to read dimension registry: {}", e.getMessage());
+                        }
                     }
                 }
                 // 兜底：确保三个原版维度始终出现

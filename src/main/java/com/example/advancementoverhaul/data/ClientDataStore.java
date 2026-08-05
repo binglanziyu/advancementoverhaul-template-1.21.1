@@ -307,8 +307,14 @@ public class ClientDataStore {
         if (!tabsDirty) return cachedTabs;
 
         Set<String> usedTabs = new HashSet<>();
+        boolean hasDefaultContent = false;
         for (CustomAdvancement adv : advancements.values()) {
-            if (adv.getTab() != null && !adv.getTab().isEmpty()) usedTabs.add(adv.getTab());
+            String tab = adv.getTab();
+            if (tab != null && !tab.isEmpty()) {
+                usedTabs.add(tab);
+            } else {
+                hasDefaultContent = true;
+            }
         }
         for (VanillaAdvMeta meta : vanillaMeta.values()) {
             if (meta.getTab() != null && !meta.getTab().isEmpty()) usedTabs.add(meta.getTab());
@@ -316,7 +322,9 @@ public class ClientDataStore {
 
         LinkedHashSet<String> all = new LinkedHashSet<>();
         all.add(DataStore.TAB_VANILLA);
-        all.add(DataStore.TAB_DEFAULT);
+        if (hasDefaultContent) {
+            all.add(DataStore.TAB_DEFAULT);
+        }
 
         for (String t : tabOrder) {
             if (t.equals(DataStore.TAB_VANILLA) || t.equals(DataStore.TAB_DEFAULT)) continue;
@@ -372,9 +380,11 @@ public class ClientDataStore {
     private void rebuildTabIndex() {
         Map<String, List<CustomAdvancement>> index = new HashMap<>();
         for (CustomAdvancement adv : advancements.values()) {
-            if (adv.getTab() != null && !adv.getTab().isEmpty()) {
-                index.computeIfAbsent(adv.getTab(), k -> new ArrayList<>()).add(adv);
+            String tab = adv.getTab();
+            if (tab == null || tab.isEmpty()) {
+                tab = DataStore.TAB_DEFAULT;
             }
+            index.computeIfAbsent(tab, k -> new ArrayList<>()).add(adv);
         }
         cachedTabIndex = index;
         tabIndexDirty = false;

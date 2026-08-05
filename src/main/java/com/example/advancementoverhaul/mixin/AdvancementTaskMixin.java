@@ -5,7 +5,10 @@ import dev.ftb.mods.ftblibrary.config.ConfigGroup;
 import dev.ftb.mods.ftblibrary.util.KnownServerRegistries;
 import dev.ftb.mods.ftbquests.quest.task.AdvancementTask;
 import net.minecraft.resources.ResourceLocation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.gen.Accessor;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -24,8 +27,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  * 条目注入后不可在 TAIL 中立即移除（参见 AdvancementRewardMixin 文档注释）。
  * 清理工作由周期性 syncClientKnownServerRegistries 负责。
  */
+@Pseudo
 @Mixin(value = AdvancementTask.class, remap = false)
 public abstract class AdvancementTaskMixin {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger("AdvancementOverhaul");
 
     @Accessor("advancement")
     public abstract ResourceLocation getCurrentAdvancement();
@@ -41,7 +47,8 @@ public abstract class AdvancementTaskMixin {
                     map.put(currentAdv, FtbQuestsBridge.createClientAdvancementInfo(currentAdv));
                 }
             }
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            LOGGER.debug("Failed to ensure current advancement in KSR: {}", e.getMessage());
         }
     }
 }

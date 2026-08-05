@@ -1,18 +1,3 @@
-/*
- * Decompiled with CFR 0.152.
- * 
- * Could not load the following classes:
- *  com.google.gson.JsonArray
- *  com.google.gson.JsonParser
- *  net.minecraft.client.Minecraft
- *  net.minecraft.client.gui.Font
- *  net.minecraft.client.gui.GuiGraphics
- *  net.minecraft.client.gui.screens.Screen
- *  net.minecraft.network.chat.Component
- *  net.minecraft.network.protocol.common.custom.CustomPacketPayload
- *  net.neoforged.fml.loading.FMLPaths
- *  net.neoforged.neoforge.network.PacketDistributor
- */
 package com.example.advancementoverhaul.client.gui.timeline;
 
 import com.example.advancementoverhaul.client.gui.GuiUtils;
@@ -57,6 +42,7 @@ extends Screen {
     boolean enterAnimationDone;
     boolean editMode;
     int selectedCategoryIdx;
+    boolean phaseMode;
     final List<String> categoryIds = new ArrayList<String>();
     final List<TimelineCategory> categories = new ArrayList<TimelineCategory>();
     final List<TimeMilestone> allMilestones = new ArrayList<TimeMilestone>();
@@ -68,7 +54,7 @@ extends Screen {
     final List<TimeMilestone> pendingCustomMilestones = new ArrayList<TimeMilestone>();
 
     public TimelineScreen() {
-        super((Component)Component.translatable((String)"milestone.advancementoverhaul.timeline_title"));
+        super(Component.literal("\u65c5\u9014"));
     }
 
     protected void init() {
@@ -82,7 +68,7 @@ extends Screen {
         this.mouseOnAxis = false;
         this.mouseOnAxisX = -1.0;
         this.loadCategories();
-        PacketDistributor.sendToServer((CustomPacketPayload)new TimelineRequestPayload(), (CustomPacketPayload[])new CustomPacketPayload[0]);
+        PacketDistributor.sendToServer(new TimelineRequestPayload());
         this.loadLocalDefinitions();
         this.updateLayout();
         this.targetScrollX = this.computeTargetScrollX();
@@ -238,9 +224,9 @@ extends Screen {
         Font font = Minecraft.getInstance().font;
         int maxDay = Math.max(10, this.computeMaxDay() + 3);
         TimelineRenderer.renderBackground(g, this.width, this.height);
-        TimelineRenderer.renderTabs(g, font, this.width, this.categories, this.selectedCategoryIdx, mouseX, mouseY);
+        TimelineRenderer.renderTabs(g, font, this.width, this.categories, this.selectedCategoryIdx, this.phaseMode, mouseX, mouseY);
         TimelineRenderer.renderTimeline(g, font, this.contentLeft, this.contentRight, this.contentTop, this.contentBottom, this.axisY, this.scrollX, this.zoom, this.editMode, this.displayMilestones, mouseX, mouseY, this.mouseOnAxis, this.mouseOnAxisX, maxDay, this.openTime);
-        TimelineRenderer.renderHeader(g, font, this.width, this.editMode, mouseX, mouseY, this.getTitle());
+        TimelineRenderer.renderHeader(g, font, this.width, this.editMode, mouseX, mouseY, Component.literal("\u65c5\u9014"));
         TimelineRenderer.renderBottomHint(g, font, this.width, this.height, this.editMode, mouseX, mouseY);
     }
 
@@ -257,10 +243,11 @@ extends Screen {
             return true;
         }
         Font font = Minecraft.getInstance().font;
-        String editLabel = this.editMode ? "\u2713 " + Component.translatable((String)"timeline.advancementoverhaul.edit_mode_on").getString() : "\u270e " + Component.translatable((String)"timeline.advancementoverhaul.edit_mode_off").getString();
+        int editBtnY2 = this.height - 28 + 3;
+        String editLabel = "\u7f16\u8f91";
         int editW = font.width(editLabel) + 20;
         int editBtnX = this.width - editW - 16;
-        if (GuiUtils.inRect(mx, my, editBtnX, editBtnY = this.height - 28 + 3, editW, 22)) {
+        if (GuiUtils.inRect(mx, my, editBtnX, editBtnY2, editW, 22)) {
             this.toggleEditMode();
             return true;
         }
@@ -268,7 +255,8 @@ extends Screen {
         int tabY = 34;
         for (int i = 0; i < this.categories.size(); ++i) {
             TimelineCategory cat = this.categories.get(i);
-            int tw = font.width(cat.icon() + " " + Component.translatable((String)cat.nameKey()).getString()) + 24;
+            String label = Component.translatable((String)cat.nameKey()).getString();
+            int tw = font.width(label) + 24;
             if (GuiUtils.inRect(mx, my, tabX, tabY, tw, 30)) {
                 if (this.selectedCategoryIdx != i) {
                     this.selectedCategoryIdx = i;
@@ -280,6 +268,14 @@ extends Screen {
                 return true;
             }
             tabX += tw;
+        }
+        String phaseLabel = "\u9636\u6bb5";
+        int phaseW = font.width(phaseLabel) + 20;
+        int phaseX = this.width - phaseW - 16;
+        if (GuiUtils.inRect(mx, my, phaseX, tabY, phaseW, 30)) {
+            this.phaseMode = !this.phaseMode;
+            GuiUtils.playClickSound();
+            return true;
         }
         if (button == 1 && this.editMode && this.mouseOnAxis) {
             this.openMilestoneEditor(null, mouseX);

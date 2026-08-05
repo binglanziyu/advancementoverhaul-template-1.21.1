@@ -1,14 +1,3 @@
-/*
- * Decompiled with CFR 0.152.
- * 
- * Could not load the following classes:
- *  net.minecraft.network.chat.Component
- *  net.minecraft.resources.ResourceLocation
- *  net.minecraft.server.level.ServerPlayer
- *  net.minecraft.world.item.ItemStack
- *  org.slf4j.Logger
- *  org.slf4j.LoggerFactory
- */
 package com.example.advancementoverhaul.compat.ftb;
 
 import dev.ftb.mods.ftblibrary.util.KnownServerRegistries;
@@ -29,7 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class FtbReflectionHelper {
-    private static final Logger LOGGER = LoggerFactory.getLogger((String)"AdvancementOverhaul/FTBReflect");
+    private static final Logger LOGGER = LoggerFactory.getLogger("AdvancementOverhaul/FTBReflect");
     private static volatile boolean initialized = false;
     static Class<?> ksrClass;
     static VarHandle ksrClientField;
@@ -60,14 +49,13 @@ public final class FtbReflectionHelper {
             return;
         }
         try {
-            FtbReflectionHelper.initKsrHandles();
-            FtbReflectionHelper.initEventHandles();
-            FtbReflectionHelper.initQuestFileHandles();
+            initKsrHandles();
+            initEventHandles();
+            initQuestFileHandles();
             initialized = true;
             LOGGER.info("All FTB Quests reflection handles initialized successfully");
-        }
-        catch (Exception e) {
-            LOGGER.error("Failed to initialize FTB Quests reflection handles \u2014 FTB Quests integration will be limited. Version info may help diagnose: " + e.getMessage(), (Throwable)e);
+        } catch (Exception e) {
+            LOGGER.error("Failed to initialize FTB Quests reflection handles \u2014 FTB Quests integration will be limited. Version info may help diagnose: " + e.getMessage(), e);
         }
     }
 
@@ -102,21 +90,18 @@ public final class FtbReflectionHelper {
                 questObjectBaseGetId = lookup.findVirtual(questObjBaseC, "getId", MethodType.methodType(Object.class));
                 try {
                     questObjectBaseGetTitle = lookup.findVirtual(questObjBaseC, "getTitle", MethodType.methodType(Component.class));
-                }
-                catch (NoSuchMethodException e) {
+                } catch (NoSuchMethodException e) {
                     questObjectBaseGetTitle = null;
                     LOGGER.debug("QuestObjectBase.getTitle() not found \u2014 using ID as display name");
                 }
-            }
-            catch (ClassNotFoundException e) {
+            } catch (ClassNotFoundException e) {
                 LOGGER.debug("QuestObjectBase class not found \u2014 using numeric ID");
             }
             Object eventInstance = questCompletedEventField.get();
             if (eventInstance != null) {
                 eventRegisterMethod = lookup.findVirtual(eventInstance.getClass(), "register", MethodType.methodType(Void.TYPE, Object.class));
             }
-        }
-        catch (ClassNotFoundException e) {
+        } catch (ClassNotFoundException e) {
             LOGGER.debug("QuestCompletedEvent not available (FTB Quests version may lack it)");
         }
     }
@@ -142,8 +127,7 @@ public final class FtbReflectionHelper {
     public static Object getKsrClient() {
         try {
             return ksrClientField.get();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             return null;
         }
     }
@@ -151,8 +135,7 @@ public final class FtbReflectionHelper {
     public static Object getKsrServer() {
         try {
             return ksrServerField.get();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             return null;
         }
     }
@@ -161,8 +144,7 @@ public final class FtbReflectionHelper {
     public static Map<ResourceLocation, Object> getKsrAdvancements(Object ksr) {
         try {
             return (Map<ResourceLocation, Object>) ksrAdvancementsMethod.invoke(ksr);
-        }
-        catch (Throwable e) {
+        } catch (Throwable e) {
             return null;
         }
     }
@@ -170,8 +152,7 @@ public final class FtbReflectionHelper {
     public static Object createAdvancementInfo(ResourceLocation id, Component name, ItemStack icon) {
         try {
             return advancementInfoCtor.newInstance(id, name, icon);
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             return null;
         }
     }
@@ -179,35 +160,34 @@ public final class FtbReflectionHelper {
     public static Object getServerQuestFileInstance() {
         try {
             return serverQuestFileInstance.get();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             return null;
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static Map<?, ?> getTeamDataMap(Object sqf) {
         try {
-            return (Map)baseQuestFileTeamDataMapField.get(sqf);
-        }
-        catch (Exception e) {
+            return (Map<?, ?>) baseQuestFileTeamDataMapField.get(sqf);
+        } catch (Exception e) {
             return null;
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static Map<Long, Object> getQuestObjectMap(Object sqf) {
         try {
-            return (Map)baseQuestFileQuestObjectMapField.get(sqf);
-        }
-        catch (Exception e) {
+            return (Map<Long, Object>) baseQuestFileQuestObjectMapField.get(sqf);
+        } catch (Exception e) {
             return null;
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static Map<Long, Long> getTeamDataCompleted(Object teamData) {
         try {
-            return (Map)teamDataCompletedField.get(teamData);
-        }
-        catch (Exception e) {
+            return (Map<Long, Long>) teamDataCompletedField.get(teamData);
+        } catch (Exception e) {
             return null;
         }
     }
@@ -218,9 +198,8 @@ public final class FtbReflectionHelper {
             if (eventInstance != null && eventRegisterMethod != null) {
                 eventRegisterMethod.invoke(eventInstance, listener);
             }
-        }
-        catch (Throwable e) {
-            LOGGER.debug("Failed to register FTB event listener: {}", (Object)e.getMessage());
+        } catch (Throwable e) {
+            LOGGER.debug("Failed to register FTB event listener: {}", e.getMessage());
         }
     }
 
@@ -230,8 +209,7 @@ public final class FtbReflectionHelper {
         }
         try {
             return questCompletedGetTeamData.invoke(event);
-        }
-        catch (Throwable e) {
+        } catch (Throwable e) {
             return null;
         }
     }
@@ -240,8 +218,7 @@ public final class FtbReflectionHelper {
     public static Collection<ServerPlayer> getOnlineMembers(Object teamData) {
         try {
             return (Collection<ServerPlayer>) teamDataGetOnlineMembers.invoke(teamData);
-        }
-        catch (Throwable e) {
+        } catch (Throwable e) {
             return Collections.emptyList();
         }
     }
@@ -249,8 +226,7 @@ public final class FtbReflectionHelper {
     public static Object getQuestFromEvent(Object event) {
         try {
             return questCompletedGetQuest.invoke(event);
-        }
-        catch (Throwable e) {
+        } catch (Throwable e) {
             return null;
         }
     }
@@ -261,8 +237,7 @@ public final class FtbReflectionHelper {
         }
         try {
             return questObjectBaseGetId.invoke(quest);
-        }
-        catch (Throwable e) {
+        } catch (Throwable e) {
             return null;
         }
     }
@@ -273,10 +248,8 @@ public final class FtbReflectionHelper {
         }
         try {
             return (Component) questObjectBaseGetTitle.invoke(quest);
-        }
-        catch (Throwable e) {
+        } catch (Throwable e) {
             return null;
         }
     }
 }
-

@@ -1,24 +1,5 @@
-/*
- * Decompiled with CFR 0.152.
- * 
- * Could not load the following classes:
- *  net.minecraft.advancements.AdvancementNode
- *  net.minecraft.advancements.DisplayInfo
- *  net.minecraft.client.Minecraft
- *  net.minecraft.client.multiplayer.ClientAdvancements
- *  net.minecraft.network.chat.Component
- *  net.minecraft.network.chat.MutableComponent
- *  net.minecraft.resources.ResourceLocation
- *  net.minecraft.server.MinecraftServer
- *  net.minecraft.world.item.ItemStack
- *  org.slf4j.Logger
- *  org.slf4j.LoggerFactory
- */
 package com.example.advancementoverhaul.compat.ftb;
 
-import com.example.advancementoverhaul.compat.ftb.FtbKsrSyncer;
-import com.example.advancementoverhaul.compat.ftb.FtbQuestListener;
-import com.example.advancementoverhaul.compat.ftb.FtbReflectionHelper;
 import com.example.advancementoverhaul.data.ClientDataStore;
 import dev.ftb.mods.ftblibrary.util.KnownServerRegistries;
 import java.lang.reflect.Method;
@@ -30,7 +11,6 @@ import net.minecraft.advancements.DisplayInfo;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientAdvancements;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.ItemStack;
@@ -38,7 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class FtbQuestsBridge {
-    private static final Logger LOGGER = LoggerFactory.getLogger((String)"AdvancementOverhaul/FTBQuests");
+    private static final Logger LOGGER = LoggerFactory.getLogger("AdvancementOverhaul/FTBQuests");
     private static volatile Boolean loaded = null;
     private static volatile String ftbVersion = null;
 
@@ -56,14 +36,12 @@ public final class FtbQuestsBridge {
                     if (ftbVersion == null) {
                         ftbVersion = "unknown";
                     }
-                }
-                catch (Exception e) {
+                } catch (Exception e) {
                     ftbVersion = "unknown";
                 }
-                LOGGER.info("FTB Quests detected (version: {}) \u2014 full integration enabled", (Object)ftbVersion);
+                LOGGER.info("FTB Quests detected (version: {}) \u2014 full integration enabled", ftbVersion);
                 FtbReflectionHelper.init();
-            }
-            catch (ClassNotFoundException e) {
+            } catch (ClassNotFoundException e) {
                 loaded = false;
                 LOGGER.info("FTB Quests not detected");
             }
@@ -72,7 +50,7 @@ public final class FtbQuestsBridge {
     }
 
     public static String getFtbVersion() {
-        FtbQuestsBridge.isLoaded();
+        isLoaded();
         return ftbVersion;
     }
 
@@ -98,54 +76,53 @@ public final class FtbQuestsBridge {
     }
 
     public static void notifyAttributeChange(MinecraftServer server) {
-        if (!FtbQuestsBridge.isLoaded()) {
+        if (!isLoaded()) {
             return;
         }
-        FtbQuestsBridge.markDirty();
+        markDirty();
     }
 
     public static void notifyPositionOrCategory(MinecraftServer server) {
-        if (!FtbQuestsBridge.isLoaded()) {
+        if (!isLoaded()) {
             return;
         }
-        FtbQuestsBridge.markDirty();
+        markDirty();
     }
 
     private static void markDirty() {
         try {
             Object sqf = FtbReflectionHelper.getServerQuestFileInstance();
             if (sqf != null) {
-                Method md = sqf.getClass().getMethod("markDirty", new Class[0]);
-                md.invoke(sqf, new Object[0]);
+                Method md = sqf.getClass().getMethod("markDirty");
+                md.invoke(sqf);
             }
-        }
-        catch (NoSuchMethodException e) {
-            LOGGER.debug("markDirty() method not found: {}", (Object)e.getMessage());
-        }
-        catch (ReflectiveOperationException e) {
-            LOGGER.debug("markDirty failed (reflection): {}", (Object)e.getMessage());
-        }
-        catch (Exception e) {
-            LOGGER.debug("markDirty failed: {}", (Object)e.getMessage());
+        } catch (NoSuchMethodException e) {
+            LOGGER.debug("markDirty() method not found: {}", e.getMessage());
+        } catch (ReflectiveOperationException e) {
+            LOGGER.debug("markDirty failed (reflection): {}", e.getMessage());
+        } catch (Exception e) {
+            LOGGER.debug("markDirty failed: {}", e.getMessage());
         }
     }
 
     public static KnownServerRegistries.AdvancementInfo createClientAdvancementInfo(ResourceLocation id) {
         Component name = Component.literal(id.toString());
         ItemStack icon = ItemStack.EMPTY;
-        Optional<DisplayInfo> display = FtbQuestsBridge.getClientDisplayInfo(id);
+        Optional<DisplayInfo> display = getClientDisplayInfo(id);
         if (display.isPresent()) {
             name = display.get().getTitle();
             icon = display.get().getIcon();
         } else {
-            ClientDataStore.VanillaAdvEntry entry;
             ClientDataStore cs = ClientDataStore.getInstance();
-            if (cs != null && (entry = cs.getVanillaAdvEntry(id.toString())) != null) {
-                if (entry.name() != null && !entry.name().isEmpty()) {
-                    name = Component.literal(entry.name());
-                }
-                if (entry.icon() != null && !entry.icon().isEmpty()) {
-                    icon = FtbKsrSyncer.parseItemIcon(entry.icon());
+            if (cs != null) {
+                ClientDataStore.VanillaAdvEntry entry = cs.getVanillaAdvEntry(id.toString());
+                if (entry != null) {
+                    if (entry.name() != null && !entry.name().isEmpty()) {
+                        name = Component.literal(entry.name());
+                    }
+                    if (entry.icon() != null && !entry.icon().isEmpty()) {
+                        icon = FtbKsrSyncer.parseItemIcon(entry.icon());
+                    }
                 }
             }
         }
@@ -162,30 +139,26 @@ public final class FtbQuestsBridge {
             if (clientAdvancements == null) {
                 return Optional.empty();
             }
-            Method getTreeMethod = clientAdvancements.getClass().getMethod("getTree", new Class[0]);
-            Object tree = getTreeMethod.invoke((Object)clientAdvancements, new Object[0]);
+            Method getTreeMethod = clientAdvancements.getClass().getMethod("getTree");
+            Object tree = getTreeMethod.invoke(clientAdvancements);
             if (tree == null) {
                 return Optional.empty();
             }
-            Method rootsMethod = tree.getClass().getMethod("roots", new Class[0]);
+            Method rootsMethod = tree.getClass().getMethod("roots");
             @SuppressWarnings("unchecked")
-            Iterable<AdvancementNode> roots = (Iterable<AdvancementNode>)rootsMethod.invoke(tree, new Object[0]);
+            Iterable<AdvancementNode> roots = (Iterable<AdvancementNode>) rootsMethod.invoke(tree);
             for (AdvancementNode root : roots) {
                 DisplayInfo found = FtbKsrSyncer.findDisplayInfo(root, id);
                 if (found == null) continue;
                 return Optional.of(found);
             }
-        }
-        catch (NoSuchMethodException e) {
-            LOGGER.debug("getTree/roots not available: {}", (Object)e.getMessage());
-        }
-        catch (ReflectiveOperationException e) {
-            LOGGER.debug("Failed to get client display for {}: {}", (Object)id, (Object)e.getMessage());
-        }
-        catch (Exception e) {
-            LOGGER.debug("Failed to get client display for {}: {}", (Object)id, (Object)e.getMessage());
+        } catch (NoSuchMethodException e) {
+            LOGGER.debug("getTree/roots not available: {}", e.getMessage());
+        } catch (ReflectiveOperationException e) {
+            LOGGER.debug("Failed to get client display for {}: {}", id, e.getMessage());
+        } catch (Exception e) {
+            LOGGER.debug("Failed to get client display for {}: {}", id, e.getMessage());
         }
         return Optional.empty();
     }
 }
-

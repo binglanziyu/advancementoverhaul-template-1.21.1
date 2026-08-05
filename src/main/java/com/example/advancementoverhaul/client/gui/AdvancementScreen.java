@@ -107,6 +107,8 @@ public class AdvancementScreen extends Screen {
     final CanvasManager canvasManager = new CanvasManager(this);
     public final TabManager tabManager = new TabManager(this);
     final InputManager inputManager = new InputManager(this, canvasManager, tabManager);
+    final VanillaLayoutEngine vanillaEngine = new VanillaLayoutEngine(this);
+    final ContextMenuHandler ctxMenu = new ContextMenuHandler(this);
 
     // ═══════════════ Constructor / accessors ═══════════════
 
@@ -146,128 +148,10 @@ public class AdvancementScreen extends Screen {
         return s.getAdvancementsByTab(curTab);
     }
 
-    /**
-     * Returns true if this vanilla advancement should be shown on the current tab.
-     * <ul>
-     *   <li>已启用的原版进度 — 在所有分类可见（全部、自定义标签页、原版分类）</li>
-     *   <li>未启用的原版进度 — 仅在"原有成就"分类可见</li>
-     * </ul>
-     */
     public boolean shouldShowVanilla(String id) {
         ClientDataStore cs = ClientDataStore.getInstance();
         if (cs.isVanillaEnabled(id)) return true;
         return DataStore.TAB_VANILLA.equals(curTab);
-    }
-
-    // ═══════════════ Vanilla advancement loading ═══════════════
-
-    private void loadVanillaAdvancements() {
-        vanillaAdvs.clear(); vanillaPos.clear(); vanillaAdvIdSet.clear(); vanillaAdvMap.clear();
-        ClientDataStore cs = ClientDataStore.getInstance();
-        for (var e : cs.getVanillaAdvancements())
-            vanillaAdvs.add(new VanillaAdv(e.id(), e.name(), e.desc(), e.hidden(), e.nameKey(), e.descKey(), e.icon()));
-        for (var va : vanillaAdvs) { vanillaAdvIdSet.add(va.id()); vanillaAdvMap.put(va.id(), va); }
-        vanillaPositionsDirty = true;
-        recalcVanillaPositions();
-    }
-
-    /**
-     * Groups advancements by their depth in the prerequisite tree.
-     * Depth 0 = no parent, depth 1 = one parent above, etc.
-     */
-    private Map<Integer, List<String>> buildDepthLayers(List<VanillaAdv> group, Map<String, String> parentMap) {
-        Map<Integer, List<String>> layerMap = new TreeMap<>();
-        for (var va : group) {
-            int depth = 0;
-            String cur = va.id();
-            Set<String> visited = new HashSet<>();
-            visited.add(cur);
-            while (parentMap != null) {
-                String parent = parentMap.get(cur);
-                if (parent == null || !visited.add(parent)) break;
-                cur = parent;
-                depth++;
-            }
-            layerMap.computeIfAbsent(depth, k -> new ArrayList<>()).add(va.id());
-        }
-        return layerMap;
-    }
-
-    private void recalcVanillaPositions() {
-        if (!vanillaPositionsDirty) return;
-        vanillaPositionsDirty = false;
-
-        ClientDataStore cs = ClientDataStore.getInstance();
-        vanillaPos.clear();
-
-        // Use positions from metadata where available
-        for (var va : vanillaAdvs) {
-            var meta = cs.getVanillaMeta(va.id());
-            if (meta != null && meta.hasPosition())
-                vanillaPos.put(va.id(), new int[]{meta.getX(), meta.getY()});
-        }
-
-        // Group unpositioned advancements by display tab
-        Map<String, List<VanillaAdv>> byTab = new LinkedHashMap<>();
-        for (var va : vanillaAdvs) {
-            if (vanillaPos.containsKey(va.id())) continue;
-            String tab = cs.getVanillaDisplayTab(va.id());
-            if (tab == null || tab.isEmpty()) tab = DataStore.TAB_VANILLA;
-            byTab.computeIfAbsent(tab, k -> new ArrayList<>()).add(va);
-        }
-
-        // Start Y for "原有成就" tab groups — below the lowest custom advancement
-        int vanillaTabY = 40;
-        for (var a : cs.getAdvancements().values())
-            vanillaTabY = Math.max(vanillaTabY, a.getY() + CARD_H + 80);
-
-        int gapX = CARD_W + 16;
-        int gapY = CARD_H + 24;
-        Map<String, String> parentMap = cs.getVanillaParentMap();
-
-        for (var entry : byTab.entrySet()) {
-            String tab = entry.getKey();
-            List<VanillaAdv> group = entry.getValue();
-            if (group.isEmpty()) continue;
-
-            Map<Integer, List<String>> layerMap = buildDepthLayers(group, parentMap);
-            int layerY;
-            int baseX;
-
-            if (DataStore.TAB_VANILLA.equals(tab)) {
-                // "原有成就" 分类：保持在所有自定义进度下方居中
-                baseX = 20;
-                layerY = vanillaTabY;
-                // Bug 3 修复：仅 TAB_VANILLA 更新全局起始 Y
-                vanillaTabY = Math.max(vanillaTabY, layerY + 40);
-            } else {
-                // 自定义分类：放在该分类已有自定义进度的右侧
-                int rightEdge = 20;
-                int tabTopY = Integer.MAX_VALUE;
-                for (var a : cs.getAdvancementsByTab(tab)) {
-                    rightEdge = Math.max(rightEdge, a.getX() + CARD_W + gapX);
-                    tabTopY = Math.min(tabTopY, a.getY());
-                }
-                // 也考虑该分类中已有位置的原版进度
-                for (var va : vanillaAdvs) {
-                    int[] pos = vanillaPos.get(va.id());
-                    if (pos != null && tab.equals(cs.getVanillaDisplayTab(va.id()))) {
-                        rightEdge = Math.max(rightEdge, pos[0] + CARD_W + gapX);
-                        tabTopY = Math.min(tabTopY, pos[1]);
-                    }
-                }
-                baseX = rightEdge;
-                layerY = tabTopY == Integer.MAX_VALUE ? 40 : tabTopY;
-            }
-
-            for (var layer : layerMap.entrySet()) {
-                List<String> ids = layer.getValue();
-                int layerStartX = Math.max(baseX, 20);
-                for (int i = 0; i < ids.size(); i++)
-                    vanillaPos.put(ids.get(i), new int[]{layerStartX + i * gapX, layerY});
-                layerY += gapY;
-            }
-        }
     }
 
     // ═══════════════ INIT ═══════════════
@@ -312,7 +196,7 @@ public class AdvancementScreen extends Screen {
                 img.setOriginalSize(size[0], size[1]);
             }
         }
-        loadVanillaAdvancements();
+        vanillaEngine.loadVanillaAdvancements();
     }
 
     // ═══════════════ TICK (non-rendering updates) ═══════════════
@@ -328,10 +212,10 @@ public class AdvancementScreen extends Screen {
 
         // Lazy-load vanilla advancements when server data arrives
         if (vanillaAdvs.isEmpty() && !ClientDataStore.getInstance().getVanillaAdvancements().isEmpty())
-            loadVanillaAdvancements();
+            vanillaEngine.loadVanillaAdvancements();
 
         // Recalculate vanilla positions if needed
-        if (vanillaPositionsDirty) recalcVanillaPositions();
+        if (vanillaPositionsDirty) vanillaEngine.recalcVanillaPositions();
 
         // Update filtered list cache when data or tab changes
         updateFilterCache();
@@ -466,269 +350,41 @@ public class AdvancementScreen extends Screen {
     @Override public boolean mouseDragged(double mx, double my, int btn, double dx, double dy) { if (inputManager.onMouseDragged(mx, my, btn, dx, dy)) return true; return super.mouseDragged(mx, my, btn, dx, dy); }
     @Override public boolean mouseScrolled(double mx, double my, double sx, double sy) { return inputManager.onMouseScrolled(mx, my, sx, sy); }
     @Override public boolean charTyped(char chr, int mod) { if (inputManager.onCharTyped(chr, mod)) return true; return super.charTyped(chr, mod); }
-    @Override public boolean keyPressed(int kc, int sc, int mod) { if (inputManager.onKeyPressed(kc, sc, mod)) return true; return super.keyPressed(kc, sc, mod); }
-
-    // ═══════════════ Context menus ═══════════════
-
-    public void showCtx(double mx, double my, String id) {
-        overlay.ctxX = (int) mx; overlay.ctxY = (int) my; overlay.ctxActions.clear();
-        overlay.ctxActions.add(new CtxAct(Component.translatable(LangKeys.DETAIL_TITLE).getString(), () -> openDetail(id)));
-        overlay.ctxActions.add(new CtxAct(Component.translatable(LangKeys.EDIT_TITLE).getString(), () -> openEdit(id)));
-        overlay.ctxActions.add(new CtxAct(Component.translatable(LangKeys.DELETE).getString(), () -> requestDelete(id)));
-        overlay.ctxActions.add(new CtxAct(Component.translatable(LangKeys.RESET).getString(), () -> GuiUtils.sendCommand("adv reset @s " + id)));
-        var a = adv(id);
-        if (a != null) {
-            String key = a.isHidden() ? LangKeys.SHOW : LangKeys.HIDE;
-            overlay.ctxActions.add(new CtxAct(Component.translatable(key).getString(), () -> GuiUtils.sendCommand("adv togglehidden " + id)));
+    @Override public boolean keyPressed(int kc, int sc, int mod) {
+        if (inputManager.onKeyPressed(kc, sc, mod)) return true;
+        // Tab 键切换编辑模式（仅当无 EditBox 聚焦时）
+        if (kc == org.lwjgl.glfw.GLFW.GLFW_KEY_TAB && (mod & 1) == 0
+                && getFocused() == null && minecraft != null && minecraft.player != null
+                && minecraft.player.hasPermissions(2)) {
+            editMode = !editMode;
+            persistEdit = editMode;
+            addToast(Component.translatable(editMode ? LangKeys.TOGGLE_EDIT_ON : LangKeys.TOGGLE_EDIT_OFF).getString());
+            return true;
         }
-        overlay.current = Ov.CTX;
+        return super.keyPressed(kc, sc, mod);
     }
 
-    public void showVanillaCtx(double mx, double my, String id) {
-        overlay.ctxX = (int) mx; overlay.ctxY = (int) my; overlay.ctxActions.clear();
-        boolean enabled = ClientDataStore.getInstance().isVanillaEnabled(id);
+    // ═══════════════ Context menus (delegated to ContextMenuHandler) ═══════════════
 
-        overlay.ctxActions.add(new OverlayState.CtxAct(
-                Component.translatable(LangKeys.DETAIL_TITLE).getString(),
-                () -> openDetail(id)));
+    public void showCtx(double mx, double my, String id) { ctxMenu.showCtx(mx, my, id); }
+    public void showVanillaCtx(double mx, double my, String id) { ctxMenu.showVanillaCtx(mx, my, id); }
+    public void showBatchCtx(double mx, double my) { ctxMenu.showBatchCtx(mx, my); }
+    public void requestDelete(String id) { ctxMenu.requestDelete(id); }
+    public void requestBatchDelete() { ctxMenu.requestBatchDelete(); }
+    public void requestImageDelete(String imageId) { ctxMenu.requestImageDelete(imageId); }
 
-        if (enabled) {
-            // 已启用：显示禁用（完全重置回原样）
-            overlay.ctxActions.add(new OverlayState.CtxAct(
-                    Component.translatable(LangKeys.ADV_TT_DISABLE_BTN).getString(),
-                    () -> GuiUtils.sendCommand("adv vanilla disable " + id)));
-            // 已启用：可分配/更换分类
-            overlay.ctxActions.add(new OverlayState.CtxAct(
-                    Component.translatable(LangKeys.VANILLA_ASSIGN_TAB).getString(),
-                    () -> tabManager.openVanillaTabSel(id)));
-            // 已启用：可编辑前置条件
-            overlay.ctxActions.add(new OverlayState.CtxAct(
-                    Component.translatable(LangKeys.EDIT_TITLE).getString(),
-                    () -> openVanillaEdit(id)));
-        } else {
-            // 未启用：仅提供分配分类（分配即启用）
-            overlay.ctxActions.add(new OverlayState.CtxAct(
-                    Component.translatable(LangKeys.VANILLA_ASSIGN_TAB).getString(),
-                    () -> tabManager.openVanillaTabSel(id)));
-        }
+    public void showCanvasCtx(double mx, double my) { ctxMenu.showCanvasCtx(mx, my); }
+    public void showImageCtx(double mx, double my, String imageId) { ctxMenu.showImageCtx(mx, my, imageId); }
+    public void showViewCtx(double mx, double my, String id) { ctxMenu.showViewCtx(mx, my, id); }
 
-        overlay.current = Ov.CTX;
-    }
+    public ImageElement findImageById(String id) { return ctxMenu.findImageById(id); }
+    public ImageElement imageAt(double mx, double my) { return ctxMenu.imageAt(mx, my); }
 
-    /**
-     * 打开原版/模组成就的编辑面板（仅可编辑标签和前置条件）
-     */
-    private void openVanillaEdit(String id) {
-        VanillaAdv va = vanillaAdvMap.get(id);
-        String name = va != null ? va.getLocalizedName() : id;
-        String desc = va != null ? va.getLocalizedDesc() : "";
-        editPanel.openVanillaEdit(font, id, name, desc);
-        overlay.current = Ov.EDIT;
-    }
-
-    public void showBatchCtx(double mx, double my) {
-        overlay.ctxX = (int) mx; overlay.ctxY = (int) my; overlay.ctxActions.clear();
-        int n = selection.multiSel.size();
-        overlay.ctxActions.add(new CtxAct(String.format(Component.translatable(LangKeys.BATCH_DELETE).getString(), n), this::requestBatchDelete));
-        overlay.ctxActions.add(new CtxAct(String.format(Component.translatable(LangKeys.BATCH_HIDE).getString(), n), () -> {
-            for (String id : selection.multiSel) {
-                if (isVanillaAdvId(id)) GuiUtils.sendCommand("adv vanilla disable " + id);
-                else { var a = adv(id); if (a != null && !a.isHidden()) GuiUtils.sendCommand("adv togglehidden " + id); }
-            }
-        }));
-        overlay.ctxActions.add(new CtxAct(String.format(Component.translatable(LangKeys.BATCH_SHOW).getString(), n), () -> {
-            for (String id : selection.multiSel) {
-                if (isVanillaAdvId(id)) GuiUtils.sendCommand("adv vanilla enable " + id);
-                else { var a = adv(id); if (a != null && a.isHidden()) GuiUtils.sendCommand("adv togglehidden " + id); }
-            }
-        }));
-        overlay.current = Ov.CTX;
-    }
-
-    public void requestDelete(String id) {
-        var a = adv(id);
-        overlay.confirmText = Component.translatable(LangKeys.CONFIRM_DELETE_PREFIX, a != null ? a.getName() : id).getString();
-        overlay.confirmAction = () -> GuiUtils.sendCommand("adv delete " + id);
-        overlay.current = Ov.CONFIRM;
-    }
-
-    public void requestBatchDelete() {
-        overlay.confirmText = Component.translatable(LangKeys.CONFIRM_BATCH_DELETE, selection.multiSel.size()).getString();
-        overlay.confirmAction = () -> { GuiUtils.sendCommand("adv batchdelete " + String.join(",", selection.multiSel)); selection.clear(); };
-        overlay.current = Ov.CONFIRM;
-    }
+    public void openTabManage() { ctxMenu.openTabManage(); }
+    public void cascadeDeleteTab(String tabName) { ctxMenu.cascadeDeleteTab(tabName); }
 
     // ═══════════════ Create / edit ═══════════════
-    /**
-     * 右键空白画布：显示选项菜单（创建进度/创建图片）
-     */
-    public void showCanvasCtx(double mx, double my) {
-        overlay.ctxX = (int) mx; overlay.ctxY = (int) my; overlay.ctxActions.clear();
-        overlay.ctxActions.add(new OverlayState.CtxAct(
-                Component.translatable(LangKeys.CREATE_TITLE).getString(),
-                () -> openCreateAt(mx, my)));
-        overlay.ctxActions.add(new OverlayState.CtxAct(
-                Component.translatable(LangKeys.CREATE_IMAGE).getString(),
-                () -> openImageCreator(mx, my)));
-        overlay.current = Ov.CTX;
-    }
 
-    /**
-     * 在画布指定位置创建图片元素
-     */
-    private void openImageCreator(double mx, double my) {
-        List<String> files = ImageManager.listImageFiles();
-        if (files.isEmpty()) {
-            overlay.confirmText = Component.translatable(LangKeys.IMAGE_NO_FILES).getString();
-            overlay.confirmAction = null;
-            overlay.current = Ov.CONFIRM;
-            return;
-        }
-        List<ListSelector.Entry> entries = new ArrayList<>();
-        for (String f : files) entries.add(new ListSelector.Entry(f, f));
-        showSelector(entries, e -> placeImage(e.id(), canvas.toWorldX(mx), canvas.toWorldY(my)));
-    }
-
-    private void placeImage(String filename, int worldX, int worldY) {
-        String imgId = "img_" + UUID.randomUUID().toString().substring(0, 8);
-        ImageElement img = new ImageElement(imgId, filename, worldX, worldY);
-
-        ResourceLocation texId = ImageManager.loadTexture(imgId, filename);
-        if (texId != null) {
-            img.setTextureId(texId);
-            int[] size = ImageManager.getTextureSize(imgId);
-            img.setOriginalSize(size[0], size[1]);
-            imageElements.add(img);
-            ImageManager.save(imageElements);
-        } else {
-            // 图片加载失败，弹出错误提示，不创建元素
-            String error = ImageManager.getLastError();
-            overlay.confirmText = Component.translatable(LangKeys.IMAGE_LOAD_FAIL,
-                    error != null ? error : "未知错误").getString();
-            overlay.confirmAction = null;
-            overlay.current = Ov.CONFIRM;
-        }
-    }
-
-    public void showImageCtx(double mx, double my, String imageId) {
-        overlay.ctxX = (int) mx; overlay.ctxY = (int) my; overlay.ctxActions.clear();
-        ImageElement img = findImageById(imageId);
-        if (img == null) return;
-
-        overlay.ctxActions.add(new OverlayState.CtxAct(
-                Component.translatable(LangKeys.IMAGE_SCALE_UP).getString(),
-                () -> { img.setScale(img.getScale() * 1.25f); ImageManager.save(imageElements); }));
-        overlay.ctxActions.add(new OverlayState.CtxAct(
-                Component.translatable(LangKeys.IMAGE_SCALE_DOWN).getString(),
-                () -> { img.setScale(img.getScale() * 0.8f); ImageManager.save(imageElements); }));
-        if (img.getScale() != 1.0f) {
-            overlay.ctxActions.add(new OverlayState.CtxAct(
-                    Component.translatable(LangKeys.IMAGE_SCALE_RESET).getString(),
-                    () -> { img.setScale(1.0f); ImageManager.save(imageElements); }));
-        }
-        overlay.ctxActions.add(new OverlayState.CtxAct(
-                Component.translatable(img.isLocked() ? LangKeys.IMAGE_UNLOCK : LangKeys.IMAGE_LOCK).getString(),
-                () -> { img.setLocked(!img.isLocked()); ImageManager.save(imageElements); }));
-
-        // 层级调整
-        int idx = imageElements.indexOf(img);
-        if (idx < imageElements.size() - 1) {
-            overlay.ctxActions.add(new OverlayState.CtxAct(
-                    Component.translatable(LangKeys.IMAGE_TO_FRONT).getString(),
-                    () -> { imageElements.remove(img); imageElements.add(img); ImageManager.save(imageElements); }));
-        }
-        if (idx > 0) {
-            overlay.ctxActions.add(new OverlayState.CtxAct(
-                    Component.translatable(LangKeys.IMAGE_TO_BACK).getString(),
-                    () -> { imageElements.remove(img); imageElements.add(0, img); ImageManager.save(imageElements); }));
-        }
-
-        overlay.ctxActions.add(new OverlayState.CtxAct(
-                Component.translatable(LangKeys.IMAGE_DELETE).getString(),
-                () -> requestImageDelete(imageId)));
-        overlay.current = Ov.CTX;
-    }
-
-    /** 图片删除确认对话框 */
-    private void requestImageDelete(String imageId) {
-        ImageElement img = findImageById(imageId);
-        if (img == null) return;
-        overlay.confirmText = Component.translatable(LangKeys.CONFIRM_IMAGE_DELETE, img.getPath()).getString();
-        overlay.confirmAction = () -> {
-            imageElements.removeIf(i -> i.getId().equals(imageId));
-            if (imageId.equals(selectedImageId)) selectedImageId = null;
-            ImageManager.save(imageElements);
-        };
-        overlay.current = Ov.CONFIRM;
-    }
-
-    /** 非编辑模式下右键卡片：仅显示"详情"选项 */
-    public void showViewCtx(double mx, double my, String id) {
-        overlay.ctxX = (int) mx; overlay.ctxY = (int) my; overlay.ctxActions.clear();
-        overlay.ctxActions.add(new OverlayState.CtxAct(
-                Component.translatable(LangKeys.DETAIL_TITLE).getString(),
-                () -> openDetail(id)));
-        overlay.current = Ov.CTX;
-    }
-
-    private void openDetail(String id) {
-        selection.select(id);
-        overlay.detailId = id;
-        overlay.detailOpenTime = System.currentTimeMillis();
-        overlay.current = Ov.DETAIL;
-    }
-
-    public ImageElement findImageById(String id) {
-        for (ImageElement img : imageElements) if (img.getId().equals(id)) return img;
-        return null;
-    }
-
-    public ImageElement imageAt(double mx, double my) {
-        for (int i = imageElements.size() - 1; i >= 0; i--) {
-            ImageElement img = imageElements.get(i);
-            if (img.getTextureId() == null) continue;
-            int sx = canvas.toScreenX(img.getX());
-            int sy = canvas.toScreenY(img.getY());
-            int sw = (int) (img.getRenderWidth() * canvas.zoom);
-            int sh = (int) (img.getRenderHeight() * canvas.zoom);
-            if (mx >= sx && mx < sx + sw && my >= sy && my < sy + sh) return img;
-        }
-        return null;
-    }
-    /**
-     * 打开分类管理面板
-     */
-    public void openTabManage() {
-        overlay.current = Ov.TAB_MANAGE;
-    }
-
-    /**
-     * 级联删除标签：删除标签下所有自定义成就，原版成就回到原版标签并禁用
-     */
-    public void cascadeDeleteTab(String tabName) {
-        ClientDataStore cs = ClientDataStore.getInstance();
-
-        // 1. 删除该标签下的自定义成就
-        List<String> customToDelete = new ArrayList<>();
-        for (var adv : cs.getAdvancements().values()) {
-            if (tabName.equals(adv.getTab())) customToDelete.add(adv.getId());
-        }
-        if (!customToDelete.isEmpty()) {
-            GuiUtils.sendCommand("adv batchdelete " + String.join(",", customToDelete));
-        }
-
-        // 2. 清除原版/模组成就的标签分配并禁用
-        for (var va : vanillaAdvs) {
-            VanillaAdvMeta meta = cs.getVanillaMeta(va.id());
-            if (meta != null && tabName.equals(meta.getTab())) {
-                GuiUtils.sendCommand("adv vanilla cleartab " + va.id());
-                GuiUtils.sendCommand("adv vanilla disable " + va.id());
-            }
-        }
-
-        // 3. 删除标签
-        GuiUtils.sendCommand("adv tab delete " + tabName);
-    }
     public void openCreateAt(double mx, double my) {
         editPanel.openCreate(font);
         editPanel.setCreatePos(canvas.toWorldX(mx), canvas.toWorldY(my));

@@ -16,11 +16,11 @@ import java.util.Map;
  * <p>
  * 该 map 为可变 HashMap，允许外部增删条目。
  * 通过 {@link #getRuntimeMap()} 获取只读视图，通过 {@link #setRuntimeMap} 写入。
- * 直接读写可以通过包级私有字段 {@code runtimeMap} 完成（仅在 com.example.advancementoverhaul.compat 包内）。
+ * 通过公共字段 {@link #runtimeMap} 直接读写。
  */
 public final class AdvancementMapHolder {
-    /** 运行时进度 Map（包级私有，仅允许 compat 包和 AdvancementManagerMixin 直接访问） */
-    static volatile Map<ResourceLocation, AdvancementHolder> runtimeMap;
+    /** 运行时进度 Map（公共访问，允许 engine 子包直接操作） */
+    public static volatile Map<ResourceLocation, AdvancementHolder> runtimeMap;
 
     private AdvancementMapHolder() {}
 

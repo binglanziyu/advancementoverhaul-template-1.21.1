@@ -43,7 +43,7 @@ public class EchoEventHandler {
             for (EchoEntry echo : echoes.values()) {
                 String text;
                 if (!EchoEventHandler.checkCondition(player, uuid, pos, echo, now) || !EchoEventHandler.checkCooldown(uuid, echo, now) || (text = EchoEventHandler.selectText(echo)) == null) continue;
-                PacketDistributor.sendToPlayer((ServerPlayer)player, (CustomPacketPayload)new MonologuePayload("echo:" + echo.getId()), (CustomPacketPayload[])new CustomPacketPayload[0]);
+                PacketDistributor.sendToPlayer(player, new MonologuePayload("echo:" + echo.getId()));
                 cooldowns.computeIfAbsent(echo.getId(), k -> new HashMap()).put(uuid, now);
                 if (!echo.isOnceOnly()) continue;
                 onceOnlyTriggered.computeIfAbsent(echo.getId(), k -> new HashSet()).add(uuid);
@@ -80,25 +80,25 @@ public class EchoEventHandler {
         if (cond.getBiome() == null) {
             return false;
         }
-        ResourceLocation targetBiome = ResourceLocation.tryParse((String)cond.getBiome());
+        ResourceLocation targetBiome = ResourceLocation.tryParse(cond.getBiome());
         if (targetBiome == null) {
             return false;
         }
         Holder<Biome> biomeHolder = player.serverLevel().getBiome(pos);
         ResourceLocation currentBiome = biomeHolder.unwrapKey().map(ResourceKey::location).orElse(null);
-        return targetBiome.equals((Object)currentBiome);
+        return targetBiome.equals(currentBiome);
     }
 
     private static boolean checkDimension(ServerPlayer player, EchoEntry.EchoCondition cond) {
         if (cond.getDimension() == null) {
             return false;
         }
-        ResourceLocation targetDim = ResourceLocation.tryParse((String)cond.getDimension());
+        ResourceLocation targetDim = ResourceLocation.tryParse(cond.getDimension());
         if (targetDim == null) {
             return false;
         }
         ResourceLocation currentDim = player.serverLevel().dimension().location();
-        return targetDim.equals((Object)currentDim);
+        return targetDim.equals(currentDim);
     }
 
     private static boolean checkFirstTime(ServerPlayer player, EchoEntry.EchoCondition cond) {

@@ -1,20 +1,15 @@
-/*
- * Decompiled with CFR 0.152.
- * 
- * Could not load the following classes:
- *  net.minecraft.client.Minecraft
- *  net.minecraft.client.gui.Font
- *  net.minecraft.client.gui.GuiGraphics
- *  net.minecraft.client.gui.screens.Screen
- *  net.minecraft.network.chat.Component
- *  net.minecraft.resources.ResourceLocation
- */
 package com.example.advancementoverhaul.client.gui.timeline;
 
 import com.example.advancementoverhaul.client.gui.GuiUtils;
 import com.example.advancementoverhaul.client.gui.timeline.TimelineScreen;
 import com.example.advancementoverhaul.milestone.model.TimeMilestone;
 import com.example.advancementoverhaul.milestone.model.TimelineCategory;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -22,14 +17,24 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import org.joml.Matrix4f;
 
 final class TimelineRenderer {
-    private static final ResourceLocation TEX_VIGNETTE = ResourceLocation.fromNamespaceAndPath((String)"advancementoverhaul", (String)"textures/gui/timeline/vignette.png");
-    private static final ResourceLocation TEX_FROST = ResourceLocation.fromNamespaceAndPath((String)"advancementoverhaul", (String)"textures/gui/timeline/noise_frost.png");
-    private static final ResourceLocation TEX_DROPLET = ResourceLocation.fromNamespaceAndPath((String)"advancementoverhaul", (String)"textures/gui/timeline/droplet.png");
-    private static final ResourceLocation TEX_STREAK = ResourceLocation.fromNamespaceAndPath((String)"advancementoverhaul", (String)"textures/gui/timeline/water_streak.png");
+    private static final ResourceLocation TEX_VIGNETTE = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/vignette");
+    private static final ResourceLocation TEX_FROST = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/noise_frost");
+    private static final ResourceLocation TEX_DROPLET = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/droplet");
+    private static final ResourceLocation TEX_STREAK = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/water_streak");
+    private static final ResourceLocation TEX_GLOW_OUTER = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/milestone_glow_outer.png");
+    private static final ResourceLocation TEX_GLOW_INNER = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/milestone_glow_inner.png");
+    private static final ResourceLocation TEX_BTN_HOVER = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/button_hover.png");
+    private static final ResourceLocation TEX_BTN_NORMAL = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/button_normal.png");
+    private static final ResourceLocation TEX_BTN_PRESSED = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/button_pressed.png");
+    private static final int BTN_TEX_W = 160;
+    private static final int BTN_TEX_H = 60;
+    private static final int BTN_SLICE = 24;
     private static final float[] rainX = new float[40];
     private static final float[] rainY = new float[40];
     private static boolean rainInited = false;
@@ -44,23 +49,13 @@ final class TimelineRenderer {
     }
 
     static void renderBackground(GuiGraphics g, int width, int height) {
-        g.fill(0, 0, width, height, -2004181328);
-        int topH = 94;
-        g.fillGradient(0, 0, width, topH, 350805192, 0);
-        int bottomStart = height - 28 - 60;
-        g.fillGradient(0, bottomStart, width, height, 0, 1080062080);
-        g.fillGradient(0, height - 36, width, height, 0, 478066888);
-        g.blit(TEX_FROST, 0, 0, 0.0f, 0.0f, width, height, 256, 256);
-        TimelineRenderer.renderWaterStreaks(g, width, height);
-        TimelineRenderer.renderDroplets(g, width, height);
-        TimelineRenderer.renderRain(g, width, height);
-        g.blit(TEX_VIGNETTE, 0, 0, 0.0f, 0.0f, width, height, 512, 512);
+        g.fill(0, 0, width, height, 0x60000000);
+        g.fill(0, 0, width, height, 0x50D0E0E8);
     }
 
     static void renderHeader(GuiGraphics g, Font font, int width, boolean editMode, int mouseX, int mouseY, Component title) {
         Double d;
-        String titleText = "\u2602  " + title.getString();
-        g.drawString(font, titleText, 16, 14, -3087122, false);
+        g.drawString(font, title.getString(), 16, 14, -3087122, false);
         int closeX = width - 24;
         boolean hov = GuiUtils.inRect(mouseX, mouseY, closeX - 4, 2, 22, 30);
         if (hov) {
@@ -76,30 +71,34 @@ final class TimelineRenderer {
             d = 1.0;
         }
         objectArray[0] = d;
-        String zoomText = String.format("%.1fx", objectArray);
+        String zoomText = String.format("%.1f\u00d7", objectArray);
         int zw = font.width(zoomText);
         g.drawString(font, zoomText, closeX - zw - 14, 14, -2138920780, false);
     }
 
-    static void renderTabs(GuiGraphics g, Font font, int width, List<TimelineCategory> categories, int selectedIdx, int mouseX, int mouseY) {
+    private static final int COLOR_NORMAL = 0xFF5C7A82;
+    private static final int COLOR_HOVER  = 0xFF8AB4C0;
+    private static final int COLOR_SELECT = 0xFF0D3338;
+    static void renderTabs(GuiGraphics g, Font font, int width, List<TimelineCategory> categories, int selectedIdx, boolean phaseMode, int mouseX, int mouseY) {
         int pillY = 38;
         int pillH = 22;
         int x = 16;
         for (int i = 0; i < categories.size(); ++i) {
             TimelineCategory cat = categories.get(i);
             boolean sel = i == selectedIdx;
-            String label = cat.icon() + " " + Component.translatable((String)cat.nameKey()).getString();
+            String label = Component.translatable((String)cat.nameKey()).getString();
             int tw = font.width(label) + 24;
             boolean hov = GuiUtils.inRect(mouseX, mouseY, x, pillY, tw, pillH);
-            if (sel) {
-                TimelineRenderer.drawShadowPill(g, x, pillY, tw, pillH, 1553253588);
-                g.fill(x + 8, pillY + pillH - 2, x + tw - 8, pillY + pillH, -864106292);
-            } else if (hov) {
-                TimelineRenderer.drawRoundedPill(g, x, pillY, tw, pillH, 1016907992);
-            }
-            g.drawString(font, label, x + 12, pillY + (pillH - 8) / 2 + 1, sel ? -2823952 : -1148145472, false);
+            TimelineRenderer.drawMilestoneButton(g, x, pillY, tw, pillH, sel, hov);
+            g.drawString(font, label, x + 12, pillY + (pillH - 8) / 2 + 1, sel ? COLOR_SELECT : (hov ? COLOR_HOVER : COLOR_NORMAL), false);
             x += tw + 6;
         }
+        String phaseLabel = "\u9636\u6bb5";
+        int phaseW = font.width(phaseLabel) + 20;
+        int phaseX = width - phaseW - 16;
+        boolean phaseHov = GuiUtils.inRect(mouseX, mouseY, phaseX, pillY, phaseW, pillH);
+        TimelineRenderer.drawMilestoneButton(g, phaseX, pillY, phaseW, pillH, phaseMode, phaseHov);
+        g.drawString(font, phaseLabel, phaseX + 10, pillY + (pillH - 8) / 2 + 1, phaseMode ? COLOR_SELECT : (phaseHov ? COLOR_HOVER : COLOR_NORMAL), false);
     }
 
     static void renderTimeline(GuiGraphics g, Font font, int cLeft, int cRight, int cTop, int cBottom, int axisY, double scrollX, double zoom, boolean editMode, List<TimeMilestone> milestones, int mouseX, int mouseY, boolean mouseOnAxis, double mouseOnAxisX, int maxDay, long openTime) {
@@ -277,16 +276,14 @@ final class TimelineRenderer {
         int y = height - 28;
         String hint = editMode ? Component.translatable((String)"timeline.advancementoverhaul.edit_hint").getString() : Component.translatable((String)"milestone.advancementoverhaul.timeline_hint").getString();
         g.drawString(font, hint, 16, y + 10 + 1, -1432831800, false);
-        String editLabel = editMode ? "\u2713 " + Component.translatable((String)"timeline.advancementoverhaul.edit_mode_on").getString() : "\u270e " + Component.translatable((String)"timeline.advancementoverhaul.edit_mode_off").getString();
+        String editLabel = "\u7f16\u8f91";
         int editW = font.width(editLabel) + 20;
         int editBtnX = width - editW - 16;
         int editBtnY = y + 3;
         int editBtnH = 22;
         boolean editHov = GuiUtils.inRect(mouseX, mouseY, editBtnX, editBtnY, editW, editBtnH);
-        int bg = editMode ? -10834252 : 1821424840;
-        int hbg = editMode ? -8468276 : -1936671544;
-        TimelineRenderer.drawShadowButton(g, editBtnX, editBtnY, editW, editBtnH, bg, editHov, hbg);
-        g.drawString(font, editLabel, editBtnX + 10, editBtnY + (editBtnH - 8) / 2 + 1, editMode ? -1379080 : (editHov ? -3087122 : -1431384872), false);
+        TimelineRenderer.drawMilestoneButton(g, editBtnX, editBtnY, editW, editBtnH, editMode, editHov);
+        g.drawString(font, editLabel, editBtnX + 10, editBtnY + (editBtnH - 8) / 2 + 1, editMode ? COLOR_SELECT : (editHov ? COLOR_HOVER : COLOR_NORMAL), false);
     }
 
     private static void renderDroplets(GuiGraphics g, int width, int height) {
@@ -368,6 +365,53 @@ final class TimelineRenderer {
         int c = hovered ? hoverColor : color;
         TimelineRenderer.drawRoundedRect(g, x + 1, y + 2, w, h, 5, 0x38000000);
         TimelineRenderer.drawRoundedRect(g, x, y, w, h, 5, c);
+    }
+
+    static void drawMilestoneButton(GuiGraphics g, int x, int y, int w, int h, boolean selected, boolean hovered) {
+        ResourceLocation tex = selected ? TEX_BTN_PRESSED : (hovered ? TEX_BTN_HOVER : TEX_BTN_NORMAL);
+        if (w <= BTN_SLICE * 2 || h <= BTN_SLICE * 2) {
+            g.blit(tex, x, y, 0, 0, w, h, w, h);
+            return;
+        }
+        RenderSystem.setShaderTexture(0, tex);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.setShader(GameRenderer::getPositionTexShader);
+        Matrix4f matrix = g.pose().last().pose();
+        BufferBuilder builder = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+
+        float u0 = 0f, v0 = 0f;
+        float u1 = (float) BTN_SLICE / BTN_TEX_W;
+        float u2 = (float) (BTN_TEX_W - BTN_SLICE) / BTN_TEX_W;
+        float u3 = 1f;
+        float v1 = (float) BTN_SLICE / BTN_TEX_H;
+        float v2 = (float) (BTN_TEX_H - BTN_SLICE) / BTN_TEX_H;
+        float v3 = 1f;
+
+        int x0 = x, x1 = x + BTN_SLICE, x2 = x + w - BTN_SLICE, x3 = x + w;
+        int y0 = y, y1 = y + BTN_SLICE, y2 = y + h - BTN_SLICE, y3 = y + h;
+
+        // Row 1 (top): TL corner, top edge, TR corner
+        quad(builder, matrix, x0, x1, y0, y1, u0, u1, v0, v1);
+        quad(builder, matrix, x1, x2, y0, y1, u1, u2, v0, v1);
+        quad(builder, matrix, x2, x3, y0, y1, u2, u3, v0, v1);
+        // Row 2 (middle): left edge, center, right edge
+        quad(builder, matrix, x0, x1, y1, y2, u0, u1, v1, v2);
+        quad(builder, matrix, x1, x2, y1, y2, u1, u2, v1, v2);
+        quad(builder, matrix, x2, x3, y1, y2, u2, u3, v1, v2);
+        // Row 3 (bottom): BL corner, bottom edge, BR corner
+        quad(builder, matrix, x0, x1, y2, y3, u0, u1, v2, v3);
+        quad(builder, matrix, x1, x2, y2, y3, u1, u2, v2, v3);
+        quad(builder, matrix, x2, x3, y2, y3, u2, u3, v2, v3);
+
+        BufferUploader.drawWithShader(builder.buildOrThrow());
+    }
+
+    private static void quad(BufferBuilder builder, Matrix4f matrix, int x1, int x2, int y1, int y2, float u1, float u2, float v1, float v2) {
+        builder.addVertex(matrix, (float) x1, (float) y2, 0f).setUv(u1, v2);
+        builder.addVertex(matrix, (float) x2, (float) y2, 0f).setUv(u2, v2);
+        builder.addVertex(matrix, (float) x2, (float) y1, 0f).setUv(u2, v1);
+        builder.addVertex(matrix, (float) x1, (float) y1, 0f).setUv(u1, v1);
     }
 
     static void drawShadowPill(GuiGraphics g, int x, int y, int w, int h, int color) {

@@ -38,65 +38,12 @@ public class CardRenderer {
 
     private final AdvancementScreen screen;
 
-    public CardRenderer(AdvancementScreen screen) { this.screen = screen; }
+    /** 连线渲染器（提取自本类，专门处理依赖连线绘制） */
+    private final ConnectionRenderer connectionRenderer;
 
-    // ═══════════════ P0: 层级关系缓存（选中卡片的直系前置/后继） ═══════════════
-
-    /** Last selectedId used to compute the layer sets — avoids recomputation when selection hasn't changed. */
-    private String cachedSelId = null;
-    /** Direct prerequisites of the currently selected advancement (computed once per selection change). */
-    private final Set<String> selPrereqs = new HashSet<>();
-    /** Advancements that have the selected advancement as a direct prerequisite (computed once per selection change). */
-    private final Set<String> selChildren = new HashSet<>();
-
-    /** Compute or refresh the layer sets when selection changes. Called once per frame if needed. */
-    private void ensureLayerSets() {
-        String selId = screen.selection.selectedId;
-        if (Objects.equals(selId, cachedSelId)) return;
-        cachedSelId = selId;
-        selPrereqs.clear();
-        selChildren.clear();
-        if (selId == null) return;
-
-        ClientDataStore cs = ClientDataStore.getInstance();
-        // Prerequisites of the selected advancement
-        CustomAdvancement selAdv = cs.getAdvancement(selId);
-        if (selAdv != null && selAdv.getPrerequisites() != null) {
-            for (String pid : selAdv.getPrerequisites()) {
-                if (pid != null && !pid.isEmpty()) selPrereqs.add(pid);
-            }
-        }
-        // Vanilla parent of selected
-        Map<String, String> parentMap = cs.getVanillaParentMap();
-        if (parentMap != null) {
-            String parent = parentMap.get(selId);
-            if (parent != null) selPrereqs.add(parent);
-        }
-        // VanillaMeta prerequisites for the selected advancement (custom prereqs added to vanilla)
-        VanillaAdvMeta selMeta = cs.getVanillaMeta(selId);
-        if (selMeta != null && selMeta.getPrerequisites() != null) {
-            for (String pid : selMeta.getPrerequisites()) {
-                if (pid != null && !pid.isEmpty()) selPrereqs.add(pid);
-            }
-        }
-
-        // Children: advancements that list selId as a prerequisite
-        for (var a : cs.getAdvancements().values()) {
-            var prereqs = a.getPrerequisites();
-            if (prereqs != null && prereqs.contains(selId))
-                selChildren.add(a.getId());
-        }
-        if (parentMap != null) {
-            for (var e : parentMap.entrySet()) {
-                if (selId.equals(e.getValue())) selChildren.add(e.getKey());
-            }
-        }
-        // Also check vanillaMeta prerequisites (advancements that have selId as prerequisite via meta)
-        for (var entry : cs.getVanillaMeta().entrySet()) {
-            var metaPrqs = entry.getValue().getPrerequisites();
-            if (metaPrqs != null && metaPrqs.contains(selId))
-                selChildren.add(entry.getKey());
-        }
+    public CardRenderer(AdvancementScreen screen) {
+        this.screen = screen;
+        this.connectionRenderer = new ConnectionRenderer(screen);
     }
 
     // ═══════════════ PERF-4: 图标缓存 ═══════════════
@@ -250,238 +197,12 @@ public class CardRenderer {
             g.fill(wx, TAB_H, wx + 1, screen.height - BOTTOM_H, GRID);
     }
 
-    // ═══════════════ 连接线（直角树状图：竖→横→竖，高性能 g.fill 绘制） ═══════════════
+    // ═══════════════ 连接线（委托给 ConnectionRenderer） ═══════════════
 
     public void tickFrameTime() { /* no-op */ }
 
     public void renderConnections(GuiGraphics g) {
-        // 跳过"原有成就"分类，不绘制连线
-        if (DataStore.TAB_VANILLA.equals(screen.curTab)) return;
-
-        ClientDataStore cs = ClientDataStore.getInstance();
-        var cv = screen.canvas;
-        String selId = screen.selection.selectedId;
-        int thickness = Math.max(1, (int) (LINE_THICKNESS * cv.zoom));
-        int hw = thickness / 2;
-
-        // ── Pass 1：收集并绘制所有普通连线 ──
-        // 自定义进度 → 前置
-        for (var a : screen.frameFiltered) {
-            if (!shouldRenderCard(a, cs)) continue;
-            var prereqs = a.getPrerequisites();
-            if (prereqs == null) continue;
-            int cx = cv.toScreenX(a.getX()) + cv.screenW(CARD_W) / 2;
-            int cy = cv.toScreenY(a.getY()) + cv.screenH(CARD_H) / 2;
-            boolean done = cs.isCompleted(a.getId());
-            for (String pid : prereqs) {
-                if (pid == null || pid.isEmpty()) continue;
-                int px, py;
-                var p = cs.getAdvancement(pid);
-                if (p != null) {
-                    px = cv.toScreenX(p.getX()) + cv.screenW(CARD_W) / 2;
-                    py = cv.toScreenY(p.getY()) + cv.screenH(CARD_H) / 2;
-                } else {
-                    int[] vp = screen.vanillaPos.get(pid);
-                    if (vp == null || !screen.shouldShowVanilla(pid)) continue;
-                    px = cv.toScreenX(vp[0]) + cv.screenW(CARD_W) / 2;
-                    py = cv.toScreenY(vp[1]) + cv.screenH(CARD_H) / 2;
-                }
-                // 跳过：选中项的高亮在 Pass 2 绘制
-                boolean isHL = selId != null && (selId.equals(a.getId()) || selId.equals(pid));
-                int color = done ? LINE_DONE : LINE;
-                if (!isHL) drawTreeConnection(g, px, py, cx, cy, color, thickness, hw);
-            }
-        }
-
-        // 原版进度 parent map
-        Map<String, String> parentMap = cs.getVanillaParentMap();
-        if (parentMap != null && !parentMap.isEmpty()) {
-            for (var e : parentMap.entrySet()) {
-                String cid = e.getKey(), pid = e.getValue();
-                int[] cp = screen.vanillaPos.get(cid), pp = screen.vanillaPos.get(pid);
-                if (cp == null || pp == null) continue;
-                if (!screen.shouldShowVanilla(cid) || !screen.shouldShowVanilla(pid)) continue;
-                int px = cv.toScreenX(pp[0]) + cv.screenW(CARD_W) / 2;
-                int py = cv.toScreenY(pp[1]) + cv.screenH(CARD_H) / 2;
-                int cx = cv.toScreenX(cp[0]) + cv.screenW(CARD_W) / 2;
-                int cy = cv.toScreenY(cp[1]) + cv.screenH(CARD_H) / 2;
-                boolean done = cs.isCompleted(cid);
-                boolean isHL = selId != null && (selId.equals(cid) || selId.equals(pid));
-                int color = done ? LINE_DONE : LINE;
-                if (!isHL) drawTreeConnection(g, px, py, cx, cy, color, thickness, hw);
-            }
-        }
-
-        // 原版进度 → 自定义前置
-        for (var va : screen.vanillaAdvs) {
-            if (!screen.shouldShowVanilla(va.id())) continue;
-            int[] cp = screen.vanillaPos.get(va.id());
-            if (cp == null) continue;
-            VanillaAdvMeta meta = cs.getVanillaMeta(va.id());
-            if (meta == null) continue;
-            var metaPrqs = meta.getPrerequisites();
-            if (metaPrqs == null) continue;
-            int cx = cv.toScreenX(cp[0]) + cv.screenW(CARD_W) / 2;
-            int cy = cv.toScreenY(cp[1]) + cv.screenH(CARD_H) / 2;
-            boolean done = cs.isCompleted(va.id());
-            for (String pid : metaPrqs) {
-                if (pid == null || pid.isEmpty()) continue;
-                int px, py;
-                var custP = cs.getAdvancement(pid);
-                if (custP != null) {
-                    px = cv.toScreenX(custP.getX()) + cv.screenW(CARD_W) / 2;
-                    py = cv.toScreenY(custP.getY()) + cv.screenH(CARD_H) / 2;
-                } else {
-                    int[] pp = screen.vanillaPos.get(pid);
-                    if (pp == null || !screen.shouldShowVanilla(pid)) continue;
-                    px = cv.toScreenX(pp[0]) + cv.screenW(CARD_W) / 2;
-                    py = cv.toScreenY(pp[1]) + cv.screenH(CARD_H) / 2;
-                }
-                boolean isHL = selId != null && (selId.equals(va.id()) || selId.equals(pid));
-                int color = done ? LINE_DONE : LINE;
-                if (!isHL) drawTreeConnection(g, px, py, cx, cy, color, thickness, hw);
-            }
-        }
-
-        // ── Pass 2：高亮选中任务关联的连线 ──
-        if (selId == null) return;
-
-        // 2a：自定义进度中与选中 ID 相关的连线
-        for (var a : screen.frameFiltered) {
-            if (!shouldRenderCard(a, cs)) continue;
-            var prereqs = a.getPrerequisites();
-            if (prereqs == null) continue;
-            boolean matches = selId.equals(a.getId());
-            if (!matches) {
-                boolean hasMatch = false;
-                for (String pid : prereqs) {
-                    if (selId.equals(pid)) { hasMatch = true; break; }
-                }
-                if (!hasMatch) continue;
-            }
-            int cx = cv.toScreenX(a.getX()) + cv.screenW(CARD_W) / 2;
-            int cy = cv.toScreenY(a.getY()) + cv.screenH(CARD_H) / 2;
-            boolean done = cs.isCompleted(a.getId());
-            for (String pid : prereqs) {
-                if (pid == null || pid.isEmpty()) continue;
-                int px, py;
-                var p = cs.getAdvancement(pid);
-                if (p != null) {
-                    px = cv.toScreenX(p.getX()) + cv.screenW(CARD_W) / 2;
-                    py = cv.toScreenY(p.getY()) + cv.screenH(CARD_H) / 2;
-                } else {
-                    int[] vp = screen.vanillaPos.get(pid);
-                    if (vp == null || !screen.shouldShowVanilla(pid)) continue;
-                    px = cv.toScreenX(vp[0]) + cv.screenW(CARD_W) / 2;
-                    py = cv.toScreenY(vp[1]) + cv.screenH(CARD_H) / 2;
-                }
-                int color = selId.equals(a.getId()) ? (done ? LINE_DONE : LINE_REQUIRES)
-                          : (done ? LINE_DONE : LINE_REQUIRED_FOR);
-                drawTreeConnection(g, px, py, cx, cy, color, thickness, hw);
-            }
-        }
-
-        // 2b：原版 parent map 中与选中 ID 相关的连线
-        if (parentMap != null && !parentMap.isEmpty()) {
-            for (var e : parentMap.entrySet()) {
-                String cid = e.getKey(), pid = e.getValue();
-                if (!selId.equals(cid) && !selId.equals(pid)) continue;
-                int[] cp = screen.vanillaPos.get(cid), pp = screen.vanillaPos.get(pid);
-                if (cp == null || pp == null) continue;
-                if (!screen.shouldShowVanilla(cid) || !screen.shouldShowVanilla(pid)) continue;
-                int px = cv.toScreenX(pp[0]) + cv.screenW(CARD_W) / 2;
-                int py = cv.toScreenY(pp[1]) + cv.screenH(CARD_H) / 2;
-                int cx = cv.toScreenX(cp[0]) + cv.screenW(CARD_W) / 2;
-                int cy = cv.toScreenY(cp[1]) + cv.screenH(CARD_H) / 2;
-                boolean done = cs.isCompleted(cid);
-                int color = selId.equals(cid) ? (done ? LINE_DONE : LINE_REQUIRES)
-                          : (done ? LINE_DONE : LINE_REQUIRED_FOR);
-                drawTreeConnection(g, px, py, cx, cy, color, thickness, hw);
-            }
-        }
-
-        // 2c：原版进度 → 自定义前置中与选中 ID 相关的连线
-        for (var va : screen.vanillaAdvs) {
-            if (!screen.shouldShowVanilla(va.id())) continue;
-            int[] cp = screen.vanillaPos.get(va.id());
-            if (cp == null) continue;
-            VanillaAdvMeta meta = cs.getVanillaMeta(va.id());
-            if (meta == null) continue;
-            var metaPrqs = meta.getPrerequisites();
-            if (metaPrqs == null) continue;
-            boolean matches = selId.equals(va.id());
-            if (!matches) {
-                boolean hasMatch = false;
-                for (String pid : metaPrqs) {
-                    if (selId.equals(pid)) { hasMatch = true; break; }
-                }
-                if (!hasMatch) continue;
-            }
-            int cx = cv.toScreenX(cp[0]) + cv.screenW(CARD_W) / 2;
-            int cy = cv.toScreenY(cp[1]) + cv.screenH(CARD_H) / 2;
-            boolean done = cs.isCompleted(va.id());
-            for (String pid : metaPrqs) {
-                if (pid == null || pid.isEmpty()) continue;
-                int px, py;
-                var custP = cs.getAdvancement(pid);
-                if (custP != null) {
-                    px = cv.toScreenX(custP.getX()) + cv.screenW(CARD_W) / 2;
-                    py = cv.toScreenY(custP.getY()) + cv.screenH(CARD_H) / 2;
-                } else {
-                    int[] pp = screen.vanillaPos.get(pid);
-                    if (pp == null || !screen.shouldShowVanilla(pid)) continue;
-                    px = cv.toScreenX(pp[0]) + cv.screenW(CARD_W) / 2;
-                    py = cv.toScreenY(pp[1]) + cv.screenH(CARD_H) / 2;
-                }
-                int color = selId.equals(va.id()) ? (done ? LINE_DONE : LINE_REQUIRES)
-                          : (done ? LINE_DONE : LINE_REQUIRED_FOR);
-                drawTreeConnection(g, px, py, cx, cy, color, thickness, hw);
-            }
-        }
-    }
-
-    /**
-     * 绘制直角树状连线：父级竖线→水平线→子级竖线，并在拐点处添加圆角连接点。
-     * 三个线段形成 L 形或 Z 形，简洁清晰的依赖关系展示。
-     */
-    private void drawTreeConnection(GuiGraphics g, int px, int py, int cx, int cy,
-                                    int color, int thickness, int hw) {
-        // 视口快速裁切
-        int minX = Math.min(px, cx), maxX = Math.max(px, cx);
-        int minY = Math.min(py, cy), maxY = Math.max(py, cy);
-        if (maxX < 0 || minX > screen.width || maxY < TAB_H || minY > screen.height - BOTTOM_H) return;
-
-        int midY = (py + cy) / 2;
-
-        // 段1：父级竖线（中心 → midY）
-        if (py != midY) {
-            int y1 = Math.min(py, midY), y2 = Math.max(py, midY);
-            g.fill(px - hw, y1, px + hw + (thickness & 1), y2, color);
-        }
-        // 段2：水平线（父级X → 子级X，在 midY 处）
-        if (px != cx) {
-            int x1 = Math.min(px, cx), x2 = Math.max(px, cx);
-            g.fill(x1, midY - hw, x2 + (thickness & 1), midY + hw + (thickness & 1), color);
-        }
-        // 段3：子级竖线（midY → 子中心）
-        if (midY != cy) {
-            int y1 = Math.min(midY, cy), y2 = Math.max(midY, cy);
-            g.fill(cx - hw, y1, cx + hw + (thickness & 1), y2, color);
-        }
-
-        // P1: 拐点圆角连接点（junction dots）
-        int dotR = Math.max(1, (int) (thickness * JUNCTION_DOT_RATIO / 2f));
-        int dotD = dotR * 2 + (thickness & 1);
-        if (px != cx) {
-            // 水平线与父级竖线相交处
-            int jx1 = px - dotR;
-            int jy1 = midY - dotR;
-            GuiUtils.fillCircle(g, px, midY, dotR, color);
-        }
-        if (py != midY && px != cx) {
-            // 水平线与子级竖线相交处
-            GuiUtils.fillCircle(g, cx, midY, dotR, color);
-        }
+        connectionRenderer.renderConnections(g, this::shouldRenderCard);
     }
 
     // ═══════════════ 卡片渲染 ═══════════════
@@ -495,8 +216,8 @@ public class CardRenderer {
 
     public void renderCards(GuiGraphics g, int mx, int my) {
         var cv = screen.canvas;
-        ensureLayerSets(); // P0: 计算选中卡片的直系层级关系
-        ensureGrid();      // PERF-18: 确保空间网格索引是最新的
+        connectionRenderer.ensureLayerSets(); // P0: 计算选中卡片的直系层级关系
+        ensureGrid();                         // PERF-18: 确保空间网格索引是最新的
 
         // PERF-18: 计算视口范围（世界坐标），仅迭代可见单元格内的卡片
         // 视口扩大一个网格单元作为容差，确保边缘卡片不被过早裁剪
@@ -585,8 +306,8 @@ public class CardRenderer {
         boolean isSel = id.equals(screen.selection.selectedId) || screen.selection.multiSel.contains(id);
 
         // P0: 层级颜色
-        boolean isPrereq = !isSel && selPrereqs.contains(id);
-        boolean isChild  = !isSel && !isPrereq && selChildren.contains(id);
+        boolean isPrereq = !isSel && connectionRenderer.isPrereq(id);
+        boolean isChild  = !isSel && !isPrereq && connectionRenderer.isChild(id);
 
         int bgCol;
         if (isSel) bgCol = CARD_SEL;

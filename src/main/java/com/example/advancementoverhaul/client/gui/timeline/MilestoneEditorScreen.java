@@ -1,17 +1,3 @@
-/*
- * Decompiled with CFR 0.152.
- * 
- * Could not load the following classes:
- *  net.minecraft.client.Minecraft
- *  net.minecraft.client.gui.Font
- *  net.minecraft.client.gui.GuiGraphics
- *  net.minecraft.client.gui.components.EditBox
- *  net.minecraft.client.gui.components.events.GuiEventListener
- *  net.minecraft.client.gui.screens.Screen
- *  net.minecraft.core.registries.BuiltInRegistries
- *  net.minecraft.network.chat.Component
- *  net.minecraft.resources.ResourceLocation
- */
 package com.example.advancementoverhaul.client.gui.timeline;
 
 import com.example.advancementoverhaul.client.gui.GuiUtils;
@@ -58,14 +44,19 @@ extends Screen {
     private int triggerPopupScroll;
     private boolean confirmDelete;
     private static final int ROW_H = 28;
+    private static final ResourceLocation TEX_BTN_HOVER = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/button_hover.png");
+    private static final ResourceLocation TEX_BTN_NORMAL = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/button_normal.png");
+    private static final ResourceLocation TEX_BTN_PRESSED = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/button_pressed.png");
+    private static final int BTN_TEX_W = 160;
+    private static final int BTN_TEX_H = 60;
 
     public MilestoneEditorScreen(Screen parent, TimeMilestone existing, Consumer<TimeMilestone> onSave, Consumer<String> onDelete) {
-        super((Component)Component.translatable((String)(existing != null ? "timeline.advancementoverhaul.edit_milestone" : "timeline.advancementoverhaul.create_milestone")));
+        super(Component.translatable(existing != null ? "timeline.advancementoverhaul.edit_milestone" : "timeline.advancementoverhaul.create_milestone"));
         this.parent = parent;
         this.existing = existing;
         this.onSave = onSave;
         this.onDelete = onDelete;
-        this.selectedCategory = existing != null ? existing.category() : "journey";
+        this.selectedCategory = existing != null ? existing.category() : "normal";
         this.selectedTrigger = MilestoneTrigger.FIRST_OBTAIN;
         this.confirmDelete = false;
         this.triggerPopupOpen = false;
@@ -81,7 +72,7 @@ extends Screen {
         this.contentLeft = this.panelLeft + 12;
         this.contentWidth = this.panelWidth - 24;
         Font font = Minecraft.getInstance().font;
-        this.nameInput = new EditBox(font, this.contentLeft, 0, this.contentWidth, 18, (Component)Component.literal((String)""));
+        this.nameInput = new EditBox(font, this.contentLeft, 0, this.contentWidth, 18, Component.empty());
         this.nameInput.setMaxLength(64);
         this.nameInput.setValue(this.existing != null ? Component.translatable((String)this.existing.nameKey()).getString() : "");
         this.nameInput.setBordered(false);
@@ -188,7 +179,7 @@ extends Screen {
         g.drawString(font, Component.translatable((String)"timeline.advancementoverhaul.editor_trigger").getString(), this.contentLeft, trigY - 10, -1431384872, false);
         boolean trigHov = GuiUtils.inRect(mouseX, mouseY, this.contentLeft, trigY, this.contentWidth, 18);
         this.drawGlassInputBg(g, this.contentLeft, trigY, this.contentWidth, 18);
-        g.drawString(font, this.selectedTrigger.name(), this.contentLeft + 4, trigY + 5, trigHov ? -3087122 : -1773322, false);
+        g.drawString(font, this.selectedTrigger.getDisplayName(), this.contentLeft + 4, trigY + 5, trigHov ? -3087122 : -1773322, false);
         String arrow = this.triggerPopupOpen ? "\u25b4" : "\u25be";
         g.drawString(font, arrow, this.contentLeft + this.contentWidth - 14, trigY + 5, -8468276, false);
         if (this.triggerPopupOpen) {
@@ -245,7 +236,7 @@ extends Screen {
         int itemY = popupY + pad;
         for (int i = this.triggerPopupScroll; i < Math.min(totalItems, this.triggerPopupScroll + maxVisible); ++i) {
             MilestoneTrigger t = triggers[i];
-            String label = t.name();
+            String label = t.getDisplayName();
             boolean sel = this.selectedTrigger == t;
             boolean hov = GuiUtils.inRect(mouseX, mouseY, popupX + 2, itemY, popupW - 4, itemH);
             if (sel || hov) {

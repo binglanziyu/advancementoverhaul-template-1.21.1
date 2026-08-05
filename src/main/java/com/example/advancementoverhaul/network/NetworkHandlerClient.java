@@ -1,18 +1,3 @@
-/*
- * Decompiled with CFR 0.152.
- * 
- * Could not load the following classes:
- *  com.google.gson.Gson
- *  com.google.gson.JsonElement
- *  com.google.gson.JsonObject
- *  com.google.gson.JsonParser
- *  com.google.gson.reflect.TypeToken
- *  net.minecraft.client.Minecraft
- *  net.minecraft.client.gui.screens.Screen
- *  net.neoforged.neoforge.network.handling.IPayloadContext
- *  org.slf4j.Logger
- *  org.slf4j.LoggerFactory
- */
 package com.example.advancementoverhaul.network;
 
 import com.example.advancementoverhaul.client.gui.AdvancementScreen;
@@ -52,8 +37,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class NetworkHandlerClient {
-    private static final Logger LOGGER = LoggerFactory.getLogger((String)"AdvancementOverhaul/Client");
-    private static final ConcurrentHashMap<Long, ChunkAssembly> CHUNK_ASSEMBLIES = new ConcurrentHashMap();
+    private static final Logger LOGGER = LoggerFactory.getLogger("AdvancementOverhaul/Client");
+    private static final ConcurrentHashMap<Long, ChunkAssembly> CHUNK_ASSEMBLIES = new ConcurrentHashMap<>();
     private static long lastAssemblyCleanup = 0L;
     private static final long ASSEMBLY_CLEANUP_INTERVAL_MS = 10000L;
 
@@ -63,14 +48,14 @@ public final class NetworkHandlerClient {
     static void handleSync(SyncPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
             if (payload.protocolVersion() != 1) {
-                LOGGER.warn("Sync payload protocol version mismatch: received {}, expected {}. Trying to parse anyway.", (Object)payload.protocolVersion(), (Object)1);
+                LOGGER.warn("Sync payload protocol version mismatch: received {}, expected {}. Trying to parse anyway.", payload.protocolVersion(), 1);
             }
             int failedFields = 0;
             StringBuilder failedNames = new StringBuilder();
             try {
                 Gson gson = DataStore.GSON;
                 ClientDataStore store = ClientDataStore.getInstance();
-                JsonObject root = JsonParser.parseString((String)payload.data()).getAsJsonObject();
+                JsonObject root = JsonParser.parseString(payload.data()).getAsJsonObject();
                 if (!NetworkHandlerClient.parseAdvancements(gson, store, root)) {
                     ++failedFields;
                     failedNames.append("advancements,");
@@ -120,20 +105,19 @@ public final class NetworkHandlerClient {
                     failedNames.append("playerStats,");
                 }
                 if (failedFields > 0) {
-                    LOGGER.warn("Sync payload partial failure: {}/{} fields failed to parse: [{}]", new Object[]{failedFields, 12, failedNames.substring(0, failedNames.length() - 1)});
+                    LOGGER.warn("Sync payload partial failure: {}/{} fields failed to parse: [{}]", failedFields, 12, failedNames.substring(0, failedNames.length() - 1));
                 }
                 store.markTabsDirty();
                 FtbQuestsBridge.syncClientKnownServerRegistries(store.getAdvancements().keySet());
                 Minecraft mc = Minecraft.getInstance();
-                Screen patt0$temp = mc.screen;
-                if (patt0$temp instanceof AdvancementScreen) {
-                    AdvancementScreen screen = (AdvancementScreen)patt0$temp;
+                Screen currentScreen = mc.screen;
+                if (currentScreen instanceof AdvancementScreen screen) {
                     screen.markFilteredDirty();
                     screen.vanillaPositionsDirty = true;
                 }
             }
             catch (Exception e) {
-                LOGGER.error("Failed to handle sync payload \u2014 client data may be incomplete ({}/{} fields already parsed)", new Object[]{12 - failedFields, 12, e});
+                LOGGER.error("Failed to handle sync payload — client data may be incomplete ({}/{} fields already parsed)", 12 - failedFields, 12, e);
             }
         });
     }
@@ -151,9 +135,8 @@ public final class NetworkHandlerClient {
                 String lore = adv != null ? adv.getLore() : null;
                 CompletionChime.play(mc);
                 CompletionPlaque.show(name, lore);
-                Screen patt0$temp = mc.screen;
-                if (patt0$temp instanceof AdvancementScreen) {
-                    AdvancementScreen screen = (AdvancementScreen)patt0$temp;
+                Screen currentScreen = mc.screen;
+                if (currentScreen instanceof AdvancementScreen screen) {
                     screen.addToast(name);
                 }
             }
@@ -163,14 +146,14 @@ public final class NetworkHandlerClient {
     static void handleStatsSync(StatsSyncPayload payload, IPayloadContext context) {
         context.enqueueWork(() -> {
             try {
-                PlayerStats stats = (PlayerStats)DataStore.GSON.fromJson(payload.statsJson(), PlayerStats.class);
+                PlayerStats stats = DataStore.GSON.fromJson(payload.statsJson(), PlayerStats.class);
                 if (stats != null) {
                     ClientDataStore.getInstance().setPlayerStats(stats);
-                    LOGGER.debug("Stats sync received ({} bytes, hasData={})", (Object)payload.statsJson().length(), (Object)stats.hasAnyData());
+                    LOGGER.debug("Stats sync received ({} bytes, hasData={})", payload.statsJson().length(), stats.hasAnyData());
                 }
             }
             catch (Exception e) {
-                LOGGER.warn("Failed to parse stats sync payload: {}", (Object)e.getMessage());
+                LOGGER.warn("Failed to parse stats sync payload: {}", e.getMessage());
             }
         });
     }
@@ -180,15 +163,14 @@ public final class NetworkHandlerClient {
             try {
                 Minecraft mc = Minecraft.getInstance();
                 ClientDataStore.getInstance().setTimelineData(payload.dataJson());
-                LOGGER.debug("Timeline sync received ({} bytes)", (Object)payload.dataJson().length());
-                Screen patt0$temp = mc.screen;
-                if (patt0$temp instanceof TimelineScreen) {
-                    TimelineScreen timelineScreen = (TimelineScreen)patt0$temp;
+                LOGGER.debug("Timeline sync received ({} bytes)", payload.dataJson().length());
+                Screen currentScreen = mc.screen;
+                if (currentScreen instanceof TimelineScreen timelineScreen) {
                     timelineScreen.updateTimelineData(payload.dataJson());
                 }
             }
             catch (Exception e) {
-                LOGGER.warn("Failed to process timeline sync: {}", (Object)e.getMessage());
+                LOGGER.warn("Failed to process timeline sync: {}", e.getMessage());
             }
         });
     }
@@ -208,9 +190,9 @@ public final class NetworkHandlerClient {
         context.enqueueWork(() -> {
             long transferId = payload.transferId();
             long now = System.currentTimeMillis();
-            if (now - lastAssemblyCleanup > 10000L) {
+            if (now - lastAssemblyCleanup > ASSEMBLY_CLEANUP_INTERVAL_MS) {
                 lastAssemblyCleanup = now;
-                CHUNK_ASSEMBLIES.entrySet().removeIf(e -> ((ChunkAssembly)e.getValue()).isExpired());
+                CHUNK_ASSEMBLIES.entrySet().removeIf(e -> e.getValue().isExpired());
             }
             if (payload.totalChunks() == 1) {
                 String fullJson = new String(payload.data(), StandardCharsets.UTF_8);
@@ -220,20 +202,20 @@ public final class NetworkHandlerClient {
             }
             ChunkAssembly assembly = CHUNK_ASSEMBLIES.computeIfAbsent(transferId, id -> new ChunkAssembly(transferId, payload.totalChunks()));
             if (!assembly.addChunk(payload.chunkIndex(), payload.data())) {
-                LOGGER.debug("Duplicate or out-of-range chunk ignored: transferId={}, index={}/{}", new Object[]{transferId, payload.chunkIndex(), payload.totalChunks()});
+                LOGGER.debug("Duplicate or out-of-range chunk ignored: transferId={}, index={}/{}", transferId, payload.chunkIndex(), payload.totalChunks());
                 return;
             }
-            LOGGER.debug("Chunk received: transferId={}, {}/{}", new Object[]{transferId, assembly.receivedChunks, assembly.totalChunks});
+            LOGGER.debug("Chunk received: transferId={}, {}/{}", transferId, assembly.receivedChunks, assembly.totalChunks);
             if (assembly.isComplete()) {
                 CHUNK_ASSEMBLIES.remove(transferId);
                 try {
                     String fullJson = assembly.assemble();
-                    LOGGER.info("Chunk assembly complete: transferId={}, totalKB={}", (Object)transferId, (Object)(fullJson.length() / 1024));
+                    LOGGER.info("Chunk assembly complete: transferId={}, totalKB={}", transferId, fullJson.length() / 1024);
                     SyncPayload full = new SyncPayload(1, fullJson);
                     NetworkHandlerClient.handleSync(full, context);
                 }
                 catch (Exception e2) {
-                    LOGGER.error("Failed to assemble chunked sync payload: transferId={}", (Object)transferId, (Object)e2);
+                    LOGGER.error("Failed to assemble chunked sync payload: transferId={}", transferId, e2);
                 }
             }
         });
@@ -245,14 +227,14 @@ public final class NetworkHandlerClient {
         }
         try {
             Type t = new TypeToken<Map<String, CustomAdvancement>>(){}.getType();
-            Map advs = (Map)gson.fromJson(root.get("advancements"), t);
+            Map<String, CustomAdvancement> advs = gson.fromJson(root.get("advancements"), t);
             if (advs != null) {
                 store.setAdvancements(advs);
             }
             return true;
         }
         catch (Exception e) {
-            LOGGER.warn("Failed to parse 'advancements': {}", (Object)e.getMessage());
+            LOGGER.warn("Failed to parse 'advancements': {}", e.getMessage());
             return false;
         }
     }
@@ -263,14 +245,14 @@ public final class NetworkHandlerClient {
         }
         try {
             Type t = new TypeToken<Map<String, DimensionLock>>(){}.getType();
-            Map locks = (Map)gson.fromJson(root.get("dimensionLocks"), t);
+            Map<String, DimensionLock> locks = gson.fromJson(root.get("dimensionLocks"), t);
             if (locks != null) {
                 store.setDimensionLocks(locks);
             }
             return true;
         }
         catch (Exception e) {
-            LOGGER.warn("Failed to parse 'dimensionLocks': {}", (Object)e.getMessage());
+            LOGGER.warn("Failed to parse 'dimensionLocks': {}", e.getMessage());
             return false;
         }
     }
@@ -281,14 +263,14 @@ public final class NetworkHandlerClient {
         }
         try {
             Type t = new TypeToken<Map<String, Boolean>>(){}.getType();
-            Map comps = (Map)gson.fromJson(root.get("completions"), t);
+            Map<String, Boolean> comps = gson.fromJson(root.get("completions"), t);
             if (comps != null) {
                 store.setCompletedAdvancements(comps);
             }
             return true;
         }
         catch (Exception e) {
-            LOGGER.warn("Failed to parse 'completions': {}", (Object)e.getMessage());
+            LOGGER.warn("Failed to parse 'completions': {}", e.getMessage());
             return false;
         }
     }
@@ -299,14 +281,14 @@ public final class NetworkHandlerClient {
         }
         try {
             Type t = new TypeToken<Map<String, Integer>>(){}.getType();
-            Map progs = (Map)gson.fromJson(root.get("progress"), t);
+            Map<String, Integer> progs = gson.fromJson(root.get("progress"), t);
             if (progs != null) {
                 store.setAdvancementProgress(progs);
             }
             return true;
         }
         catch (Exception e) {
-            LOGGER.warn("Failed to parse 'progress': {}", (Object)e.getMessage());
+            LOGGER.warn("Failed to parse 'progress': {}", e.getMessage());
             return false;
         }
     }
@@ -317,14 +299,14 @@ public final class NetworkHandlerClient {
         }
         try {
             Type t = new TypeToken<List<String>>(){}.getType();
-            List tabs = (List)gson.fromJson(root.get("customTabs"), t);
+            List<String> tabs = gson.fromJson(root.get("customTabs"), t);
             if (tabs != null) {
                 store.setCustomTabs(tabs);
             }
             return true;
         }
         catch (Exception e) {
-            LOGGER.warn("Failed to parse 'customTabs': {}", (Object)e.getMessage());
+            LOGGER.warn("Failed to parse 'customTabs': {}", e.getMessage());
             return false;
         }
     }
@@ -340,7 +322,7 @@ public final class NetworkHandlerClient {
             return true;
         }
         catch (Exception e) {
-            LOGGER.warn("Failed to parse 'vanillaStates': {}", (Object)e.getMessage());
+            LOGGER.warn("Failed to parse 'vanillaStates': {}", e.getMessage());
             return false;
         }
     }
@@ -351,33 +333,41 @@ public final class NetworkHandlerClient {
         }
         try {
             Type t = new TypeToken<List<Map<String, String>>>(){}.getType();
-                @SuppressWarnings("unchecked")
-                List<Map<String, String>> vanillaList = (List<Map<String, String>>) gson.fromJson(root.get("vanillaAdvancements"), t);
-                if (vanillaList != null) {
-                    ArrayList<ClientDataStore.VanillaAdvEntry> entries = new ArrayList<ClientDataStore.VanillaAdvEntry>();
-                    for (Map<String, String> m : vanillaList) {
-                        int x = 0;
-                        int y = 0;
-                        try {
-                            x = Integer.parseInt(m.getOrDefault("x", "0"));
-                        }
-                        catch (Exception exception) {
-                            // empty catch block
-                        }
-                        try {
-                            y = Integer.parseInt(m.getOrDefault("y", "0"));
-                        }
-                        catch (Exception exception) {
-                        // empty catch block
+            List<Map<String, String>> vanillaList = gson.fromJson(root.get("vanillaAdvancements"), t);
+            if (vanillaList != null) {
+                ArrayList<ClientDataStore.VanillaAdvEntry> entries = new ArrayList<>();
+                for (Map<String, String> m : vanillaList) {
+                    int x = 0;
+                    int y = 0;
+                    try {
+                        x = Integer.parseInt(m.getOrDefault("x", "0"));
                     }
-                    entries.add(new ClientDataStore.VanillaAdvEntry(m.getOrDefault("id", ""), m.getOrDefault("name", ""), m.getOrDefault("desc", ""), "true".equals(m.get("hidden")), (String)m.get("nameKey"), (String)m.get("descKey"), (String)m.get("rootTab"), x, y, (String)m.get("icon")));
+                    catch (Exception ignored) {
+                        LOGGER.debug("Failed to parse vanilla advancement x coordinate", ignored);
+                    }
+                    try {
+                        y = Integer.parseInt(m.getOrDefault("y", "0"));
+                    }
+                    catch (Exception ignored) {
+                        LOGGER.debug("Failed to parse vanilla advancement y coordinate", ignored);
+                    }
+                    entries.add(new ClientDataStore.VanillaAdvEntry(
+                            m.getOrDefault("id", ""),
+                            m.getOrDefault("name", ""),
+                            m.getOrDefault("desc", ""),
+                            "true".equals(m.get("hidden")),
+                            m.get("nameKey"),
+                            m.get("descKey"),
+                            m.get("rootTab"),
+                            x, y,
+                            m.get("icon")));
                 }
                 store.setVanillaAdvancements(entries);
             }
             return true;
         }
         catch (Exception e) {
-            LOGGER.warn("Failed to parse 'vanillaAdvancements': {}", (Object)e.getMessage());
+            LOGGER.warn("Failed to parse 'vanillaAdvancements': {}", e.getMessage());
             return false;
         }
     }
@@ -388,14 +378,14 @@ public final class NetworkHandlerClient {
         }
         try {
             Type t = new TypeToken<Map<String, VanillaAdvMeta>>(){}.getType();
-            Map meta = (Map)gson.fromJson(root.get("vanillaMeta"), t);
+            Map<String, VanillaAdvMeta> meta = gson.fromJson(root.get("vanillaMeta"), t);
             if (meta != null) {
                 store.setVanillaMeta(meta);
             }
             return true;
         }
         catch (Exception e) {
-            LOGGER.warn("Failed to parse 'vanillaMeta': {}", (Object)e.getMessage());
+            LOGGER.warn("Failed to parse 'vanillaMeta': {}", e.getMessage());
             return false;
         }
     }
@@ -406,14 +396,14 @@ public final class NetworkHandlerClient {
         }
         try {
             Type t = new TypeToken<Map<String, String>>(){}.getType();
-            Map pm = (Map)gson.fromJson(root.get("vanillaParentMap"), t);
+            Map<String, String> pm = gson.fromJson(root.get("vanillaParentMap"), t);
             if (pm != null) {
                 store.setVanillaParentMap(pm);
             }
             return true;
         }
         catch (Exception e) {
-            LOGGER.warn("Failed to parse 'vanillaParentMap': {}", (Object)e.getMessage());
+            LOGGER.warn("Failed to parse 'vanillaParentMap': {}", e.getMessage());
             return false;
         }
     }
@@ -424,14 +414,14 @@ public final class NetworkHandlerClient {
         }
         try {
             Type t = new TypeToken<List<String>>(){}.getType();
-            List to = (List)gson.fromJson(root.get("tabOrder"), t);
+            List<String> to = gson.fromJson(root.get("tabOrder"), t);
             if (to != null) {
                 store.setTabOrder(to);
             }
             return true;
         }
         catch (Exception e) {
-            LOGGER.warn("Failed to parse 'tabOrder': {}", (Object)e.getMessage());
+            LOGGER.warn("Failed to parse 'tabOrder': {}", e.getMessage());
             return false;
         }
     }
@@ -441,7 +431,7 @@ public final class NetworkHandlerClient {
             return true;
         }
         try {
-            HashSet<String> pending = new HashSet<String>();
+            HashSet<String> pending = new HashSet<>();
             for (JsonElement e : root.getAsJsonArray("pending")) {
                 if (!e.isJsonPrimitive()) continue;
                 pending.add(e.getAsString());
@@ -450,7 +440,7 @@ public final class NetworkHandlerClient {
             return true;
         }
         catch (Exception e) {
-            LOGGER.warn("Failed to parse 'pending': {}", (Object)e.getMessage());
+            LOGGER.warn("Failed to parse 'pending': {}", e.getMessage());
             return false;
         }
     }
@@ -460,14 +450,14 @@ public final class NetworkHandlerClient {
             return true;
         }
         try {
-            PlayerStats stats = (PlayerStats)gson.fromJson(root.get("playerStats"), PlayerStats.class);
+            PlayerStats stats = gson.fromJson(root.get("playerStats"), PlayerStats.class);
             if (stats != null) {
                 store.setPlayerStats(stats);
             }
             return true;
         }
         catch (Exception e) {
-            LOGGER.warn("Failed to parse 'playerStats': {}", (Object)e.getMessage());
+            LOGGER.warn("Failed to parse 'playerStats': {}", e.getMessage());
             return false;
         }
     }
@@ -477,7 +467,7 @@ public final class NetworkHandlerClient {
             return Set.of();
         }
         try {
-            Set<String> result = (Set<String>)gson.fromJson(elem, new TypeToken<Set<String>>(){}.getType());
+            Set<String> result = gson.fromJson(elem, new TypeToken<Set<String>>(){}.getType());
             return result != null ? result : Set.of();
         }
         catch (Exception e) {
@@ -532,4 +522,3 @@ public final class NetworkHandlerClient {
         }
     }
 }
-

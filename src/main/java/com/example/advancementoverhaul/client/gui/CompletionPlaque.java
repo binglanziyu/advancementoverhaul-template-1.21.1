@@ -1,11 +1,17 @@
 package com.example.advancementoverhaul.client.gui;
 
+import com.example.advancementoverhaul.LangKeys;
 import com.example.advancementoverhaul.client.ResourceLoader;
+import com.mojang.logging.LogUtils;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
 import net.neoforged.fml.loading.FMLPaths;
+import org.slf4j.Logger;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,6 +28,8 @@ import java.util.Queue;
  * 若同时完成多个成就，排队依次展示，每段持续约 2.5 秒。
  */
 public final class CompletionPlaque {
+
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     // ═══════════════ State ═══════════════
 
@@ -100,26 +108,34 @@ public final class CompletionPlaque {
             mc.player.displayClientMessage(Component.literal("\u2726 " + name), true);
             return;
         }
-        mc.player.displayClientMessage(Component.literal(applyLoreStyle(name, lore)), true);
+        mc.player.displayClientMessage(applyLoreStyle(lore), true);
     }
 
-    /** 对无 § 颜色代码的 lore 应用随机美学风格 */
-    static String applyLoreStyle(String name, String lore) {
-        if (lore.contains("\u00a7")) return lore; // 已有样式代码，保持不变
+    /** 对无 § 颜色代码的 lore 应用随机美学风格，返回正确的 Component */
+    static MutableComponent applyLoreStyle(String lore) {
+        if (lore.contains("\u00a7")) return Component.literal(lore); // 已有样式代码，保持不变
 
         // 基于文本内容 hash 选择稳定风格
         int hash = Math.abs(lore.hashCode());
         int styleIdx = hash % 8;
 
         return switch (styleIdx) {
-            case 0 -> "\u00a76\u2726 \u00a7o" + lore + "\u00a7r";              // Golden Quill: 金色斜体
-            case 1 -> "\u00a7b\u2728 \u00a7o" + lore + "\u00a7r";              // Celestial: 浅蓝星尘
-            case 2 -> "\u00a7a\u2663 " + lore + "\u00a7r";                     // Verdant: 翠绿
-            case 3 -> "\u00a7d\u2736 \u00a7o" + lore + "\u00a7r";              // Arcane: 紫色奥术
-            case 4 -> "\u00a76\u2620 " + lore + "\u00a7r";                     // Scorched: 焦土金橙
-            case 5 -> "\u00a7b\u2744 " + lore + "\u00a7r";                     // Frost: 冰蓝
-            case 6 -> "\u00a77\u00a7o\u273f " + lore + "\u00a7r";              // Whisper: 灰色斜体低语
-            default -> "\u00a7e\u2606 " + lore + "\u00a7r";                    // Starlight: 黄色星光
+            case 0 -> Component.literal("\u2726 " + lore).setStyle(Style.EMPTY
+                    .withColor(ChatFormatting.GOLD).withItalic(true));               // Golden Quill
+            case 1 -> Component.literal("\u2728 " + lore).setStyle(Style.EMPTY
+                    .withColor(ChatFormatting.AQUA).withItalic(true));               // Celestial
+            case 2 -> Component.literal("\u2663 " + lore).setStyle(Style.EMPTY
+                    .withColor(ChatFormatting.GREEN));                               // Verdant
+            case 3 -> Component.literal("\u2736 " + lore).setStyle(Style.EMPTY
+                    .withColor(ChatFormatting.LIGHT_PURPLE).withItalic(true));       // Arcane
+            case 4 -> Component.literal("\u2620 " + lore).setStyle(Style.EMPTY
+                    .withColor(ChatFormatting.GOLD));                                // Scorched
+            case 5 -> Component.literal("\u2744 " + lore).setStyle(Style.EMPTY
+                    .withColor(ChatFormatting.AQUA));                                // Frost
+            case 6 -> Component.literal("\u273f " + lore).setStyle(Style.EMPTY
+                    .withColor(ChatFormatting.GRAY).withItalic(true));               // Whisper
+            default -> Component.literal("\u2606 " + lore).setStyle(Style.EMPTY
+                    .withColor(ChatFormatting.YELLOW));                              // Starlight
         };
     }
 
@@ -208,7 +224,7 @@ public final class CompletionPlaque {
         }
 
         // ── 文字叠加（自定义纹理上也显示）──
-        String title = "\u2726 \u6210\u5C31\u8FBE\u6210 \u2726"; // "✦ 成就达成 ✦"
+        String title = Component.translatable(LangKeys.COMPLETION_TITLE).getString();
         int titleW = font.width(title);
         g.drawString(font, title, x + (PLAQUE_W - titleW) / 2, y + 10,
                 (a << 24) | C_GOLD, false);
@@ -386,13 +402,13 @@ public final class CompletionPlaque {
                             if (src.exists()) {
                                 Files.move(src.toPath(), filePath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                             }
-                        } catch (Exception ignored) {
-                            // 静默失败，截图功能不阻塞主流程
+                        } catch (Exception e) {
+                            LOGGER.debug("Failed to move screenshot file: {}", e.getMessage());
                         }
                     }
             );
         } catch (Exception e) {
-            // 静默失败
+            LOGGER.debug("Screenshot capture failed: {}", e.getMessage());
         }
     }
 }

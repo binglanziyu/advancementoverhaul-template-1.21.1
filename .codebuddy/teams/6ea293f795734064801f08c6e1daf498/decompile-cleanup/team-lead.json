@@ -1,0 +1,11 @@
+[
+  {
+    "id": "msg-1785853186245-54sxf5",
+    "from": "payload-cleaner",
+    "to": "team-lead",
+    "type": "message",
+    "content": "payload group complete\n\n所有11个payload文件已清理完毕。以下是每个文件的清理摘要：\n\n1. **C2SCommandPayload.java** - 删除CFR注释头、删除冗余的 (String) 和 (StreamCodec) 和 (int) 强制转换、添加 @Override、使用泛型 new Type<>()\n2. **MonologuePayload.java** - 删除CFR注释头、删除 (String) 和 (StreamCodec) 强制转换、添加 @Override\n3. **StatsRequestPayload.java** - 删除CFR注释头、删除 (String) 强制转换、添加 @Override\n4. **SyncChunkPayload.java** - 删除CFR注释头、删除 (String) 强制转换、用 CHUNK_SIZE 常量替换魔数 262144、修复 LoggerFactory.getLogger、添加 @Override、使用泛型 new StreamCodec<>()\n5. **TimelineRequestPayload.java** - 删除CFR注释头、删除 (String) 强制转换、添加 @Override\n6. **TimelineSyncPayload.java** - 删除CFR注释头、删除 (String)、(StreamCodec)、(int) 强制转换、添加 @Override\n7. **SyncPayload.java** - 删除CFR注释头、删除所有冗余 (Object)、(Throwable) 强制转换、修复 HashMap 为泛型 new HashMap<>()、用 PROTOCOL_VERSION 和 COMPRESSION_THRESHOLD 常量替换魔数、修复 LoggerFactory.getLogger、修复 try-with-resources 语法、添加 @Override\n8. **StatsSyncPayload.java** - 删除CFR注释头、删除 (String)、(StreamCodec)、(int) 强制转换、添加 @Override\n9. **ProgressSyncPayload.java** - 删除CFR注释头、删除 (String)、(StreamCodec) 强制转换、添加 @Override\n10. **FtbQuestCompletedPayload.java** - 删除CFR注释头、删除 (String) 强制转换、添加 @Override\n11. **ImportFilePayload.java** - 删除CFR注释头、删除 (String)、(StreamCodec)、(int) 强制转换、添加 @Override\n\n所有修改保持了原有功能完全不变，仅清理了CFR反编译伪影，代码符合Java 21规范。",
+    "timestamp": "2026-08-04T14:19:46.245Z",
+    "read": true
+  }
+]

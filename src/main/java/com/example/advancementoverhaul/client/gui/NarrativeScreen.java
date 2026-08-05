@@ -1,13 +1,3 @@
-/*
- * Decompiled with CFR 0.152.
- * 
- * Could not load the following classes:
- *  net.minecraft.client.Minecraft
- *  net.minecraft.client.gui.Font
- *  net.minecraft.client.gui.GuiGraphics
- *  net.minecraft.client.gui.screens.Screen
- *  net.minecraft.network.chat.Component
- */
 package com.example.advancementoverhaul.client.gui;
 
 import com.example.advancementoverhaul.client.gui.GuiUtils;
@@ -19,8 +9,8 @@ import net.minecraft.network.chat.Component;
 
 public abstract class NarrativeScreen
 extends Screen {
-    protected static final int PARCHMENT_TOP = -14803410;
-    protected static final int PARCHMENT_BOTTOM = -14013892;
+    protected static final int PARCHMENT_TOP = 0xFF1E1A12;
+    protected static final int PARCHMENT_BOTTOM = 0xFF2A1F14;
     protected static final int HEADER_H = 32;
     protected static final int PADDING = 12;
     protected int scrollOff;
@@ -39,13 +29,13 @@ extends Screen {
     }
 
     protected void renderParchmentBg(GuiGraphics g) {
-        g.fillGradient(0, 0, this.width, this.height, -14803410, -14013892);
+        g.fillGradient(0, 0, this.width, this.height, PARCHMENT_TOP, PARCHMENT_BOTTOM);
     }
 
     protected void renderHeader(GuiGraphics g, int mouseX, int mouseY) {
         Font font = Minecraft.getInstance().font;
-        g.fill(0, 0, this.width, 32, -14408648);
-        g.fill(0, 31, this.width, 32, -12961200);
+        g.fill(0, 0, this.width, 32, 0xFF241D16);
+        g.fill(0, 31, this.width, 32, 0xFF3A2E20);
         String title = this.getTitle().getString();
         g.drawString(font, title, 12, 12, -1, false);
         String close = "\u2715";

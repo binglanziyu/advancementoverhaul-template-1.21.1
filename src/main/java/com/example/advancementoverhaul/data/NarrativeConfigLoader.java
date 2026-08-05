@@ -1,16 +1,3 @@
-/*
- * Decompiled with CFR 0.152.
- * 
- * Could not load the following classes:
- *  com.google.gson.Gson
- *  com.google.gson.GsonBuilder
- *  com.google.gson.JsonElement
- *  com.google.gson.JsonObject
- *  com.google.gson.JsonParser
- *  com.google.gson.reflect.TypeToken
- *  org.slf4j.Logger
- *  org.slf4j.LoggerFactory
- */
 package com.example.advancementoverhaul.data;
 
 import com.example.advancementoverhaul.data.model.EchoEntry;
@@ -24,10 +11,7 @@ import com.google.gson.reflect.TypeToken;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
-import java.nio.file.LinkOption;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileAttribute;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -37,7 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class NarrativeConfigLoader {
-    private static final Logger LOGGER = LoggerFactory.getLogger((String)"AdvancementOverhaul/Narratives");
+    private static final Logger LOGGER = LoggerFactory.getLogger("AdvancementOverhaul/Narratives");
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final NarrativeConfigLoader INSTANCE = new NarrativeConfigLoader();
     private static final String NARRATIVES_DIR = "narratives";
@@ -45,10 +29,8 @@ public final class NarrativeConfigLoader {
     private static final String ECHOES_DIR = "echoes";
     private static final String STAT_TEMPLATES_FILE = "stat_templates.json";
     private static final String ADV_DESCRIPTIONS_FILE = "advancement_descriptions.json";
-    private static final String MONOLOGUES_DEFAULT_FILE = "default.json";
-    private static final String ECHOES_DEFAULT_FILE = "default.json";
-    private volatile Map<String, MonologueCategory> monologues = new LinkedHashMap<String, MonologueCategory>();
-    private volatile Map<String, EchoEntry> echoes = new LinkedHashMap<String, EchoEntry>();
+    private volatile Map<String, MonologueCategory> monologues = new LinkedHashMap<>();
+    private volatile Map<String, EchoEntry> echoes = new LinkedHashMap<>();
     private volatile JsonElement statTemplates;
     private volatile JsonElement advDescriptions;
     private volatile boolean initialized;
@@ -73,7 +55,7 @@ public final class NarrativeConfigLoader {
         this.generateReadme(base);
         this.generateDefaultsIfNeeded(base);
         this.doReload(base);
-        LOGGER.info("Narrative config loaded: {} monologue categories, {} echoes", (Object)this.monologues.size(), (Object)this.echoes.size());
+        LOGGER.info("Narrative config loaded: {} monologue categories, {} echoes", this.monologues.size(), this.echoes.size());
     }
 
     public void reload(Path configDir) {
@@ -84,85 +66,82 @@ public final class NarrativeConfigLoader {
     private void doReload(Path base) {
         this.loadMonologues(base.resolve(MONOLOGUES_DIR));
         this.loadEchoes(base.resolve(ECHOES_DIR));
-        this.loadJsonFile(base.resolve(STAT_TEMPLATES_FILE), json -> {
-            this.statTemplates = json;
-        });
-        this.loadJsonFile(base.resolve(ADV_DESCRIPTIONS_FILE), json -> {
-            this.advDescriptions = json;
-        });
+        this.loadJsonFile(base.resolve(STAT_TEMPLATES_FILE), json -> this.statTemplates = json);
+        this.loadJsonFile(base.resolve(ADV_DESCRIPTIONS_FILE), json -> this.advDescriptions = json);
     }
 
     private void loadMonologues(Path dir) {
-        LinkedHashMap<String, MonologueCategory> result = new LinkedHashMap<String, MonologueCategory>();
-        if (!Files.exists(dir, new LinkOption[0])) {
+        LinkedHashMap<String, MonologueCategory> result = new LinkedHashMap<>();
+        if (!Files.exists(dir)) {
             return;
         }
-        try (Stream<Path> stream = Files.list(dir);){
-            stream.filter(f -> f.getFileName().toString().endsWith(".json")).sorted(Comparator.comparing(p -> p.getFileName().toString())).forEach(file -> {
-                try {
-                    String content = Files.readString(file);
-                    JsonObject root = JsonParser.parseString((String)content).getAsJsonObject();
-                    if (root.has(MONOLOGUES_DIR)) {
-                        Type mapType = new TypeToken<Map<String, MonologueCategory>>(){}.getType();
-                        Map loaded = (Map)GSON.fromJson(root.get(MONOLOGUES_DIR), mapType);
-                        if (loaded != null) {
-                            result.putAll(loaded);
-                            LOGGER.debug("Loaded {} monologue categories from {}", (Object)loaded.size(), (Object)file.getFileName());
+        try (Stream<Path> stream = Files.list(dir)) {
+            stream.filter(f -> f.getFileName().toString().endsWith(".json"))
+                    .sorted(Comparator.comparing(p -> p.getFileName().toString()))
+                    .forEach(file -> {
+                        try {
+                            String content = Files.readString(file);
+                            JsonObject root = JsonParser.parseString(content).getAsJsonObject();
+                            if (root.has(MONOLOGUES_DIR)) {
+                                Type mapType = new TypeToken<Map<String, MonologueCategory>>(){}.getType();
+                                Map<String, MonologueCategory> loaded = GSON.fromJson(root.get(MONOLOGUES_DIR), mapType);
+                                if (loaded != null) {
+                                    result.putAll(loaded);
+                                    LOGGER.debug("Loaded {} monologue categories from {}", loaded.size(), file.getFileName());
+                                }
+                            }
+                        } catch (Exception e) {
+                            LOGGER.warn("Failed to load monologue file {}: {}", file.getFileName(), e.getMessage());
                         }
-                    }
-                }
-                catch (Exception e) {
-                    LOGGER.warn("Failed to load monologue file {}: {}", (Object)file.getFileName(), (Object)e.getMessage());
-                }
-            });
-        }
-        catch (IOException e) {
-            LOGGER.warn("Failed to list monologues directory: {}", (Object)e.getMessage());
+                    });
+        } catch (IOException e) {
+            LOGGER.warn("Failed to list monologues directory: {}", e.getMessage());
         }
         this.monologues = result;
     }
 
     private void loadEchoes(Path dir) {
-        LinkedHashMap<String, EchoEntry> result = new LinkedHashMap<String, EchoEntry>();
-        if (!Files.exists(dir, new LinkOption[0])) {
+        LinkedHashMap<String, EchoEntry> result = new LinkedHashMap<>();
+        if (!Files.exists(dir)) {
             return;
         }
-        try (Stream<Path> stream = Files.list(dir);){
-            stream.filter(f -> f.getFileName().toString().endsWith(".json")).sorted(Comparator.comparing(p -> p.getFileName().toString())).forEach(file -> {
-                try {
-                    EchoEntry[] entries;
-                    String content = Files.readString(file);
-                    JsonObject root = JsonParser.parseString((String)content).getAsJsonObject();
-                    if (root.has(ECHOES_DIR) && (entries = (EchoEntry[])GSON.fromJson(root.get(ECHOES_DIR), EchoEntry[].class)) != null) {
-                        for (EchoEntry entry : entries) {
-                            if (entry.getId() == null || entry.getId().isEmpty()) continue;
-                            result.put(entry.getId(), entry);
+        try (Stream<Path> stream = Files.list(dir)) {
+            stream.filter(f -> f.getFileName().toString().endsWith(".json"))
+                    .sorted(Comparator.comparing(p -> p.getFileName().toString()))
+                    .forEach(file -> {
+                        try {
+                            String content = Files.readString(file);
+                            JsonObject root = JsonParser.parseString(content).getAsJsonObject();
+                            if (root.has(ECHOES_DIR)) {
+                                EchoEntry[] entries = GSON.fromJson(root.get(ECHOES_DIR), EchoEntry[].class);
+                                if (entries != null) {
+                                    for (EchoEntry entry : entries) {
+                                        if (entry.getId() == null || entry.getId().isEmpty()) continue;
+                                        result.put(entry.getId(), entry);
+                                    }
+                                    LOGGER.debug("Loaded {} echoes from {}", entries.length, file.getFileName());
+                                }
+                            }
+                        } catch (Exception e) {
+                            LOGGER.warn("Failed to load echo file {}: {}", file.getFileName(), e.getMessage());
                         }
-                        LOGGER.debug("Loaded {} echoes from {}", (Object)entries.length, (Object)file.getFileName());
-                    }
-                }
-                catch (Exception e) {
-                    LOGGER.warn("Failed to load echo file {}: {}", (Object)file.getFileName(), (Object)e.getMessage());
-                }
-            });
-        }
-        catch (IOException e) {
-            LOGGER.warn("Failed to list echoes directory: {}", (Object)e.getMessage());
+                    });
+        } catch (IOException e) {
+            LOGGER.warn("Failed to list echoes directory: {}", e.getMessage());
         }
         this.echoes = result;
     }
 
     private void loadJsonFile(Path file, JsonConsumer consumer) {
-        if (!Files.exists(file, new LinkOption[0])) {
+        if (!Files.exists(file)) {
             return;
         }
         try {
             String content = Files.readString(file);
-            JsonElement json = JsonParser.parseString((String)content);
+            JsonElement json = JsonParser.parseString(content);
             consumer.accept(json);
-        }
-        catch (Exception e) {
-            LOGGER.warn("Failed to load {}: {}", (Object)file.getFileName(), (Object)e.getMessage());
+        } catch (Exception e) {
+            LOGGER.warn("Failed to load {}: {}", file.getFileName(), e.getMessage());
         }
     }
 
@@ -188,43 +167,41 @@ public final class NarrativeConfigLoader {
 
     private void generateDefaultsIfNeeded(Path base) {
         boolean generated = false;
-        if (!Files.exists(base.resolve(MONOLOGUES_DIR).resolve("default.json"), new LinkOption[0])) {
+        if (!Files.exists(base.resolve(MONOLOGUES_DIR).resolve("default.json"))) {
             this.generateDefaultMonologues(base.resolve(MONOLOGUES_DIR).resolve("default.json"));
             generated = true;
         }
-        if (!Files.exists(base.resolve(ECHOES_DIR).resolve("default.json"), new LinkOption[0])) {
+        if (!Files.exists(base.resolve(ECHOES_DIR).resolve("default.json"))) {
             this.generateDefaultEchoes(base.resolve(ECHOES_DIR).resolve("default.json"));
             generated = true;
         }
-        if (!Files.exists(base.resolve(STAT_TEMPLATES_FILE), new LinkOption[0])) {
+        if (!Files.exists(base.resolve(STAT_TEMPLATES_FILE))) {
             this.generateDefaultStatTemplates(base.resolve(STAT_TEMPLATES_FILE));
             generated = true;
         }
-        if (!Files.exists(base.resolve(ADV_DESCRIPTIONS_FILE), new LinkOption[0])) {
+        if (!Files.exists(base.resolve(ADV_DESCRIPTIONS_FILE))) {
             this.generateDefaultDescriptions(base.resolve(ADV_DESCRIPTIONS_FILE));
             generated = true;
         }
         if (generated) {
             this.defaultsGenerated = true;
-            LOGGER.info("Generated default narrative config files in {}", (Object)base);
+            LOGGER.info("Generated default narrative config files in {}", base);
         }
     }
 
     private void ensureDir(Path dir) {
         try {
-            Files.createDirectories(dir, new FileAttribute[0]);
-        }
-        catch (IOException e) {
-            LOGGER.warn("Failed to create directory: {}", (Object)e.getMessage());
+            Files.createDirectories(dir);
+        } catch (IOException e) {
+            LOGGER.warn("Failed to create directory: {}", e.getMessage());
         }
     }
 
     private void writeFile(Path path, String content) {
         try {
-            Files.writeString(path, (CharSequence)content, new OpenOption[0]);
-        }
-        catch (IOException e) {
-            LOGGER.warn("Failed to write {}: {}", (Object)path.getFileName(), (Object)e.getMessage());
+            Files.writeString(path, content);
+        } catch (IOException e) {
+            LOGGER.warn("Failed to write {}: {}", path.getFileName(), e.getMessage());
         }
     }
 
@@ -255,7 +232,7 @@ public final class NarrativeConfigLoader {
 
     private void generateReadmeCn(Path base) {
         Path readme = base.resolve("README.txt");
-        if (Files.exists(readme, new LinkOption[0])) {
+        if (Files.exists(readme)) {
             return;
         }
         String content = "====================================================\n     Advancement Overhaul - \u53d9\u4e8b\u914d\u7f6e\u8bf4\u660e\uff08\u4e2d\u6587\uff09\n====================================================\n\n\u672c\u76ee\u5f55\u7528\u4e8e\u81ea\u5b9a\u4e49\u6a21\u7ec4\u7684\u53d9\u4e8b\u7cfb\u7edf\u6587\u672c\u3002\n\u4fee\u6539\u6587\u4ef6\u540e\u4f7f\u7528 /adv reload \u6216\u91cd\u542f\u670d\u52a1\u7aef\u751f\u6548\u3002\n\u6240\u6709\u6587\u4ef6\u5747\u4e3a UTF-8 \u7f16\u7801\u7684 JSON \u683c\u5f0f\u3002\n\n----------------------------------------------------\n\u76ee\u5f55\u7ed3\u6784\n----------------------------------------------------\n\nnarratives/\n\u251c\u2500\u2500 monologues/          \u2190 \u72ec\u767d\u6587\u672c\n\u2502   \u2514\u2500\u2500 default.json     \u2190 \u9ed8\u8ba4\u5b9a\u5236\u72ec\u767d\uff0c\u53ef\u65b0\u5efa\u66f4\u591a\u6587\u4ef6\n\u251c\u2500\u2500 echoes/              \u2190 \u6545\u5730\u56de\u58f0\n\u2502   \u2514\u2500\u2500 default.json     \u2190 \u9ed8\u8ba4\u56de\u58f0\uff0c\u53ef\u65b0\u5efa\u66f4\u591a\u6587\u4ef6\n\u251c\u2500\u2500 stat_templates.json  \u2190 \u7edf\u8ba1\u6210\u5c31\u6a21\u677f\n\u251c\u2500\u2500 advancement_descriptions.json \u2190 \u6210\u5c31\u5b8c\u6210\u98ce\u5473\u6587\u672c\n\u2514\u2500\u2500 README.txt           \u2190 \u672c\u8bf4\u660e\u6587\u4ef6\n\n----------------------------------------------------\n1. \u72ec\u767d\u6587\u672c (monologues/*.json)\n----------------------------------------------------\n\n\u683c\u5f0f\uff1a\n{\n  \"version\": 1,\n  \"settings\": {\n    \"global_cooldown_ms\": 60000,      \u2190 \u5168\u5c40\u51b7\u5374\uff08\u6beb\u79d2\uff09\n    \"category_cooldown_ms\": 300000    \u2190 \u540c\u7c7b\u522b\u51b7\u5374\uff08\u6beb\u79d2\uff09\n  },\n  \"monologues\": {\n    \"\u7c7b\u522b\u540d\": {\n      \"weight\": 1.0,                   \u2190 \u7c7b\u522b\u6743\u91cd\n      \"texts\": [\n        {\"text\": \"\u00a76\u6587\u672c\u5185\u5bb9\u00a7r\", \"weight\": 1.0},\n        ...\n      ]\n    }\n  }\n}\n\n\u7c7b\u522b\u540d\u7528\u4e8e\u89e6\u53d1\u72ec\u767d\uff0c\u76ee\u524d\u652f\u6301\u7684\u7c7b\u522b\uff1a\n  sunrise, sunset, nether, end, death,\n  diamond, enchant, distance, depth, height\n\n\u53ef\u81ea\u5b9a\u4e49\u65b0\u7c7b\u522b\uff08\u9700\u5728\u4ee3\u7801\u4e2d\u6ce8\u518c\u89e6\u53d1\u6761\u4ef6\uff09\u3002\n\n----------------------------------------------------\n2. \u6545\u5730\u56de\u58f0 (echoes/*.json)\n----------------------------------------------------\n\n\u683c\u5f0f\uff1a\n{\n  \"echoes\": [\n    {\n      \"id\": \"\u552f\u4e00ID\",\n      \"condition\": {\n        \"type\": \"\u6761\u4ef6\u7c7b\u578b\",\n        ... \u6761\u4ef6\u53c2\u6570 ...\n      },\n      \"texts\": [\"\u6587\u672c1\", \"\u6587\u672c2\", ...],\n      \"weight\": 1.0,\n      \"cooldownSeconds\": 300,\n      \"onceOnly\": false\n    }\n  ]\n}\n\n\u6761\u4ef6\u7c7b\u578b\uff1a\n- BIOME:        {\"type\": \"BIOME\", \"biome\": \"minecraft:ocean\"}\n- Y_BELOW:      {\"type\": \"Y_BELOW\", \"y\": 0}\n- Y_ABOVE:      {\"type\": \"Y_ABOVE\", \"y\": 150}\n- DIMENSION:    {\"type\": \"DIMENSION\", \"dimension\": \"minecraft:the_nether\"}\n- FIRST_TIME:   {\"type\": \"FIRST_TIME\", \"event\": \"firstNetherDay\"}\n\nFIRST_TIME \u53ef\u7528\u7684\u4e8b\u4ef6\u540d\uff1a\n  firstNetherDay, firstEndDay, firstDiamondDay,\n  firstEnchantDay, firstTameDay, firstRainSleepDay\n\n----------------------------------------------------\n3. \u7edf\u8ba1\u6210\u5c31\u6a21\u677f (stat_templates.json)\n----------------------------------------------------\n\n\u683c\u5f0f\uff1a\u89c1 default.json \u4e2d\u7684 templates \u6570\u7ec4\u3002\n\u6dfb\u52a0\u6a21\u677f\u540e\u53ef\u7528 /adv template create <id> \u751f\u6210\u6210\u5c31\u3002\n\n----------------------------------------------------\n4. \u6210\u5c31\u5b8c\u6210\u98ce\u5473\u6587\u672c (advancement_descriptions.json)\n----------------------------------------------------\n\n\u683c\u5f0f\uff1a\n{\n  \"entries\": [\n    {\"advancement_id\": \"\u6210\u5c31ID\", \"lore\": \"\u5b8c\u6210\u65f6\u663e\u793a\u7684\u53d9\u4e8b\u6587\u672c\"}\n  ]\n}\n\n----------------------------------------------------\n\u989c\u8272\u4ee3\u7801\u8bf4\u660e\n----------------------------------------------------\n\n\u00a7a \u7eff  \u00a7b \u5929\u84dd  \u00a7c \u7ea2  \u00a7d \u7c89\u7ea2  \u00a7e \u9ec4  \u00a7f \u767d\n\u00a71 \u6df1\u84dd \u00a72 \u6df1\u7eff \u00a73 \u6c34\u7eff \u00a74 \u6697\u7ea2 \u00a75 \u7d2b\u8272 \u00a76 \u91d1\u8272\n\u00a77 \u7070\u8272 \u00a78 \u6697\u7070 \u00a79 \u84dd\u8272 \u00a70 \u9ed1\u8272\n\u00a7l \u7c97\u4f53 \u00a7o \u659c\u4f53 \u00a7n \u4e0b\u5212\u7ebf \u00a7m \u5220\u9664\u7ebf \u00a7k \u95ea\u70c1\n\u00a7r \u91cd\u7f6e\u683c\u5f0f\n\n----------------------------------------------------\n\u6ce8\u610f\u4e8b\u9879\n----------------------------------------------------\n\n- \u4fee\u6539\u540e\u9700\u8981 /adv reload \u6216\u5728\u6e38\u620f\u5185\u4f7f\u7528\u91cd\u8f7d\u547d\u4ee4\u3002\n- JSON \u683c\u5f0f\u5fc5\u987b\u6b63\u786e\uff08\u63a8\u8350\u4f7f\u7528 JSON \u9a8c\u8bc1\u5de5\u5177\u68c0\u67e5\uff09\u3002\n- \u6587\u4ef6\u540d\u4e0d\u5f71\u54cd\u529f\u80fd\uff0c\u4f46\u5efa\u8bae\u4f7f\u7528\u6709\u610f\u4e49\u7684\u540d\u5b57\u3002\n- \u5220\u9664\u6587\u4ef6\u540e\u6a21\u7ec4\u4f1a\u56de\u9000\u5230\u5185\u7f6e\u9ed8\u8ba4\u503c\u3002\n- \u6587\u672c\u4e2d\u7684 \u00a7 \u662f Minecraft \u683c\u5f0f\u5316\u4ee3\u7801\u3002\n";
@@ -264,7 +241,7 @@ public final class NarrativeConfigLoader {
 
     private void generateReadmeEn(Path base) {
         Path readme = base.resolve("README_EN.txt");
-        if (Files.exists(readme, new LinkOption[0])) {
+        if (Files.exists(readme)) {
             return;
         }
         String content = "====================================================\n   Advancement Overhaul - Narrative Config Guide\n====================================================\n\nPlace custom JSON files here to override the mod's\nnarrative text system. Changes take effect after\n/adv reload or server restart. UTF-8 encoded JSON.\n\n----------------------------------------------------\nDirectory Structure\n----------------------------------------------------\n\nnarratives/\n\u251c\u2500\u2500 monologues/          \u2190 Monologue texts\n\u2502   \u2514\u2500\u2500 default.json     \u2190 Default categories\n\u251c\u2500\u2500 echoes/              \u2190 Place echoes\n\u2502   \u2514\u2500\u2500 default.json     \u2190 Default echoes\n\u251c\u2500\u2500 stat_templates.json  \u2190 Stat-based achievement templates\n\u251c\u2500\u2500 advancement_descriptions.json \u2190 Completion lore\n\u2514\u2500\u2500 README.txt / README_EN.txt\n\n----------------------------------------------------\n1. Monologues (monologues/*.json)\n----------------------------------------------------\n\nSupported categories:\n  sunrise, sunset, nether, end, death,\n  diamond, enchant, distance, depth, height\n\nEach category has weighted texts randomly selected.\n\n----------------------------------------------------\n2. Echoes (echoes/*.json)\n----------------------------------------------------\n\nCondition types:\n  BIOME:     triggers when entering a biome\n  Y_BELOW:   triggers below a Y level\n  Y_ABOVE:   triggers above a Y level\n  DIMENSION: triggers in a dimension\n  FIRST_TIME: triggers on first-time events\n\n----------------------------------------------------\n3. Stat Templates\n----------------------------------------------------\n\nDefine stat-based achievements. Use\n/adv template create <id> to instantiate.\n\n----------------------------------------------------\n4. Completion Descriptions\n----------------------------------------------------\n\nLore text displayed when an advancement is completed.\n\n----------------------------------------------------\nColor Codes\n----------------------------------------------------\n\n\u00a7a green  \u00a7b aqua  \u00a7c red  \u00a7d pink  \u00a7e yellow  \u00a7f white\n\u00a71 dark-blue \u00a72 dark-green \u00a73 cyan \u00a74 dark-red\n\u00a75 purple \u00a76 gold \u00a77 gray \u00a78 dark-gray \u00a79 blue \u00a70 black\n\u00a7l bold \u00a7o italic \u00a7n underline \u00a7m strikethrough \u00a7k obfuscated\n\u00a7r reset\n\n----------------------------------------------------\nNotes\n----------------------------------------------------\n\n- Edit files then /adv reload to apply changes.\n- Delete files to revert to built-in defaults.\n- JSON must be valid (use a linter if unsure).\n- File names don't affect behavior.\n";
@@ -272,8 +249,7 @@ public final class NarrativeConfigLoader {
     }
 
     @FunctionalInterface
-    private static interface JsonConsumer {
-        public void accept(JsonElement var1);
+    private interface JsonConsumer {
+        void accept(JsonElement element);
     }
 }
-

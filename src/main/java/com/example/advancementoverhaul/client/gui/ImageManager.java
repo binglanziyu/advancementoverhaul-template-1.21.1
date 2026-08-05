@@ -1,11 +1,13 @@
 package com.example.advancementoverhaul.client.gui;
 
+import com.example.advancementoverhaul.LangKeys;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import com.mojang.blaze3d.platform.NativeImage;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,14 +72,14 @@ public final class ImageManager {
                     "img_" + elementId.replace(":", "_").replace("/", "_"));
         }
         Path dir = getImagesDir();
-        if (dir == null) { lastError = "图片目录不存在"; return null; }
+        if (dir == null) { lastError = Component.translatable(LangKeys.IMAGE_DIR_NOT_FOUND).getString(); return null; }
         Path filePath = dir.resolve(filename);
-        if (!Files.exists(filePath)) { lastError = "文件不存在: " + filename; return null; }
+        if (!Files.exists(filePath)) { lastError = Component.translatable(LangKeys.IMAGE_FILE_NOT_FOUND, filename).getString(); return null; }
 
         // 文件大小检查（16MB）
         try {
             if (Files.size(filePath) > 16 * 1024 * 1024) {
-                lastError = "文件过大（超过16MB）: " + filename;
+                lastError = Component.translatable(LangKeys.IMAGE_FILE_TOO_LARGE, filename).getString();
                 return null;
             }
         } catch (IOException ignored) {}
@@ -91,7 +93,7 @@ public final class ImageManager {
             textureCache.put(cacheKey, texture);
             return texId;
         } catch (Exception e) {
-            lastError = "无法解析图片: " + filename + "（" + e.getMessage() + "）";
+            lastError = Component.translatable(LangKeys.IMAGE_PARSE_FAIL, filename, e.getMessage()).getString();
             LOGGER.warn("Failed to load image {}: {}", filename, e.getMessage());
             return null;
         }
