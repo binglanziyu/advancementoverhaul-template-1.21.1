@@ -38,3 +38,12 @@ run/
 **/src/generated/**/.cache/
 repo/
 !**/src/**/repo/
+
+### Optional dependency JARs (compile-only) ###
+libs/*.jar
+
+### Compiled class files ###
+*.class
+dev/
+temp_classes/
+tmp_ftb/

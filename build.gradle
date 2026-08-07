@@ -15,7 +15,6 @@ def mcVersionRange     = project.minecraft_version_range
 def neoforgeVersionRange = project.neoforge_version_range
 def loaderVersionRange = project.loader_version_range
 def networkProtocol    = project.network_protocol
-def modInfoFiles       = fileTree('src/main/java') { include '**/ModInfo.java' }
 
 version = project.mod_version
 group = project.mod_group_id
@@ -77,18 +76,13 @@ base {
 
 repositories {
     mavenCentral()
-    maven {
-        url = "https://maven.latvian.dev/releases"
-        content {
-            includeGroup "dev.latvian.mods"
-            includeGroup "dev.latvian.apps"
-        }
-    }
 }
 
 dependencies {
+    // Optional compatibility JARs for code reference only.
+    // All JARs in libs/ are compileOnly — the mod has zero required dependencies.
+    // Do NOT commit JAR files to the repository.
     compileOnly fileTree(dir: 'libs', include: '*.jar')
-    compileOnly "dev.latvian.mods:kubejs-neoforge:2101.7.2-build.372"
 }
 
 
@@ -109,28 +103,6 @@ processResources {
     }
 }
 
-tasks.register('injectModInfo') {
-    doLast {
-        String[][] pairs = [
-                ['${mod_id}',              modId],
-                ['${mod_name}',            modName],
-                ['${mod_version}',         modVersion],
-                ['${mod_description}',     modDescription],
-                ['${mod_license}',         modLicense],
-                ['${mc_version_range}',    mcVersionRange],
-                ['${neoforge_version_range}', neoforgeVersionRange],
-                ['${loader_version_range}', loaderVersionRange],
-                ['${network_protocol}',    networkProtocol],
-        ]
-        modInfoFiles.each { f ->
-            String c = f.text
-            pairs.each { pair -> c = c.replace(pair[0], pair[1]) }
-            f.text = c
-        }
-    }
-}
-
-compileJava.dependsOn injectModInfo
 
 publishing {
     publications {

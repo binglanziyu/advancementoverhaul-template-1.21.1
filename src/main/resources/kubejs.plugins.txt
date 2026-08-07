@@ -1,1 +1,1 @@
-com.example.advancementoverhaul.compat.AdvancementOverhaulKubeJSPlugin advancementoverhaul
+﻿com.dreamer.ao.compat.AdvancementOverhaulKubeJSPlugin advancementoverhaul
