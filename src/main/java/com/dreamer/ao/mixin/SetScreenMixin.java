@@ -15,32 +15,33 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Minecraft.class)
 public abstract class SetScreenMixin {
+    /** ThreadLocal 标志，仅阻止当前线程递归调用 setScreen，不影响其他线程/其他 mod。 */
     @Unique
-    private static boolean replacing;
+    private static final ThreadLocal<Boolean> REPLACING = ThreadLocal.withInitial(() -> false);
 
     @Inject(method = "setScreen", at = @At("HEAD"), cancellable = true)
     private void aoh$replaceScreens(Screen screen, CallbackInfo ci) {
-        if (replacing) {
+        if (Boolean.TRUE.equals(REPLACING.get())) {
             return;
         }
         if (screen instanceof AdvancementsScreen && Config.HIDE_VANILLA.get()) {
-            replacing = true;
+            REPLACING.set(true);
             try {
+                ci.cancel(); // 先取消原 setScreen，再设置替换画面
                 Minecraft.getInstance().setScreen(new AdvancementScreen());
             } finally {
-                replacing = false;
+                REPLACING.set(false);
             }
-            ci.cancel();
             return;
         }
         if (screen instanceof StatsScreen && Config.REPLACE_STATS_SCREEN.get()) {
-            replacing = true;
+            REPLACING.set(true);
             try {
+                ci.cancel(); // 先取消原 setScreen，再设置替换画面
                 Minecraft.getInstance().setScreen(new TimelineScreen());
             } finally {
-                replacing = false;
+                REPLACING.set(false);
             }
-            ci.cancel();
         }
     }
 }

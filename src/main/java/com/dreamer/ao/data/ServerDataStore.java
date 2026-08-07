@@ -1,12 +1,14 @@
 package com.dreamer.ao.data;
 
 import com.dreamer.ao.Config;
+import com.dreamer.ao.LangKeys;
 import com.dreamer.ao.data.DataStore.ConditionType;
 import com.dreamer.ao.data.model.CustomAdvancement;
 import com.dreamer.ao.data.model.VanillaAdvMeta;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +54,7 @@ public class ServerDataStore implements ImportExportHandler.ImportContext {
     // ═══════════════ 运行时状态 ═══════════════
     private volatile MinecraftServer server;
     private volatile Path dataFolder;
+    private volatile boolean initFailed;
     private int lastAutoSaveTick;
 
     // ══════════════════════════════════════════════════════════
@@ -61,8 +64,18 @@ public class ServerDataStore implements ImportExportHandler.ImportContext {
     public synchronized void init(Path configDir) {
         if (this.dataFolder != null) return;
         this.dataFolder = io.initDir(configDir);
-        if (this.dataFolder == null) return;
-        io.initialLoad(advStore, vanillaStore, tabStore);
+        if (this.dataFolder == null) {
+            this.initFailed = true;
+            LOGGER.error("DataStore initialization failed: could not create data directory in {}", configDir);
+            throw new RuntimeException("AdvancementOverhaul data directory initialization failed in " + configDir);
+        }
+        try {
+            io.initialLoad(advStore, vanillaStore, tabStore);
+        } catch (Exception e) {
+            this.initFailed = true;
+            LOGGER.error("DataStore initialization failed: error loading initial data", e);
+            throw new RuntimeException("AdvancementOverhaul data initialization failed", e);
+        }
     }
 
     public synchronized void setServer(MinecraftServer server) {
@@ -71,6 +84,17 @@ public class ServerDataStore implements ImportExportHandler.ImportContext {
             return;
         }
         this.server = server;
+
+        if (this.initFailed) {
+            LOGGER.error("DataStore is in failed state (initFailed=true) — some features will be unavailable");
+            // 广播管理员警告
+            for (var player : server.getPlayerList().getPlayers()) {
+                if (player.hasPermissions(2)) {
+                    player.sendSystemMessage(Component.translatable(LangKeys.MSG_DATASTORE_INIT_FAILED));
+                }
+            }
+        }
+
         io.initPlayerDir(server);
 
         Path pd = io.getPlayerDataFolder();
@@ -101,6 +125,16 @@ public class ServerDataStore implements ImportExportHandler.ImportContext {
     // Getters
     public MinecraftServer getServer() { return server; }
     public Path getDataFolder() { return dataFolder; }
+
+    /** 暴露子模块引用，允许外部精细操作。 */
+
+    public AdvancementStore getAdvancementStore() { return advStore; }
+
+    public PlayerDataStore getPlayerStore() { return playerStore; }
+
+    public TabStore getTabStore() { return tabStore; }
+
+    public VanillaStateStore getVanillaStore() { return vanillaStore; }
 
     // ═══════════════ 成就变更回调 ═══════════════
     public static void setOnAdvancementChanged(Consumer<String> callback) {
@@ -137,7 +171,7 @@ public class ServerDataStore implements ImportExportHandler.ImportContext {
             DimensionLock lock = entry.getValue();
             if (advId.equals(lock.getUnlockAdvancementId())) {
                 lock.setUnlockAdvancementId(null);
-                lock.setDisabled(false);
+                lock.setLocked(false);
                 LOGGER.warn("Dimension lock '{}' referenced deleted advancement '{}', lock disabled",
                         entry.getKey(), advId);
             }

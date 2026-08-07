@@ -26,7 +26,7 @@ final class DimensionExecutor {
         String dim = StringArgumentType.getString(ctx, "dim");
         DimensionLock dl = ServerDataStore.getInstance().getDimensionLock(dim);
         if (dl == null) dl = new DimensionLock();
-        dl.setDisabled(lock);
+        dl.setLocked(lock);
         ServerDataStore.getInstance().setDimensionLock(dim, dl);
         CommandHelper.syncAll(ctx);
         ctx.getSource().sendSuccess(() -> CommandHelper.translatable(lock ? LangKeys.CMD_DIM_LOCKED : LangKeys.CMD_DIM_UNLOCKED, dim), true);

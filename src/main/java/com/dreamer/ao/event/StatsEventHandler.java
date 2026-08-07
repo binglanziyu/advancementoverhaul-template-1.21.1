@@ -62,7 +62,13 @@ public class StatsEventHandler {
     private static final Map<UUID, ItemStack> prevResultSlot = new HashMap<>();
     private static int syncTickCounter = 0;
     private static final int SYNC_INTERVAL_TICKS = 600;
-    private static final int INVENTORY_SCAN_INTERVAL = 100;
+    private static final int INVENTORY_SCAN_INTERVAL = 600;
+
+    /** 分层频率检查计数器：减少非关键检查的每tick开销 */
+    private static int weatherTickCounter = 0;
+    private static int distTickCounter = 0;
+    private static final int WEATHER_CHECK_INTERVAL = 20;  // 天气每20tick(1秒)检查
+    private static final int DIST_CHECK_INTERVAL = 100;     // 距离/高度/群系每100tick(5秒)检查
 
     @SubscribeEvent
     public static void onServerStarted(ServerStartedEvent event) {
@@ -95,6 +101,13 @@ public class StatsEventHandler {
         }
         PlayerStatsStore store = PlayerStatsStore.getInstance();
         store.tick();
+
+        // 分层频率计数器推进
+        weatherTickCounter++;
+        distTickCounter++;
+        boolean doWeatherCheck = weatherTickCounter % WEATHER_CHECK_INTERVAL == 0;
+        boolean doDistCheck = distTickCounter % DIST_CHECK_INTERVAL == 0;
+
         long gameTime = server.overworld().getGameTime();
         boolean isSunrise = gameTime % 24000L >= 22800L && gameTime % 24000L <= 23200L;
         boolean isSunset = gameTime % 24000L >= 12700L && gameTime % 24000L <= 13100L;
@@ -133,56 +146,60 @@ public class StatsEventHandler {
             if (!isSunset) {
                 PlayerEventTrackers.resetSunset(uuid);
             }
-            if (isRaining && level.canSeeSky(pos)) {
+            // 天气检查：每 20 tick 执行（约1秒）
+            if (doWeatherCheck && isRaining && level.canSeeSky(pos)) {
                 Biome biome = level.getBiome(pos).value();
                 if (biome.coldEnoughToSnow(pos)) {
-                    stats.setSnowTicks(stats.getSnowTicks() + 1);
+                    stats.setSnowTicks(stats.getSnowTicks() + WEATHER_CHECK_INTERVAL);
                     if (stats.getSnowTicks() % 20L == 0L) {
                         ConditionEvaluator.checkStatReach(player, "snowTicks", stats.getSnowTicks());
                     }
                 } else if (biome.hasPrecipitation()) {
-                    stats.setRainTicks(stats.getRainTicks() + 1);
+                    stats.setRainTicks(stats.getRainTicks() + WEATHER_CHECK_INTERVAL);
                     if (stats.getRainTicks() % 20L == 0L) {
                         ConditionEvaluator.checkStatReach(player, "rainTicks", stats.getRainTicks());
                     }
                 }
                 store.markDirty(uuid);
             }
-            ResourceLocation biomeKey = level.getBiome(pos).unwrapKey().map(ResourceKey::location).orElse(null);
-            if (biomeKey != null) {
-                String biomeId = biomeKey.toString();
-                stats.getBiomeTimes().merge(biomeId, 1L, Long::sum);
-            }
-            if (gameTime % 24000L == 23999L && !stats.getBiomeTimes().isEmpty()) {
-                String topBiome = null;
-                long topTime = 0L;
-                for (Map.Entry<String, Long> e : stats.getBiomeTimes().entrySet()) {
-                    if (e.getValue() <= topTime) continue;
-                    topTime = e.getValue();
-                    topBiome = e.getKey();
+            // 距离/高度/群系：每 100 tick 执行（约5秒）
+            if (doDistCheck) {
+                ResourceLocation biomeKey = level.getBiome(pos).unwrapKey().map(ResourceKey::location).orElse(null);
+                if (biomeKey != null) {
+                    String biomeId = biomeKey.toString();
+                    stats.getBiomeTimes().merge(biomeId, (long) DIST_CHECK_INTERVAL, Long::sum);
                 }
-                if (topBiome != null) {
-                    stats.setMostFrequentBiome(topBiome);
+                if (gameTime % 24000L < DIST_CHECK_INTERVAL && gameTime % 24000L >= 0 && !stats.getBiomeTimes().isEmpty()) {
+                    String topBiome = null;
+                    long topTime = 0L;
+                    for (Map.Entry<String, Long> e : stats.getBiomeTimes().entrySet()) {
+                        if (e.getValue() <= topTime) continue;
+                        topTime = e.getValue();
+                        topBiome = e.getKey();
+                    }
+                    if (topBiome != null) {
+                        stats.setMostFrequentBiome(topBiome);
+                    }
+                    stats.getBiomeTimes().clear();
+                    store.markDirty(uuid);
                 }
-                stats.getBiomeTimes().clear();
-                store.markDirty(uuid);
-            }
-            BlockPos spawn = level.getSharedSpawnPos();
-            double dx = player.getX() - (double) spawn.getX();
-            double dz = player.getZ() - (double) spawn.getZ();
-            double dist = Math.sqrt(dx * dx + dz * dz);
-            if (dist > stats.getFurthestDistance()) {
-                stats.setFurthestDistance(dist);
-                store.markDirty(uuid);
-            }
-            int playerY = player.blockPosition().getY();
-            if (playerY < stats.getLowestY()) {
-                stats.setLowestY(playerY);
-                store.markDirty(uuid);
-            }
-            if (playerY > stats.getHighestY()) {
-                stats.setHighestY(playerY);
-                store.markDirty(uuid);
+                BlockPos spawn = level.getSharedSpawnPos();
+                double dx = player.getX() - (double) spawn.getX();
+                double dz = player.getZ() - (double) spawn.getZ();
+                double dist = Math.sqrt(dx * dx + dz * dz);
+                if (dist > stats.getFurthestDistance()) {
+                    stats.setFurthestDistance(dist);
+                    store.markDirty(uuid);
+                }
+                int playerY = player.blockPosition().getY();
+                if (playerY < stats.getLowestY()) {
+                    stats.setLowestY(playerY);
+                    store.markDirty(uuid);
+                }
+                if (playerY > stats.getHighestY()) {
+                    stats.setHighestY(playerY);
+                    store.markDirty(uuid);
+                }
             }
             if (syncTickCounter % INVENTORY_SCAN_INTERVAL == 0) {
                 if (stats.getFirstDiamondDay() < 0) {

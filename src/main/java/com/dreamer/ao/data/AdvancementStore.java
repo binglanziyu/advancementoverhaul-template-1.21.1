@@ -256,17 +256,16 @@ final class AdvancementStore {
         }
 
         // 通配符条件也匹配到所有同类型的目标条件
+        // O(N×M×L) 优化：使用 Set 批量合并去重，消除逐元素 contains 检查
         for (var entry : wildcardMap.entrySet()) {
             ConditionType type = entry.getKey();
             Set<String> wildcardAdvIds = entry.getValue();
             String prefix = type.name() + ":";
             for (var targetEntry : targetMap.entrySet()) {
                 if (targetEntry.getKey().startsWith(prefix)) {
-                    List<String> list = targetEntry.getValue();
-                    Set<String> existing = new HashSet<>(list);
-                    for (String wid : wildcardAdvIds) {
-                        if (existing.add(wid)) list.add(wid);
-                    }
+                    Set<String> merged = new LinkedHashSet<>(targetEntry.getValue());
+                    merged.addAll(wildcardAdvIds);
+                    targetEntry.setValue(new ArrayList<>(merged));
                 }
             }
         }

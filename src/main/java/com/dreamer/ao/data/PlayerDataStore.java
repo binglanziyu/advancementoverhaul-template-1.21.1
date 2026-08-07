@@ -45,10 +45,11 @@ final class PlayerDataStore {
      * <p>
      * 添加新迁移时：1) 递增 DATA_VERSION  2) 在此 Map 中添加对应条目  3) 实现迁移逻辑。
      */
-    private static final Map<Integer, Function<JsonObject, JsonObject>> MIGRATIONS = Map.of(
-            // 版本 1 → 2：无结构变更，预留迁移槽位
-            // 1: PlayerDataStore::migrateV1ToV2
-    );
+    private static final Map<Integer, Function<JsonObject, JsonObject>> MIGRATIONS = new HashMap<>();
+    static {
+        // 版本 1 → 2：示例迁移 - 无结构变更，保留框架位
+        MIGRATIONS.put(1, PlayerDataStore::migrateV1ToV2);
+    }
 
     // ═══════════════ 内存数据 ═══════════════
 
@@ -269,8 +270,13 @@ final class PlayerDataStore {
                 Path target = dataDir.resolve(uuid.toString() + ".json");
                 Path tmp = dataDir.resolve(uuid.toString() + ".json.tmp");
                 Files.writeString(tmp, DataStore.GSON_PRETTY.toJson(playerObj));
-                Files.move(tmp, target, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
-                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                try {
+                    Files.move(tmp, target, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                } catch (java.nio.file.AtomicMoveNotSupportedException e) {
+                    LOGGER.debug("Atomic move not supported, falling back to non-atomic move for {}", target);
+                    Files.move(tmp, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
             } catch (Exception e) { LOGGER.warn("Failed to write player data for UUID {}: {}", uuid, e.getMessage()); }
         }
     }
@@ -280,7 +286,10 @@ final class PlayerDataStore {
         Path dataDir = baseDir.resolve("player_data");
         if (!Files.exists(dataDir) || !Files.isDirectory(dataDir)) return;
 
-        completions.clear(); progress.clear(); pending.clear();
+        // 先加载到临时 Map，全部成功后再原子替换，避免加载中途崩溃导致数据丢失
+        Map<UUID, Map<String, Boolean>> newCompletions = new ConcurrentHashMap<>();
+        Map<UUID, Map<String, Map<Integer, Integer>>> newProgress = new ConcurrentHashMap<>();
+        Map<UUID, Set<String>> newPending = new ConcurrentHashMap<>();
 
         try (var stream = Files.list(dataDir)) {
             stream.filter(f -> f.getFileName().toString().endsWith(".json")).forEach(file -> {
@@ -294,7 +303,7 @@ final class PlayerDataStore {
                         Map<String, Boolean> m = new ConcurrentHashMap<>();
                         for (var ce : obj.getAsJsonObject("completions").entrySet())
                             m.put(ce.getKey(), ce.getValue().getAsBoolean());
-                        completions.put(uuid, m);
+                        newCompletions.put(uuid, m);
                     }
 
                     if (obj.has("progress") && obj.get("progress").isJsonObject()) {
@@ -314,27 +323,53 @@ final class PlayerDataStore {
                             }
                             m.put(ce.getKey(), condMap);
                         }
-                        progress.put(uuid, m);
+                        newProgress.put(uuid, m);
                     }
 
                     if (obj.has("pending") && obj.get("pending").isJsonArray()) {
                         Set<String> s = ConcurrentHashMap.newKeySet();
                         for (JsonElement e : obj.getAsJsonArray("pending")) s.add(e.getAsString());
-                        pending.put(uuid, s);
+                        newPending.put(uuid, s);
                     }
+                } catch (IllegalArgumentException ignored) {
+                    // 跳过非 UUID 文件名
+                } catch (Exception e) { LOGGER.warn("Failed to parse player data file: {}", e.getMessage()); }
+            });
+        } catch (Exception e) {
+            LOGGER.error("Failed to list player_data directory, old data preserved", e);
+            return; // 加载失败，保留旧数据
+        }
 
-                    // 应用数据迁移（如果玩家文件中版本低于 DATA_VERSION）
+        // 全部文件加载成功后，原子替换内存数据
+        completions.clear();
+        completions.putAll(newCompletions);
+        progress.clear();
+        progress.putAll(newProgress);
+        pending.clear();
+        pending.putAll(newPending);
+
+        LOGGER.info("Loaded player data: {} players ({} completions, {} progress, {} pending)",
+                Math.max(newCompletions.size(), Math.max(newProgress.size(), newPending.size())),
+                newCompletions.size(), newProgress.size(), newPending.size());
+
+        // 应用数据迁移（如果玩家文件中版本低于 DATA_VERSION）
+        for (var entry : newCompletions.keySet()) {
+            UUID uuid = entry;
+            try {
+                Path file = dataDir.resolve(uuid.toString() + ".json");
+                if (Files.exists(file)) {
+                    JsonObject obj = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
                     if (obj.has("version")) {
                         int fileVersion = obj.get("version").getAsInt();
                         if (fileVersion < DATA_VERSION) {
                             applyMigrations(uuid, fileVersion);
                         }
                     }
-                } catch (IllegalArgumentException ignored) {
-                    // 跳过非 UUID 文件名
-                } catch (Exception e) { LOGGER.warn("Failed to parse player data file: {}", e.getMessage()); }
-            });
-        } catch (Exception e) { LOGGER.error("Failed to list player_data directory", e); }
+                }
+            } catch (Exception e) {
+                LOGGER.warn("Failed to apply migrations for UUID {}: {}", uuid, e.getMessage());
+            }
+        }
     }
 
     /**
@@ -462,27 +497,69 @@ final class PlayerDataStore {
      * 添加新迁移时请同步更新 MIGRATIONS Map 和 DATA_VERSION 常量。
      */
     private void applyMigrations(UUID uuid, int fileVersion) {
-        for (int v = fileVersion + 1; v <= DATA_VERSION; v++) {
+        for (int v = fileVersion; v < DATA_VERSION; v++) {
             Function<JsonObject, JsonObject> migration = MIGRATIONS.get(v);
             if (migration == null) continue;
 
             try {
-                // 迁移玩家完成数据
-                Map<String, Boolean> comps = completions.get(uuid);
+                // 构建当前内存状态的 JSON 表示
+                JsonObject obj = new JsonObject();
+                obj.addProperty("version", fileVersion);
+                var comps = completions.get(uuid);
                 if (comps != null) {
-                    // 具体迁移逻辑由各 MIGRATIONS 条目实现
+                    JsonObject compJson = new JsonObject();
+                    comps.forEach((k, b) -> compJson.addProperty(k, b));
+                    obj.add("completions", compJson);
                 }
-
-                Map<String, Map<Integer, Integer>> progs = progress.get(uuid);
+                var progs = progress.get(uuid);
                 if (progs != null) {
-                    // 具体迁移逻辑由各 MIGRATIONS 条目实现
+                    JsonObject progJson = new JsonObject();
+                    progs.forEach((k, m) -> {
+                        JsonObject condJson = new JsonObject();
+                        m.forEach((ci, val) -> condJson.addProperty(String.valueOf(ci), val));
+                        progJson.add(k, condJson);
+                    });
+                    obj.add("progress", progJson);
                 }
-
-                LOGGER.info("Migrated player {} data from version {} to {}", uuid, v, v);
+                // 执行迁移
+                JsonObject migrated = migration.apply(obj);
+                // 将迁移后的数据写回内存
+                if (migrated.has("completions") && migrated.get("completions").isJsonObject()) {
+                    Map<String, Boolean> m = new ConcurrentHashMap<>();
+                    for (var ce : migrated.getAsJsonObject("completions").entrySet())
+                        m.put(ce.getKey(), ce.getValue().getAsBoolean());
+                    completions.put(uuid, m);
+                }
+                if (migrated.has("progress") && migrated.get("progress").isJsonObject()) {
+                    Map<String, Map<Integer, Integer>> m = new ConcurrentHashMap<>();
+                    for (var ce : migrated.getAsJsonObject("progress").entrySet()) {
+                        Map<Integer, Integer> condMap = new ConcurrentHashMap<>();
+                        if (ce.getValue().isJsonObject()) {
+                            for (var cp : ce.getValue().getAsJsonObject().entrySet()) {
+                                try { condMap.put(Integer.parseInt(cp.getKey()), cp.getValue().getAsInt()); }
+                                catch (Exception ex) { /* skip */ }
+                            }
+                        }
+                        m.put(ce.getKey(), condMap);
+                    }
+                    progress.put(uuid, m);
+                }
+                dirty.set(true);
+                LOGGER.info("Migrated player {} data from version {} to {}", uuid, v, v + 1);
             } catch (Exception e) {
-                LOGGER.error("Failed to migrate player {} data from version {} to {}", uuid, v - 1, v, e);
-                dirty.set(true); // 迁移失败不影响已迁移的数据，标记脏以触发重写
+                LOGGER.error("Failed to migrate player {} data from version {} to {}", uuid, v, v + 1, e);
+                dirty.set(true);
             }
         }
+    }
+
+    /**
+     * 版本 1 → 2 迁移：示例迁移，无实际结构变更。
+     * 新迁移按此模式添加：递增 DATA_VERSION，在 MIGRATIONS 中注册，实现迁移方法。
+     */
+    private static JsonObject migrateV1ToV2(JsonObject old) {
+        // V1→V2 无结构变更，仅更新版本号
+        old.addProperty("version", 2);
+        return old;
     }
 }

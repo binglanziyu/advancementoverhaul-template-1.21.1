@@ -202,6 +202,8 @@ public class CommandHandler {
                                 .executes(AdvCrudExecutor::updateFromJson)))
 
                 // ── 工具 ──
+                .then(Commands.literal("status")
+                        .executes(CommandHandler::statusCommand))
                 .then(Commands.literal("import")
                         .executes(ImportExportExecutor::importAdvancements))
                 .then(Commands.literal("export")
@@ -276,6 +278,32 @@ public class CommandHandler {
         );
     }
 
+    /** /adv status 诊断命令 */
+    private static int statusCommand(CommandContext<CommandSourceStack> ctx) {
+        var store = ServerDataStore.getInstance();
+        int advCount = store.getAdvancements().size();
+        int tabCount = store.getCustomTabs().size();
+        int dimLockCount = 0;
+        try {
+            var dims = store.getDimensionLocks();
+            if (dims != null) dimLockCount = dims.size();
+        } catch (Exception ignored) { /* ignore */ }
+        int onlineCount = ctx.getSource().getServer().getPlayerList().getPlayerCount();
+        boolean ftbLoaded = com.dreamer.ao.compat.ftb.FtbQuestsBridge.isLoaded();
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("§6=== AdvancementOverhaul Status ===\n");
+        sb.append("§7Custom Advancements: §f").append(advCount).append("\n");
+        sb.append("§7Custom Tabs: §f").append(tabCount).append("\n");
+        sb.append("§7Dimension Locks: §f").append(dimLockCount).append("\n");
+        sb.append("§7Online Players: §f").append(onlineCount).append("\n");
+        sb.append("§7FTB Quests: §f").append(ftbLoaded ? "§aLoaded" : "§7Not Present").append("\n");
+        sb.append("§7Config enabledMods: §f").append(Config.ENABLED_MODS.get());
+
+        ctx.getSource().sendSuccess(() -> Component.literal(sb.toString()), false);
+        return 1;
+    }
+
     /** /adv reload 执行器 */
     private static int reloadCommand(CommandContext<CommandSourceStack> ctx) {
         ServerDataStore.getInstance().forceReload();
@@ -289,7 +317,9 @@ public class CommandHandler {
         com.dreamer.ao.narrative.event.EchoEventHandler.resetAll();
 
         ctx.getSource().sendSuccess(
-                () -> Component.translatable(LangKeys.CMD_RELOAD_DONE), false);
+                () -> Component.translatable(LangKeys.CMD_RELOAD_DONE)
+                        .append(Component.literal(" "))
+                        .append(Component.translatable(LangKeys.MSG_CONFIG_NEEDS_RELOAD)), false);
         return 1;
     }
 }

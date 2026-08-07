@@ -40,6 +40,8 @@ public final class FtbQuestsBridge {
                     ftbVersion = "unknown";
                 }
                 LOGGER.info("FTB Quests detected (version: {}) \u2014 full integration enabled", ftbVersion);
+                // 校验关键 API 兼容性
+                validateApiCompat();
                 FtbReflectionHelper.init();
             } catch (ClassNotFoundException e) {
                 loaded = false;
@@ -47,6 +49,32 @@ public final class FtbQuestsBridge {
             }
         }
         return loaded;
+    }
+
+    /** 校验 FTB Quests 关键 API 是否存在，版本不匹配时输出警告。 */
+    private static void validateApiCompat() {
+        int failCount = 0;
+        try {
+            Class.forName("dev.ftb.mods.ftblibrary.util.KnownServerRegistries$AdvancementInfo");
+        } catch (ClassNotFoundException e) {
+            failCount++;
+            LOGGER.warn("FTB Quests API incompatibility: AdvancementInfo class not found");
+        }
+        try {
+            Class.forName("dev.ftb.mods.ftbquests.events.QuestCompletedEvent");
+        } catch (ClassNotFoundException e) {
+            failCount++;
+            LOGGER.warn("FTB Quests API incompatibility: QuestCompletedEvent class not found");
+        }
+        try {
+            Class.forName("dev.ftb.mods.ftbquests.quest.ServerQuestFile");
+        } catch (ClassNotFoundException e) {
+            failCount++;
+            LOGGER.warn("FTB Quests API incompatibility: ServerQuestFile class not found");
+        }
+        if (failCount > 0) {
+            LOGGER.warn("FTB Quests API compatibility check failed on {} class(es). Integration may be limited.", failCount);
+        }
     }
 
     public static String getFtbVersion() {

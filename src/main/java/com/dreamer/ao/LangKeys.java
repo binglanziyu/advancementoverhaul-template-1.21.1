@@ -358,5 +358,9 @@ public final class LangKeys {
     public static final String EFFECT_MOB_ARMOR        = "timeline.advancementoverhaul.effect_mob_armor";
     public static final String EFFECT_SPAWN_RATE       = "timeline.advancementoverhaul.effect_spawn_rate";
 
+    // ── 系统消息 ──
+    public static final String MSG_DATASTORE_INIT_FAILED = "advancementoverhaul.msg.datastore_init_failed";
+    public static final String MSG_CONFIG_NEEDS_RELOAD = "advancementoverhaul.msg.config_needs_reload";
+
     private LangKeys() {}
 }

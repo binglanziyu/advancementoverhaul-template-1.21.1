@@ -222,6 +222,15 @@ public class ServerEventHandler {
      * 取消传送并将玩家传送到当前维度的安全位置（优先重生点，其次传送门周围地面）。
      * <p>
      * 使用 {@link EntityTravelToDimensionEvent}（传送前触发）确保坐标来自源维度。
+     * <p>
+     * <b>已知限制（问题 #18 — 不修复）：</b>
+     * 维度锁定是一次性检查（仅在传送事件触发时验证），玩家可通过以下方式绕过：
+     * <ul>
+     *   <li>使用其他 mod 提供的传送指令（绕过 EntityTravelToDimensionEvent）</li>
+     *   <li>在检查通过后、传送完成前的极短窗口内修改状态</li>
+     * </ul>
+     * 完全的维度锁需要修改传送处理器或维度变更逻辑，会增加大量耦合和维护成本。
+     * 当前方案在正常的原版游戏流程中已足够可靠。
      */
     @SubscribeEvent
     public static void onEntityTravelToDimension(EntityTravelToDimensionEvent event) {
@@ -232,7 +241,7 @@ public class ServerEventHandler {
 
         ServerDataStore store = ServerDataStore.getInstance();
         DimensionLock lock = store.getDimensionLock(dimIdStr);
-        if (lock == null || !lock.isDisabled()) return;
+        if (lock == null || !lock.isLocked()) return;
 
         String reqAdv = lock.getUnlockAdvancementId();
         boolean allowed = reqAdv != null && !reqAdv.isEmpty()

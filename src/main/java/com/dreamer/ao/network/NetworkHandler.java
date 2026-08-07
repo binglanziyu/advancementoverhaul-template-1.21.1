@@ -95,6 +95,9 @@ public class NetworkHandler {
     private static final int CMD_MAX_UTF8_BYTES = 16384;
     private static final int IMPORT_MAX_CHARS = 1_048_576;
 
+    /** JSON 嵌套深度上限，防止深度嵌套导致栈溢出 / DoS */
+    private static final int JSON_MAX_DEPTH = 32;
+
     // ═══════════════ 注册 ═══════════════
 
     /**
@@ -246,6 +249,11 @@ public class NetworkHandler {
         }
 
         try {
+            // 先用流式检查深度，防止深度嵌套导致栈溢出 / DoS
+            if (!checkJsonDepth(json, JSON_MAX_DEPTH)) {
+                LOGGER.warn("updatejson JSON nesting too deep (max {})", JSON_MAX_DEPTH);
+                return false;
+            }
             JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
             if (!obj.has("id") && !obj.has("name")) {
                 LOGGER.warn("updatejson missing both id and name");
@@ -284,6 +292,42 @@ public class NetworkHandler {
             if ((c < 0x20 && c != 0x09 && c != 0x0A && c != 0x0D) || c == 0x7F) return true;
         }
         return false;
+    }
+
+    /**
+     * 流式检查 JSON 字符串的嵌套深度，防止 {@link JsonParser#parseString} 栈溢出 / DoS。
+     * 字符级遍历，不分配中间对象。
+     * @param json JSON 字符串
+     * @param maxDepth 允许的最大嵌套深度
+     * @return true 表示深度在限制内
+     */
+    private static boolean checkJsonDepth(String json, int maxDepth) {
+        int depth = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = 0; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (c == '\\' && inString) {
+                escaped = true;
+                continue;
+            }
+            if (c == '"') {
+                inString = !inString;
+                continue;
+            }
+            if (inString) continue;
+            if (c == '{' || c == '[') {
+                depth++;
+                if (depth > maxDepth) return false;
+            } else if (c == '}' || c == ']') {
+                depth--;
+            }
+        }
+        return true;
     }
 
     // ═══════════════ PlayerStats 请求处理（客户端请求最新数据） ═══════════════
@@ -357,9 +401,18 @@ public class NetworkHandler {
             try {
                 String raw = content.trim();
                 JsonObject data = JsonParser.parseString(raw).getAsJsonObject();
+                // 导入前备份当前数据，失败时回滚
+                JsonObject backup = ServerDataStore.getInstance().exportAll();
                 ServerDataStore.getInstance().importAll(data);
-                AdvancementRegistry.syncAllRuntime(player.server, true);
-                SyncManager.syncAll(player.server);
+                try {
+                    AdvancementRegistry.syncAllRuntime(player.server, true);
+                    SyncManager.syncAll(player.server);
+                } catch (Exception syncEx) {
+                    // syncAll/syncAllRuntime 失败时回滚到导入前状态
+                    LOGGER.error("Sync after import failed, rolling back: {}", syncEx.getMessage());
+                    ServerDataStore.getInstance().restoreFromBackup(backup);
+                    throw syncEx; // rethrow to outer catch for user notification
+                }
                 player.sendSystemMessage(Component.translatable(LangKeys.CMD_IMPORT_DONE));
                 LOGGER.info("Import successful by player {}", player.getName().getString());
             } catch (Exception e) {

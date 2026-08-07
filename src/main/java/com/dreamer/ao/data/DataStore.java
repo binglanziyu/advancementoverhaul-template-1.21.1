@@ -35,9 +35,11 @@ public class DataStore {
     public static final String TAB_VANILLA = "vanilla";
 
     /** 旧格式中文标识 → 新格式英文标识的迁移映射 */
+    private static final String OLD_KEY_DEFAULT_CN = "默认";
+    private static final String OLD_KEY_VANILLA_CN = "原有成就";
     private static final java.util.Map<String, String> TAB_KEY_MIGRATION = java.util.Map.of(
-            "默认", TAB_DEFAULT,
-            "原有成就", TAB_VANILLA
+            OLD_KEY_DEFAULT_CN, TAB_DEFAULT,
+            OLD_KEY_VANILLA_CN, TAB_VANILLA
     );
 
     /** 两个内置标签页，按默认顺序排列 */

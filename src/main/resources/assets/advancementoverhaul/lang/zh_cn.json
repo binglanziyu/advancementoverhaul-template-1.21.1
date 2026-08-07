@@ -432,5 +432,7 @@
         "timeline.advancementoverhaul.effect_mob_speed": "生物速度",
         "timeline.advancementoverhaul.effect_mob_attack": "生物攻击",
         "timeline.advancementoverhaul.effect_mob_armor": "生物护甲",
-        "timeline.advancementoverhaul.effect_spawn_rate": "生成频率"
+        "timeline.advancementoverhaul.effect_spawn_rate": "生成频率",
+        "advancementoverhaul.msg.datastore_init_failed": "进度大修数据存储初始化失败！部分功能可能不可用。",
+        "advancementoverhaul.msg.config_needs_reload": "（配置变更需执行 /adv reload 后生效）"
     }

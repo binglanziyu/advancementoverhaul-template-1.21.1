@@ -89,7 +89,7 @@ public class DimensionPanel {
         if (locks != null) allDims.addAll(locks.keySet());
         for (String dim : allDims) {
             DimensionLock lock = locks != null ? locks.get(dim) : null;
-            entries.add(new DimEntry(dim, DisplayNameResolver.friendlyDimension(dim), lock != null && lock.isDisabled(),
+            entries.add(new DimEntry(dim, DisplayNameResolver.friendlyDimension(dim), lock != null && lock.isLocked(),
                     lock != null ? lock.getUnlockAdvancementId() : null));
         }
     }

@@ -43,7 +43,7 @@ public class AdvancementManagerMixin {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AdvancementManagerMixin.class);
 
-    @Shadow
+    @Shadow(remap = true)
     private Map<ResourceLocation, AdvancementHolder> advancements;
 
     /**

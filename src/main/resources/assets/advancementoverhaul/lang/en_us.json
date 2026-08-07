@@ -432,5 +432,7 @@
         "timeline.advancementoverhaul.effect_mob_speed": "Mob Speed",
         "timeline.advancementoverhaul.effect_mob_attack": "Mob Attack",
         "timeline.advancementoverhaul.effect_mob_armor": "Mob Armor",
-        "timeline.advancementoverhaul.effect_spawn_rate": "Spawn Rate"
+        "timeline.advancementoverhaul.effect_spawn_rate": "Spawn Rate",
+        "advancementoverhaul.msg.datastore_init_failed": "AdvancementOverhaul data store initialization failed! Some features may be unavailable.",
+        "advancementoverhaul.msg.config_needs_reload": "(Config changes require /adv reload to take effect)"
     }

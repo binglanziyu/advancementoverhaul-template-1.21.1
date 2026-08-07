@@ -24,6 +24,9 @@ import org.slf4j.LoggerFactory;
 
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -58,6 +61,11 @@ public final class SyncManager {
 
     /** 脏标记，使用 AtomicBoolean 保证 check-then-rebuild 的原子性 */
     private static final AtomicBoolean vanillaCacheDirty = new AtomicBoolean(true);
+    private static final ExecutorService SYNC_EXECUTOR = Executors.newFixedThreadPool(2, r -> {
+        Thread t = new Thread(r, "AO-Sync");
+        t.setDaemon(true);
+        return t;
+    });
 
     // ═══════════════ 缓存生命周期 ═══════════════
 
@@ -97,41 +105,47 @@ public final class SyncManager {
         ServerDataStore store = ServerDataStore.getInstance();
         UUID uuid = player.getUUID();
 
+        var advancements = store.getAdvancements();
+        var dimLocks = store.getDimensionLocks();
+        var completions = store.getPlayerCompletions(uuid);
+        var progress = store.getPlayerProgressSnapshot(uuid);
+        var customTabs = store.getCustomTabs();
+        var disabled = store.getDisabledVanilla();
+        var enabled = store.getEnabledVanilla();
         VanillaCollection vanillaData = getOrRebuildVanillaData(player);
         PlayerStats playerStats = PlayerStatsStore.getInstance().getOrCreate(uuid);
+        var vanillaList = vanillaData.list();
+        var vanillaMeta = store.getVanillaMetaMap();
+        var vanillaParentMap = vanillaData.parentMap();
+        var tabOrder = store.getTabOrder();
+        var pending = store.getPendingAdvancements(uuid);
+        var server = player.getServer();
 
-        SyncPayload payload = SyncPayload.fromServer(
-                store.getAdvancements(),
-                store.getDimensionLocks(),
-                store.getPlayerCompletions(uuid),
-                store.getPlayerProgressSnapshot(uuid),
-                store.getCustomTabs(),
-                store.getDisabledVanilla(),
-                store.getEnabledVanilla(),
-                vanillaData.list(),
-                store.getVanillaMetaMap(),
-                vanillaData.parentMap(),
-                store.getTabOrder(),
-                store.getPendingAdvancements(uuid),
-                playerStats
-        );
+        // 将 Gson 序列化卸载到后台线程，避免阻塞主线程
+        CompletableFuture.supplyAsync(() -> SyncPayload.fromServer(
+                advancements, dimLocks, completions, progress, customTabs,
+                disabled, enabled, vanillaList, vanillaMeta, vanillaParentMap,
+                tabOrder, pending, playerStats
+        ), SYNC_EXECUTOR).thenAccept(payload -> {
+            String json = payload.data();
+            if (json == null || json.isEmpty()) return;
 
-        String json = payload.data();
-        if (json == null || json.isEmpty()) return;
-
-        int byteSize = json.getBytes(StandardCharsets.UTF_8).length;
-        if (byteSize > CHUNK_THRESHOLD) {
-            // 分块传输
-            long transferId = ThreadLocalRandom.current().nextLong();
-            SyncChunkPayload[] chunks = SyncChunkPayload.split(transferId, json);
-            LOGGER.info("Sending chunked sync to {}: {} chunks, total {} KB",
-                    player.getName().getString(), chunks.length, byteSize / 1024);
-            for (SyncChunkPayload chunk : chunks) {
-                PacketDistributor.sendToPlayer(player, chunk);
+            int byteSize = json.getBytes(StandardCharsets.UTF_8).length;
+            if (byteSize > CHUNK_THRESHOLD) {
+                long transferId = ThreadLocalRandom.current().nextLong();
+                SyncChunkPayload[] chunks = SyncChunkPayload.split(transferId, json);
+                LOGGER.info("Sending chunked sync to {}: {} chunks, total {} KB",
+                        player.getName().getString(), chunks.length, byteSize / 1024);
+                for (SyncChunkPayload chunk : chunks) {
+                    PacketDistributor.sendToPlayer(player, chunk);
+                }
+            } else {
+                PacketDistributor.sendToPlayer(player, payload);
             }
-        } else {
-            PacketDistributor.sendToPlayer(player, payload);
-        }
+        }).exceptionally(e -> {
+            LOGGER.error("Failed to serialize sync payload for {}", player.getName().getString(), e);
+            return null;
+        });
     }
 
     /**
