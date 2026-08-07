@@ -18,6 +18,7 @@ import com.dreamer.ao.network.payload.StatsSyncPayload;
 import com.dreamer.ao.network.payload.SyncChunkPayload;
 import com.dreamer.ao.network.payload.SyncPayload;
 import com.dreamer.ao.network.payload.TimelineRequestPayload;
+import com.dreamer.ao.network.payload.PhaseSyncPayload;
 import com.dreamer.ao.network.payload.TimelineSyncPayload;
 import com.dreamer.ao.network.handler.TimelineNetworkHandler;
 import com.google.gson.JsonObject;

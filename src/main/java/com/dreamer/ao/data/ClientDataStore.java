@@ -108,6 +108,12 @@ public class ClientDataStore {
     /** PlayerStats 版本计数器（每次 setPlayerStats 递增，供 UI 检测刷新） */
     private volatile int statsVersion = 0;
 
+    // ═══════════════ 阶段数据缓存 ═══════════════
+    private volatile String globalPhaseId = "";
+    private volatile Map<String, String> dimensionPhases = new HashMap<>();
+    private volatile List<com.dreamer.ao.data.model.PhaseDefinition> phaseDefinitions = List.of();
+    private volatile int phaseVersion = 0;
+
     // ═══════════════ 标签页缓存（脏标记 + 延迟重建） ═══════════════
 
     private volatile boolean tabsDirty = true;
@@ -443,4 +449,48 @@ public class ClientDataStore {
         }
         return count;
     }
+
+    // ═══════════════ 阶段数据 ═══════════════
+
+    public void setPhaseData(String json) {
+        try {
+            com.google.gson.JsonObject obj = com.google.gson.JsonParser.parseString(json).getAsJsonObject();
+            this.globalPhaseId = obj.has("global") ? obj.get("global").getAsString() : "";
+
+            Map<String, String> dims = new HashMap<>();
+            if (obj.has("dimensions") && obj.get("dimensions").isJsonObject()) {
+                for (var entry : obj.getAsJsonObject("dimensions").entrySet()) {
+                    dims.put(entry.getKey(), entry.getValue().getAsString());
+                }
+            }
+            this.dimensionPhases = dims;
+
+            List<com.dreamer.ao.data.model.PhaseDefinition> defs = new ArrayList<>();
+            if (obj.has("phases") && obj.get("phases").isJsonArray()) {
+                for (var el : obj.getAsJsonArray("phases")) {
+                    if (el.isJsonObject()) {
+                        defs.add(com.dreamer.ao.data.model.PhaseDefinition.fromJson(el.getAsJsonObject()));
+                    }
+                }
+            }
+            this.phaseDefinitions = defs;
+            this.phaseVersion++;
+        } catch (Exception e) {
+            // silently ignore parse errors
+        }
+    }
+
+    public String getGlobalPhaseId() { return globalPhaseId; }
+    public String getDimensionPhaseId(String dim) { return dimensionPhases.getOrDefault(dim, ""); }
+    public List<com.dreamer.ao.data.model.PhaseDefinition> getPhaseDefinitions() { return phaseDefinitions; }
+    public int getPhaseVersion() { return phaseVersion; }
+
+    public com.dreamer.ao.data.model.PhaseDefinition getPhaseById(String id) {
+        if (id == null || id.isEmpty()) return null;
+        for (com.dreamer.ao.data.model.PhaseDefinition def : phaseDefinitions) {
+            if (def.id().equals(id)) return def;
+        }
+        return null;
+    }
+
 }

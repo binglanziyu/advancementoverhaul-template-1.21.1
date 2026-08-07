@@ -5,6 +5,9 @@ import com.dreamer.ao.client.ClientEvents;
 import com.dreamer.ao.command.CommandHandler;
 import com.dreamer.ao.compat.AdvancementRegistry;
 import com.dreamer.ao.data.ServerDataStore;
+import com.dreamer.ao.data.PhaseConfigLoader;
+import com.dreamer.ao.data.PhaseStore;
+import com.dreamer.ao.event.PhaseEventHandler;
 import com.dreamer.ao.mixin.AdvancementManagerMixin;
 import com.dreamer.ao.narrative.event.MonologueEventHandler;
 import com.dreamer.ao.achievement.event.ServerEventHandler;
@@ -74,6 +77,7 @@ public class AdvancementOverhaul {
         NeoForge.EVENT_BUS.register(StatsEventHandler.class);
         NeoForge.EVENT_BUS.register(MonologueEventHandler.class);
         NeoForge.EVENT_BUS.register(TimelineEventHandler.class);
+        NeoForge.EVENT_BUS.register(PhaseEventHandler.class);
         NeoForge.EVENT_BUS.addListener(CommandHandler::registerCommands);
         NeoForge.EVENT_BUS.addListener(AdvancementOverhaul::onServerStarted);
         NeoForge.EVENT_BUS.addListener(AdvancementOverhaul::onServerStopping);
@@ -81,6 +85,9 @@ public class AdvancementOverhaul {
         // 叙事配置加载器（客户端+服务端 都需要）
         com.dreamer.ao.data.NarrativeConfigLoader.getInstance()
                 .init(FMLPaths.CONFIGDIR.get());
+
+        // 阶段系统初始化
+        PhaseConfigLoader.getInstance().init(FMLPaths.CONFIGDIR.get());
 
         // 客户端专用初始化
         if (FMLEnvironment.dist.isClient()) {
@@ -100,6 +107,7 @@ public class AdvancementOverhaul {
      */
     private void onCommonSetup(FMLCommonSetupEvent event) {
         ServerDataStore.getInstance().init(FMLPaths.CONFIGDIR.get());
+        PhaseStore.getInstance().init(FMLPaths.CONFIGDIR.get());
 
         // 注册成就变更回调：每次新增/更新/删除成就时自动增量更新 runtime Map
         // 使 FTB Quests 能实时读取变更，无需全量 rebuild

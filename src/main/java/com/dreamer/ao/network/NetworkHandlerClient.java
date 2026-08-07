@@ -18,6 +18,8 @@ import com.dreamer.ao.network.payload.StatsSyncPayload;
 import com.dreamer.ao.network.payload.SyncChunkPayload;
 import com.dreamer.ao.network.payload.SyncPayload;
 import com.dreamer.ao.network.payload.TimelineSyncPayload;
+import com.dreamer.ao.network.payload.PhaseSyncPayload;
+import com.dreamer.ao.client.gui.timeline.PhasePanelScreen;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -530,4 +532,16 @@ public final class NetworkHandlerClient {
             return System.currentTimeMillis() - this.createdAt > 30000L;
         }
     }
+
+    static void handlePhaseSync(PhaseSyncPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> {
+            try {
+                ClientDataStore.getInstance().setPhaseData(payload.dataJson());
+                LOGGER.debug("Phase sync received ({} bytes)", payload.dataJson().length());
+            } catch (Exception e) {
+                LOGGER.warn("Failed to process phase sync: {}", e.getMessage());
+            }
+        });
+    }
+
 }
