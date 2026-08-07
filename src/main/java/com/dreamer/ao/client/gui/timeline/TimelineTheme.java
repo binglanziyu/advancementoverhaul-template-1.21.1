@@ -80,6 +80,7 @@ public final class TimelineTheme {
     public static final int GLOW_CORE_A         = 200;
 
     // ── Tab colors ──
+    public static final int COLOR_SELECT         = 0xFF0D3338;
     public static final int TAB_SELECTED        = 0x5C934DD4;
     public static final int TAB_HOVER           = 0x3C9BB098;
     public static final int TAB_INDICATOR       = 0xCC7EC8CC;

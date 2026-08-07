@@ -12,7 +12,6 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -21,29 +20,25 @@ import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import org.joml.Matrix4f;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class TimelineRenderer {
     private static final ResourceLocation TEX_VIGNETTE = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/vignette");
     private static final ResourceLocation TEX_FROST = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/noise_frost");
     private static final ResourceLocation TEX_DROPLET = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/droplet");
     private static final ResourceLocation TEX_STREAK = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/water_streak");
+    private static final Logger LOGGER = LoggerFactory.getLogger(TimelineRenderer.class);
+
     private static final ResourceLocation TEX_GLOW_OUTER = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/milestone_glow_outer.png");
     private static final ResourceLocation TEX_GLOW_INNER = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/milestone_glow_inner.png");
+    private static final ResourceLocation TEX_GLOW_CIRCLE = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/glow_circle");
     private static final ResourceLocation TEX_BTN_HOVER = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/button_hover.png");
     private static final ResourceLocation TEX_BTN_NORMAL = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/button_normal.png");
     private static final ResourceLocation TEX_BTN_PRESSED = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/button_pressed.png");
     private static final int BTN_TEX_W = 160;
     private static final int BTN_TEX_H = 60;
     private static final int BTN_SLICE = 24;
-    private static final float[] rainX = new float[40];
-    private static final float[] rainY = new float[40];
-    private static boolean rainInited = false;
-    private static final int[] dropX = new int[15];
-    private static final int[] dropY = new int[15];
-    private static boolean dropsInited = false;
-    private static final float[] streakXf = new float[6];
-    private static final float[] streakYf = new float[6];
-    private static boolean streaksInited = false;
 
     private TimelineRenderer() {
     }
@@ -76,9 +71,9 @@ final class TimelineRenderer {
         g.drawString(font, zoomText, closeX - zw - 14, 14, -2138920780, false);
     }
 
-    private static final int COLOR_NORMAL = 0xFF5C7A82;
-    private static final int COLOR_HOVER  = 0xFF8AB4C0;
-    private static final int COLOR_SELECT = 0xFF0D3338;
+    private static final int COLOR_NORMAL = TimelineTheme.TAB_TEXT_DIM;
+    private static final int COLOR_HOVER  = TimelineTheme.TEXT_ACCENT;
+    private static final int COLOR_SELECT = TimelineTheme.COLOR_SELECT;
     static void renderTabs(GuiGraphics g, Font font, int width, List<TimelineCategory> categories, int selectedIdx, boolean phaseMode, int mouseX, int mouseY) {
         int pillY = 38;
         int pillH = 22;
@@ -93,7 +88,7 @@ final class TimelineRenderer {
             g.drawString(font, label, x + 12, pillY + (pillH - 8) / 2 + 1, sel ? COLOR_SELECT : (hov ? COLOR_HOVER : COLOR_NORMAL), false);
             x += tw + 6;
         }
-        String phaseLabel = "\u9636\u6bb5";
+        String phaseLabel = Component.translatable("timeline.advancementoverhaul.phase").getString();
         int phaseW = font.width(phaseLabel) + 20;
         int phaseX = width - phaseW - 16;
         boolean phaseHov = GuiUtils.inRect(mouseX, mouseY, phaseX, pillY, phaseW, pillH);
@@ -246,24 +241,29 @@ final class TimelineRenderer {
         }
     }
 
+    /**
+     * 使用预生成纹理绘制圆形光晕，替代逐像素 fill。
+     * 纹理由 {@link TimelineTextures#ensure()} 生成，通过 {@code g.blit()} 一次绘制完成。
+     * 性能：从 ~2976 次 fill/节点 降低到 1 次 blit + 1 次 fill/节点。
+     */
     static void drawCircularGlow(GuiGraphics g, double centerXd, double centerYd, int radius, int rgb, int baseAlpha) {
-        if (baseAlpha <= 0 || radius <= 0) {
-            return;
+        if (baseAlpha <= 0 || radius <= 0) return;
+        TimelineTextures.ensure();
+        int cx = (int) centerXd;
+        int cy = (int) centerYd;
+        int size = radius * 2;
+        // 绘制 glow 纹理
+        RenderSystem.setShaderTexture(0, TimelineTextures.glow());
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        // 使用 GuiGraphics.blit 绘制纹理
+        g.blit(TimelineTextures.glow(), cx - radius, cy - radius, 0, 0, size, size, size, size);
+        // 叠加颜色 tint 层
+        int tintAlpha = (int) Math.min(255, baseAlpha * 0.6f);
+        if (tintAlpha > 0) {
+            g.fill(cx - radius, cy - radius, cx + radius, cy + radius,
+                    tintAlpha << 24 | (rgb & 0xFFFFFF));
         }
-        int cx = (int)centerXd;
-        int cy = (int)centerYd;
-        for (int r = radius; r >= 1; --r) {
-            float t = 1.0f - (float)r / (float)radius;
-            int alpha = (int)((float)baseAlpha * t * t);
-            if (alpha <= 0) continue;
-            int color = alpha << 24 | rgb & 0xFFFFFF;
-            int sqR = r * r;
-            for (int dy = -r; dy <= r; ++dy) {
-                int dx = (int)Math.sqrt(sqR - dy * dy);
-                g.fill(cx - dx, cy + dy, cx + dx + 1, cy + dy + 1, color);
-            }
-        }
-        g.fill(cx, cy, cx + 1, cy + 1, baseAlpha << 24 | rgb & 0xFFFFFF);
     }
 
     private static void renderHoverRing(GuiGraphics g, double x, int y) {
@@ -276,7 +276,7 @@ final class TimelineRenderer {
         int y = height - 28;
         String hint = editMode ? Component.translatable((String)"timeline.advancementoverhaul.edit_hint").getString() : Component.translatable((String)"milestone.advancementoverhaul.timeline_hint").getString();
         g.drawString(font, hint, 16, y + 10 + 1, -1432831800, false);
-        String editLabel = "\u7f16\u8f91";
+        String editLabel = Component.translatable("timeline.advancementoverhaul.edit").getString();
         int editW = font.width(editLabel) + 20;
         int editBtnX = width - editW - 16;
         int editBtnY = y + 3;
@@ -286,65 +286,9 @@ final class TimelineRenderer {
         g.drawString(font, editLabel, editBtnX + 10, editBtnY + (editBtnH - 8) / 2 + 1, editMode ? COLOR_SELECT : (editHov ? COLOR_HOVER : COLOR_NORMAL), false);
     }
 
-    private static void renderDroplets(GuiGraphics g, int width, int height) {
-        if (!dropsInited) {
-            Random rng = new Random(888L);
-            for (int i = 0; i < 15; ++i) {
-                TimelineRenderer.dropX[i] = 20 + rng.nextInt(Math.max(width - 40, 1));
-                TimelineRenderer.dropY[i] = 30 + rng.nextInt(Math.max(height - 60, 1));
-            }
-            dropsInited = true;
-        }
-        for (int i = 0; i < 15; ++i) {
-            g.blit(TEX_DROPLET, dropX[i], dropY[i], 0.0f, 0.0f, 8, 8, 8, 8);
-        }
-    }
+    // NOTE: renderDroplets, renderWaterStreaks, renderRain removed (dead code).
+    // If re-enabled, use TimelineTextures.ensure() and instance-based state.
 
-    private static void renderWaterStreaks(GuiGraphics g, int width, int height) {
-        if (!streaksInited) {
-            Random rng = new Random(456L);
-            for (int i = 0; i < 6; ++i) {
-                TimelineRenderer.streakXf[i] = 30 + rng.nextInt(Math.max(width - 60, 1));
-                TimelineRenderer.streakYf[i] = rng.nextFloat() * (float)height * 0.5f;
-            }
-            streaksInited = true;
-        }
-        for (int i = 0; i < 6; ++i) {
-            int n = i;
-            streakYf[n] = streakYf[n] + 0.2f;
-            if (streakYf[i] > (float)height) {
-                TimelineRenderer.streakYf[i] = -20.0f;
-            }
-            g.blit(TEX_STREAK, (int)streakXf[i], (int)streakYf[i], 0.0f, 0.0f, 4, 128, 4, 128);
-        }
-    }
-
-    private static void renderRain(GuiGraphics g, int width, int height) {
-        if (!rainInited) {
-            Random rng = new Random(42L);
-            for (int i = 0; i < 40; ++i) {
-                TimelineRenderer.rainX[i] = rng.nextInt(Math.max(width, 1));
-                TimelineRenderer.rainY[i] = rng.nextInt(Math.max(height, 1));
-            }
-            rainInited = true;
-        }
-        for (int i = 0; i < 40; ++i) {
-            int n = i;
-            rainY[n] = rainY[n] + 0.9f;
-            int n2 = i;
-            rainX[n2] = rainX[n2] - 0.5f;
-            if (rainY[i] > (float)height) {
-                int n3 = i;
-                rainY[n3] = rainY[n3] - (float)(height + 20);
-            }
-            if (rainX[i] < 0.0f) {
-                int n4 = i;
-                rainX[n4] = rainX[n4] + (float)width;
-            }
-            int rx = (int)rainX[i];
-            int ry = (int)rainY[i];
-            g.fill(rx, ry, rx + 1, ry + 3, 345032920);
-            g.fill(rx - 1, ry + 3, rx, ry + 4, 177260760);
         }
     }
 

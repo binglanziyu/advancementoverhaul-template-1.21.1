@@ -23,9 +23,12 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.network.PacketDistributor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class TimelineScreen
 extends Screen {
+    private static final Logger LOGGER = LoggerFactory.getLogger(TimelineScreen.class);
     int contentTop;
     int contentBottom;
     int contentLeft;
@@ -54,7 +57,7 @@ extends Screen {
     final List<TimeMilestone> pendingCustomMilestones = new ArrayList<TimeMilestone>();
 
     public TimelineScreen() {
-        super(Component.literal("\u65c5\u9014"));
+        super(Component.translatable("timeline.advancementoverhaul.title"));
     }
 
     protected void init() {
@@ -113,7 +116,7 @@ extends Screen {
 
     public void updateTimelineData(String json) {
         try {
-            JsonArray arr = JsonParser.parseString((String)json).getAsJsonArray();
+            JsonArray arr = JsonParser.parseString(json).getAsJsonArray();
             this.allMilestones.clear();
             this.milestoneIndex.clear();
             for (int i = 0; i < arr.size(); ++i) {
@@ -121,11 +124,17 @@ extends Screen {
                 this.allMilestones.add(tm);
                 this.milestoneIndex.put(tm.id(), tm);
             }
+            // Re-merge pending custom milestones not yet synced to server
+            for (TimeMilestone custom : this.pendingCustomMilestones) {
+                if (!this.milestoneIndex.containsKey(custom.id())) {
+                    this.allMilestones.add(custom);
+                    this.milestoneIndex.put(custom.id(), custom);
+                }
+            }
             ++this.dataVersion;
             this.filterByCategory();
-        }
-        catch (Exception exception) {
-            // empty catch block
+        } catch (Exception e) {
+            LOGGER.error("Failed to parse timeline data from server", e);
         }
     }
 
@@ -226,7 +235,7 @@ extends Screen {
         TimelineRenderer.renderBackground(g, this.width, this.height);
         TimelineRenderer.renderTabs(g, font, this.width, this.categories, this.selectedCategoryIdx, this.phaseMode, mouseX, mouseY);
         TimelineRenderer.renderTimeline(g, font, this.contentLeft, this.contentRight, this.contentTop, this.contentBottom, this.axisY, this.scrollX, this.zoom, this.editMode, this.displayMilestones, mouseX, mouseY, this.mouseOnAxis, this.mouseOnAxisX, maxDay, this.openTime);
-        TimelineRenderer.renderHeader(g, font, this.width, this.editMode, mouseX, mouseY, Component.literal("\u65c5\u9014"));
+        TimelineRenderer.renderHeader(g, font, this.width, this.editMode, mouseX, mouseY, Component.translatable("timeline.advancementoverhaul.title"));
         TimelineRenderer.renderBottomHint(g, font, this.width, this.height, this.editMode, mouseX, mouseY);
     }
 
@@ -244,7 +253,7 @@ extends Screen {
         }
         Font font = Minecraft.getInstance().font;
         int editBtnY2 = this.height - 28 + 3;
-        String editLabel = "\u7f16\u8f91";
+        String editLabel = Component.translatable("timeline.advancementoverhaul.edit").getString();
         int editW = font.width(editLabel) + 20;
         int editBtnX = this.width - editW - 16;
         if (GuiUtils.inRect(mx, my, editBtnX, editBtnY2, editW, 22)) {
@@ -269,7 +278,7 @@ extends Screen {
             }
             tabX += tw;
         }
-        String phaseLabel = "\u9636\u6bb5";
+        String phaseLabel = Component.translatable("timeline.advancementoverhaul.phase").getString();
         int phaseW = font.width(phaseLabel) + 20;
         int phaseX = this.width - phaseW - 16;
         if (GuiUtils.inRect(mx, my, phaseX, tabY, phaseW, 30)) {
@@ -364,12 +373,41 @@ extends Screen {
     }
 
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == 256) {
+        if (keyCode == 256) { // ESC
             this.onClose();
             return true;
         }
-        if (keyCode == 258) {
+        if (keyCode == 258) { // TAB
             this.toggleEditMode();
+            return true;
+        }
+        // Arrow key navigation: scroll timeline left/right
+        if (keyCode == 263) { // LEFT arrow
+            this.scrollX = Math.max(0, this.scrollX - 80 * this.zoom);
+            return true;
+        }
+        if (keyCode == 262) { // RIGHT arrow
+            this.scrollX = Math.min(this.maxScrollX, this.scrollX + 80 * this.zoom);
+            return true;
+        }
+        // +/- zoom shortcuts
+        if (keyCode == 334) { // Numpad +
+            this.zoom = Math.min(2.5, this.zoom + 0.1);
+            this.updateMaxScroll();
+            return true;
+        }
+        if (keyCode == 333) { // Numpad -
+            this.zoom = Math.max(0.25, this.zoom - 0.1);
+            this.updateMaxScroll();
+            return true;
+        }
+        // Home/End to jump to start/end
+        if (keyCode == 268) { // Home
+            this.scrollX = 0;
+            return true;
+        }
+        if (keyCode == 269) { // End
+            this.scrollX = this.maxScrollX;
             return true;
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
@@ -383,6 +421,7 @@ extends Screen {
     }
 
     public void onClose() {
+        TimelineTextures.cleanup();
         if (this.minecraft != null) {
             this.minecraft.setScreen(null);
         }
