@@ -1,8 +1,10 @@
 package com.dreamer.ao.command;
 
 import com.dreamer.ao.LangKeys;
+import com.dreamer.ao.data.ConditionType;
+import com.dreamer.ao.data.DataSource;
 import com.dreamer.ao.data.DataStore;
-import com.dreamer.ao.data.DataStore.*;
+import com.dreamer.ao.data.NbtMatchMode;
 import com.dreamer.ao.data.model.AdvancementCondition;
 import com.dreamer.ao.data.model.CustomAdvancement;
 import com.dreamer.ao.data.model.VanillaAdvMeta;

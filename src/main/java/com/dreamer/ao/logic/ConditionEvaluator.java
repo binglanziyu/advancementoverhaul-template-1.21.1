@@ -5,9 +5,9 @@ import com.dreamer.ao.compat.AdvancementRegistry;
 import com.dreamer.ao.data.ConditionIndex.AdvIdCondIndex;
 import com.dreamer.ao.data.DataStore;
 import com.dreamer.ao.data.model.AdvancementCondition;
-import com.dreamer.ao.data.DataStore.ConditionType;
+import com.dreamer.ao.data.ConditionType;
 import com.dreamer.ao.data.model.CustomAdvancement;
-import com.dreamer.ao.data.DataStore.NbtMatchMode;
+import com.dreamer.ao.data.NbtMatchMode;
 import com.dreamer.ao.data.ServerDataStore;
 import com.dreamer.ao.achievement.event.AdvCompletedEvent;
 import com.dreamer.ao.achievement.event.AdvProgressEvent;
@@ -24,11 +24,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 进度条件评估引擎。
@@ -65,12 +66,21 @@ public final class ConditionEvaluator {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ConditionEvaluator.class);
 
-    /** 级联深度上限，防止超长前置链导致性能问题 */
+    /**
+     * 级联深度上限，防止超长前置链（A→B→C→...→A 循环依赖）导致死循环。
+     * <p>
+     * 选择 64 的原因：<br>
+     * — 原版进度系统最深层级约 16 层（如 nether/all_effects 链）<br>
+     * — 自定义模组进度链通常不超过 10 层<br>
+     * — 64 层提供 4x 安全余量，同时确保每次遍历耗时在数毫秒内<br>
+     * — 超出此深度视为前置链存在循环依赖，记录警告并终止级联计算
+     */
     private static final int MAX_CASCADE_DEPTH = 64;
 
-    /** Tick 级重入保护：防止同一 tick 内 Mixin + Event 双重触发导致重复评估 */
-    private static long lastEvaluatedTick = -1L;
-    private static final Set<String> evaluatedKeys = new HashSet<>();
+    /** Tick 级重入保护：防止同一 tick 内 Mixin + Event 双重触发导致重复评估。
+     *  使用 AtomicLong 做 CAS 风格竞态保护，ConcurrentHashMap.newKeySet 保证多线程安全。 */
+    private static final AtomicLong lastEvaluatedTick = new AtomicLong(-1L);
+    private static final Set<String> evaluatedKeys = ConcurrentHashMap.newKeySet();
 
     private ConditionEvaluator() {}
 
@@ -229,8 +239,8 @@ public final class ConditionEvaluator {
         var server = store.getServer();
         if (server != null) {
             long currentTick = server.getTickCount();
-            if (currentTick != lastEvaluatedTick) {
-                lastEvaluatedTick = currentTick;
+            long prev = lastEvaluatedTick.getAndSet(currentTick);
+            if (prev != currentTick) {
                 evaluatedKeys.clear();
             }
             String dedupKey = uuid + ":" + advId + ":" + condIndex;

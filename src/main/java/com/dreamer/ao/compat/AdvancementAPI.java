@@ -1,5 +1,6 @@
 package com.dreamer.ao.compat;
 
+import com.dreamer.ao.data.ConditionType;
 import com.dreamer.ao.data.DataStore;
 import com.dreamer.ao.data.ServerDataStore;
 import com.dreamer.ao.data.model.AdvancementCondition;
@@ -50,8 +51,8 @@ public final class AdvancementAPI {
         public AdvancementBuilder hidden(boolean hidden) { this.hidden = hidden; return this; }
 
         public AdvancementBuilder condition(String type, String target, int count) {
-            DataStore.ConditionType ct;
-            try { ct = DataStore.ConditionType.valueOf(type.toUpperCase()); }
+            ConditionType ct;
+            try { ct = ConditionType.valueOf(type.toUpperCase()); }
             catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Unknown condition type: " + type
                         + ". Valid: kill_entity, craft_item, get_item, break_block, place_block, change_dimension, deal_damage, take_damage, fish_item, ftb_quest_complete, stat_reach");
@@ -62,8 +63,8 @@ public final class AdvancementAPI {
 
         public AdvancementBuilder conditionNbt(String type, String target, int count,
                                                String nbtJson, String matchMode) {
-            DataStore.ConditionType ct;
-            try { ct = DataStore.ConditionType.valueOf(type.toUpperCase()); }
+            ConditionType ct;
+            try { ct = ConditionType.valueOf(type.toUpperCase()); }
             catch (IllegalArgumentException e) {
                 throw new IllegalArgumentException("Unknown condition type: " + type);
             }

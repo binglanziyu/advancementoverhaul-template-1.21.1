@@ -12,6 +12,7 @@ import com.dreamer.ao.client.gui.AdvancementScreen;
 import com.dreamer.ao.client.gui.GuiUtils;
 import com.dreamer.ao.client.gui.widget.ScrollBar;
 import com.dreamer.ao.data.ClientDataStore;
+import com.dreamer.ao.data.ConditionType;
 import com.dreamer.ao.data.DataStore;
 import com.dreamer.ao.data.model.AdvancementCondition;
 import com.dreamer.ao.data.model.CustomAdvancement;
@@ -306,7 +307,7 @@ public class EditPanel {
         // ── 条件 "+" 按钮（vanillaEditMode 下禁用） ──
         if (!vanillaEditMode && GuiUtils.inRect(mx, my, px + pw - 34, ty + 6, 20, 18)) {
             condSelector.setExistingConditions(edConds);
-            condSelector.open(DataStore.ConditionType.KILL_ENTITY);
+            condSelector.open(ConditionType.KILL_ENTITY);
             return true;
         }
 

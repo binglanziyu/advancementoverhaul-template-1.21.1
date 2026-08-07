@@ -5,6 +5,7 @@ import com.dreamer.ao.client.ClientEvents;
 import com.dreamer.ao.command.CommandHandler;
 import com.dreamer.ao.compat.AdvancementRegistry;
 import com.dreamer.ao.data.ServerDataStore;
+import com.dreamer.ao.mixin.AdvancementManagerMixin;
 import com.dreamer.ao.narrative.event.MonologueEventHandler;
 import com.dreamer.ao.achievement.event.ServerEventHandler;
 import com.dreamer.ao.event.StatsEventHandler;
@@ -74,6 +75,7 @@ public class AdvancementOverhaul {
         NeoForge.EVENT_BUS.register(MonologueEventHandler.class);
         NeoForge.EVENT_BUS.register(TimelineEventHandler.class);
         NeoForge.EVENT_BUS.addListener(CommandHandler::registerCommands);
+        NeoForge.EVENT_BUS.addListener(AdvancementOverhaul::onServerStarted);
         NeoForge.EVENT_BUS.addListener(AdvancementOverhaul::onServerStopping);
 
         // 叙事配置加载器（客户端+服务端 都需要）
@@ -114,6 +116,15 @@ public class AdvancementOverhaul {
         });
 
         LOGGER.info("Advancement Overhaul initialized");
+    }
+
+    /**
+     * 服务端启动完成时回调。
+     * 应用延迟的原版进度过滤，确保所有模组的 RETURN 注入器都已完成。
+     */
+    private static void onServerStarted(
+            net.neoforged.neoforge.event.server.ServerStartedEvent event) {
+        AdvancementManagerMixin.filterDisabledVanillaDelayed(event.getServer());
     }
 
     /**

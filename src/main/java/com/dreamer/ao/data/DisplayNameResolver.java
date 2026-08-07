@@ -23,7 +23,7 @@ public final class DisplayNameResolver {
 
     private DisplayNameResolver() {}
 
-    public static String resolve(DataStore.ConditionType type, String targetId) {
+    public static String resolve(ConditionType type, String targetId) {
         if (targetId == null || targetId.isEmpty())
             return Component.translatable(LangKeys.COND_ANY).getString();
         try {

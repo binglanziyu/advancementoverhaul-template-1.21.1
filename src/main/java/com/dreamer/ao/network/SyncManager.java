@@ -61,7 +61,7 @@ public final class SyncManager {
 
     /** 脏标记，使用 AtomicBoolean 保证 check-then-rebuild 的原子性 */
     private static final AtomicBoolean vanillaCacheDirty = new AtomicBoolean(true);
-    private static final ExecutorService SYNC_EXECUTOR = Executors.newFixedThreadPool(2, r -> {
+    private static final ExecutorService SYNC_EXECUTOR = Executors.newCachedThreadPool(r -> {
         Thread t = new Thread(r, "AO-Sync");
         t.setDaemon(true);
         return t;

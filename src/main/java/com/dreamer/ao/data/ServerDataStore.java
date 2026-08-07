@@ -2,7 +2,7 @@ package com.dreamer.ao.data;
 
 import com.dreamer.ao.Config;
 import com.dreamer.ao.LangKeys;
-import com.dreamer.ao.data.DataStore.ConditionType;
+import com.dreamer.ao.data.ConditionType;
 import com.dreamer.ao.data.model.CustomAdvancement;
 import com.dreamer.ao.data.model.VanillaAdvMeta;
 import com.google.gson.JsonElement;
@@ -32,7 +32,7 @@ import java.util.function.Consumer;
  *   <li>{@link DataStoreIO} — 文件 I/O、异步持久化、目录管理</li>
  * </ul>
  */
-public class ServerDataStore implements ImportExportHandler.ImportContext {
+public class ServerDataStore implements ImportContext {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ServerDataStore.class);
 
@@ -70,7 +70,7 @@ public class ServerDataStore implements ImportExportHandler.ImportContext {
             throw new RuntimeException("AdvancementOverhaul data directory initialization failed in " + configDir);
         }
         try {
-            io.initialLoad(advStore, vanillaStore, tabStore);
+            io.initialLoad(advStore, vanillaStore, tabStore, dimensionLocks);
         } catch (Exception e) {
             this.initFailed = true;
             LOGGER.error("DataStore initialization failed: error loading initial data", e);
@@ -375,11 +375,12 @@ public class ServerDataStore implements ImportExportHandler.ImportContext {
     private void saveTabOrder() { io.saveTabOrder(tabStore); }
 
     public void saveAll() {
-        io.saveAll(advStore, playerStore, vanillaStore, tabStore);
+        String dlJson = dimensionLocks.isEmpty() ? null : DataStore.GSON.toJson(dimensionLocks);
+        io.saveAll(advStore, playerStore, vanillaStore, tabStore, dlJson);
     }
 
     public void forceReload() {
-        io.loadAll(advStore, vanillaStore, tabStore, playerStore, server);
+        io.loadAll(advStore, vanillaStore, tabStore, playerStore, dimensionLocks, server);
     }
 
     // ══════════════════════════════════════════════════════════

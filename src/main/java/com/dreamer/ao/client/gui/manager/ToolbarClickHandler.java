@@ -3,6 +3,7 @@ package com.dreamer.ao.client.gui.manager;
 import com.dreamer.ao.client.gui.AdvancementScreen;
 import com.dreamer.ao.client.gui.GuiUtils;
 import com.dreamer.ao.client.gui.NarrativeStatsScreen;
+import com.dreamer.ao.client.gui.state.OverlayType;
 import net.minecraft.client.Minecraft;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,7 +29,7 @@ class ToolbarClickHandler {
 
         // [2] Stats — 打开叙事统计界面
         if (GuiUtils.inRect(mx, my, cx, cy, s, s)) {
-            screen.overlay.current = com.dreamer.ao.client.gui.state.OverlayState.Ov.NONE;
+            screen.overlay.current = OverlayType.NONE;
             screen.showDim = false;
             screen.journalScrollOff = 0;
             Minecraft.getInstance().setScreen(new NarrativeStatsScreen());
@@ -38,9 +39,9 @@ class ToolbarClickHandler {
 
         // [3] Journal
         if (GuiUtils.inRect(mx, my, cx, cy, s, s)) {
-            screen.overlay.current = screen.overlay.current == com.dreamer.ao.client.gui.state.OverlayState.Ov.JOURNAL
-                    ? com.dreamer.ao.client.gui.state.OverlayState.Ov.NONE
-                    : com.dreamer.ao.client.gui.state.OverlayState.Ov.JOURNAL;
+            screen.overlay.current = screen.overlay.current == OverlayType.JOURNAL
+                    ? OverlayType.NONE
+                    : OverlayType.JOURNAL;
             screen.showDim = false;
             screen.journalScrollOff = 0;
             return true;
@@ -70,7 +71,7 @@ class ToolbarClickHandler {
         // [7] Dimension panel
         if (GuiUtils.inRect(mx, my, cx, by, s, s)) {
             screen.showDim = !screen.showDim;
-            if (screen.showDim) { screen.dimPanel.show(); screen.overlay.current = com.dreamer.ao.client.gui.state.OverlayState.Ov.NONE; }
+            if (screen.showDim) { screen.dimPanel.show(); screen.overlay.current = OverlayType.NONE; }
             return true;
         }
         by -= s + gap;

@@ -2,6 +2,7 @@ package com.dreamer.ao.data;
 
 import com.dreamer.ao.data.model.VanillaAdvMeta;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
 import org.slf4j.Logger;
@@ -33,6 +34,7 @@ final class DataStoreIO {
     private static final String VANILLA_RAW_FILE  = "vanilla_raw_cache.json";
     private static final String VANILLA_META_FILE = "vanilla_meta.json";
     private static final String TAB_ORDER_FILE    = "tab_order.json";
+    private static final String DIM_LOCK_FILE     = "dimension_locks.json";
     private static final String DATA_DIR  = "advancement_overhaul";
 
     // ── 基础设施 ──
@@ -145,13 +147,22 @@ final class DataStoreIO {
         asyncWrite(dataFolder.resolve(TAB_ORDER_FILE), store.getOrderJson());
     }
 
+    void saveDimensionLocks(String json) {
+        if (dataFolder == null) return;
+        asyncWrite(dataFolder.resolve(DIM_LOCK_FILE), json);
+    }
+
     void saveAll(AdvancementStore advStore, PlayerDataStore playerStore,
-                 VanillaStateStore vanillaStore, TabStore tabStore) {
+                 VanillaStateStore vanillaStore, TabStore tabStore,
+                 String dimensionLocksJson) {
         saveAdvancements(advStore);
         savePlayerDataIfDirty(playerStore);
         saveVanillaStates(vanillaStore);
         saveVanillaMeta(vanillaStore);
         saveTabOrder(tabStore);
+        if (dimensionLocksJson != null) {
+            saveDimensionLocks(dimensionLocksJson);
+        }
     }
 
     // ── 玩家数据 ──
@@ -166,26 +177,51 @@ final class DataStoreIO {
         if (dir != null) store.saveAll(dir);
     }
 
+    // ── 维度锁加载 ──
+
+    void loadDimensionLocks(Map<String, DimensionLock> into) {
+        Path file = dataFolder.resolve(DIM_LOCK_FILE);
+        if (!Files.exists(file)) return;
+        try {
+            String content = Files.readString(file);
+            JsonObject obj = com.google.gson.JsonParser.parseString(content).getAsJsonObject();
+            if (obj == null || obj.size() == 0) return;
+            var type = new com.google.gson.reflect.TypeToken<Map<String, DimensionLock>>() {}.getType();
+            Map<String, DimensionLock> loaded = DataStore.GSON.fromJson(obj, type);
+            if (loaded != null) {
+                into.clear();
+                into.putAll(loaded);
+                LOGGER.info("Loaded {} dimension locks", into.size());
+            }
+        } catch (Exception e) {
+            LOGGER.warn("Failed to load dimension locks: {}", e.getMessage());
+        }
+    }
+
     // ── 加载 ──
 
     void loadAll(AdvancementStore advStore, VanillaStateStore vanillaStore,
                  TabStore tabStore, PlayerDataStore playerStore,
+                 Map<String, DimensionLock> dimensionLocks,
                  MinecraftServer server) {
         advStore.loadFromFile(dataFolder.resolve(ADV_FILE), DataStore.GSON);
         vanillaStore.loadStates(dataFolder.resolve(VANILLA_FILE));
         vanillaStore.loadMeta(dataFolder.resolve(VANILLA_META_FILE));
         tabStore.loadOrder(dataFolder.resolve(TAB_ORDER_FILE));
+        loadDimensionLocks(dimensionLocks);
         if (playerDataFolder != null) playerStore.loadFromDir(playerDataFolder);
         if (server != null && vanillaStore.getRawCache() == null) vanillaStore.cacheFromServer(server);
     }
 
     // ── 初始化加载 ──
 
-    void initialLoad(AdvancementStore advStore, VanillaStateStore vanillaStore, TabStore tabStore) {
+    void initialLoad(AdvancementStore advStore, VanillaStateStore vanillaStore,
+                     TabStore tabStore, Map<String, DimensionLock> dimensionLocks) {
         advStore.loadFromFile(dataFolder.resolve(ADV_FILE), DataStore.GSON);
         vanillaStore.loadStates(dataFolder.resolve(VANILLA_FILE));
         vanillaStore.loadMeta(dataFolder.resolve(VANILLA_META_FILE));
         tabStore.loadOrder(dataFolder.resolve(TAB_ORDER_FILE));
+        loadDimensionLocks(dimensionLocks);
     }
 
     // ── Getters ──

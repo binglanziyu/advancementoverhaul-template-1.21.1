@@ -1,5 +1,6 @@
 package com.dreamer.ao.achievement.bridge;
 
+import com.dreamer.ao.data.ConditionType;
 import com.dreamer.ao.data.DataStore;
 import com.dreamer.ao.data.ServerDataStore;
 import com.dreamer.ao.logic.ConditionEvaluator;
@@ -36,7 +37,7 @@ public class AchievementBridgeImpl implements AchievementBridge {
         if (currentValue > 0L) {
             ConditionEvaluator.checkStatReach(player, milestoneId, currentValue);
         } else {
-            ConditionEvaluator.checkInstant(player, DataStore.ConditionType.STAT_REACH, milestoneId);
+            ConditionEvaluator.checkInstant(player, ConditionType.STAT_REACH, milestoneId);
         }
     }
 

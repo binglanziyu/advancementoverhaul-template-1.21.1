@@ -16,7 +16,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
  * Mixin 注入 {@link Inventory#add(ItemStack)} 以检测物品拾取事件。
  * <p>
  * 替代旧的指纹轮询方案，使用纯事件驱动方式在物品添加到背包时触发
- * {@link com.dreamer.ao.data.DataStore.ConditionType#GET_ITEM} 条件检查。
+ * {@link com.dreamer.ao.data.ConditionType#GET_ITEM} 条件检查。
  *
  * <h2>实现原理</h2>
  * <ol>

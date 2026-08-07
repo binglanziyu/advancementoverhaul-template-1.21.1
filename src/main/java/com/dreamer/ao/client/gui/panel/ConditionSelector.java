@@ -3,7 +3,7 @@ package com.dreamer.ao.client.gui.panel;
 /**
  * 条件类型选择器面板：在编辑成就时选择条件类型、目标、数量和 NBT 匹配模式。
  * <p>
- * 根据所选的 {@link com.dreamer.ao.data.DataStore.ConditionType}
+ * 根据所选的 {@link com.dreamer.ao.data.ConditionType}
  * 动态显示对应的注册表选择器（实体/物品/方块/维度）。
  * 包含条件添加、删除、排序和条件预览功能。
  */
@@ -14,6 +14,8 @@ import com.dreamer.ao.client.gui.TranslatedStrings;
 import com.dreamer.ao.client.gui.cache.RegistryCache;
 import com.dreamer.ao.client.gui.widget.ScrollBar;
 import com.dreamer.ao.data.ClientDataStore;
+import com.dreamer.ao.data.ConditionType;
+import com.dreamer.ao.data.DataSource;
 import com.dreamer.ao.data.DataStore;
 import com.dreamer.ao.data.model.AdvancementCondition;
 import com.mojang.logging.LogUtils;
@@ -59,7 +61,7 @@ public class ConditionSelector {
     private static final int TYPE_ENTRY_H = 20;
 
     private boolean active = false;
-    private DataStore.ConditionType selectedType = DataStore.ConditionType.KILL_ENTITY;
+    private ConditionType selectedType = ConditionType.KILL_ENTITY;
     private String search = "";
     private final ScrollBar mainScrollBar = new ScrollBar(4, 0xFF222238, 0xFF6666BB);
     private final ScrollBar sidebarScrollBar = new ScrollBar(4, 0xFF222238, ACCENT);
@@ -89,11 +91,11 @@ public class ConditionSelector {
      * 当前条件类型的 DataSource 是否为 ITEM 或 BLOCK（支持来源选项卡）
      */
     private boolean hasSourceTabs() {
-        return selectedType.getDataSource() == DataStore.DataSource.ITEM
-                || selectedType.getDataSource() == DataStore.DataSource.BLOCK;
+        return selectedType.getDataSource() == DataSource.ITEM
+                || selectedType.getDataSource() == DataSource.BLOCK;
     }
 
-    public void open(DataStore.ConditionType initialType) {
+    public void open(ConditionType initialType) {
         active = true; selectedType = initialType; search = ""; searchCursor = 0;
         mainScrollBar.setScroll(0); sidebarScrollBar.setScroll(0);
         targetEditMode = false; showSelectedDD = false;
@@ -109,10 +111,10 @@ public class ConditionSelector {
     private void loadEntries() {
         entries.clear();
         backpackStacks.clear();
-        DataStore.DataSource ds = selectedType.getDataSource();
+        DataSource ds = selectedType.getDataSource();
 
         // ITEM / BLOCK 类型支持来源切换
-        if ((ds == DataStore.DataSource.ITEM || ds == DataStore.DataSource.BLOCK)
+        if ((ds == DataSource.ITEM || ds == DataSource.BLOCK)
                 && itemSource == ItemSource.BACKPACK) {
             loadBackpackEntries(ds);
             return;
@@ -175,7 +177,7 @@ public class ConditionSelector {
      * BLOCK 类型只取方块物品，ITEM 类型取全部。
      * 同 ID + 同组件 的物品去重为一条，count 归一化为 1。
      */
-    private void loadBackpackEntries(DataStore.DataSource ds) {
+    private void loadBackpackEntries(DataSource ds) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) { filterEntries(); return; }
 
@@ -188,7 +190,7 @@ public class ConditionSelector {
             if (stack.isEmpty()) continue;
 
             // BLOCK 类型只取方块物品
-            if (ds == DataStore.DataSource.BLOCK && !(stack.getItem() instanceof BlockItem)) continue;
+            if (ds == DataSource.BLOCK && !(stack.getItem() instanceof BlockItem)) continue;
 
             ResourceLocation rl = BuiltInRegistries.ITEM.getKey(stack.getItem());
             String itemId = rl.toString();
@@ -254,12 +256,12 @@ public class ConditionSelector {
         g.drawString(font, "\u2715", px + pw - 16, py + 8, ch ? TEXT_BR : TEXT_DIM, false);
 
         // ── 左侧：条件类型 ──
-        int totalTypeH = DataStore.ConditionType.values().length * TYPE_ENTRY_H;
+        int totalTypeH = ConditionType.values().length * TYPE_ENTRY_H;
         sidebarScrollBar.update(totalTypeH, sidebarH);
 
         int typeY = contentY - sidebarScrollBar.getScroll();
         g.enableScissor(px + 1, contentY, px + SIDEBAR_W - 1, contentY + sidebarH);
-        for (DataStore.ConditionType type : DataStore.ConditionType.values()) {
+        for (ConditionType type : ConditionType.values()) {
             if (typeY + TYPE_ENTRY_H > contentY && typeY < contentY + sidebarH) {
                 boolean sel = type == selectedType;
                 boolean hov = GuiUtils.inRect(mx, my, px + 2, typeY, SIDEBAR_W - 4, TYPE_ENTRY_H);
@@ -315,8 +317,8 @@ public class ConditionSelector {
         int listH = py + ph - listY - 4;
         mainScrollBar.update(filtered.size() * ENTRY_H, listH);
 
-        boolean canShowIcon = selectedType.getDataSource() == DataStore.DataSource.ITEM
-                || selectedType.getDataSource() == DataStore.DataSource.BLOCK;
+        boolean canShowIcon = selectedType.getDataSource() == DataSource.ITEM
+                || selectedType.getDataSource() == DataSource.BLOCK;
 
         if (filtered.isEmpty()) {
             // 背包模式下无结果显示专门提示
@@ -441,7 +443,7 @@ public class ConditionSelector {
         // 左侧条件类型
         if (GuiUtils.inRect(mx, my, px, contentY, SIDEBAR_W, sidebarH)) {
             int typeY = contentY - sidebarScrollBar.getScroll();
-            for (DataStore.ConditionType type : DataStore.ConditionType.values()) {
+            for (ConditionType type : ConditionType.values()) {
                 if (GuiUtils.inRect(mx, my, px + 2, typeY, SIDEBAR_W - 4, TYPE_ENTRY_H)) {
                     selectedType = type; search = ""; mainScrollBar.setScroll(0);
                     itemSource = ItemSource.REGISTRY; // 切换类型时重置来源

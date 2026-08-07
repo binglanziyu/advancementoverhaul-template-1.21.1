@@ -16,7 +16,7 @@ import com.dreamer.ao.client.gui.render.OverlayRenderer;
 import com.dreamer.ao.client.gui.render.TabRenderer;
 import com.dreamer.ao.client.gui.state.*;
 import com.dreamer.ao.client.gui.state.OverlayState.CtxAct;
-import com.dreamer.ao.client.gui.state.OverlayState.Ov;
+import com.dreamer.ao.client.gui.state.OverlayType;
 import com.dreamer.ao.data.ClientDataStore;
 import com.dreamer.ao.data.DataStore;
 import com.dreamer.ao.data.model.CustomAdvancement;
@@ -125,16 +125,16 @@ public class AdvancementScreen extends Screen {
 
     public AdvancementScreen() { super(Component.translatable(LangKeys.TITLE)); }
     public net.minecraft.client.gui.Font getFont() { return this.font; }
-    public boolean hasOv() { return overlay.current != Ov.NONE || showDim || showSel || showHelp || tabDrag.overDDOpen; }
+    public boolean hasOv() { return overlay.current != OverlayType.NONE || showDim || showSel || showHelp || tabDrag.overDDOpen; }
     /** 冒险日志滚动偏移 */
     public int journalScrollOff = 0;
     public boolean blocksCanvas() {
         return showDim || showSel || showHelp
-                || overlay.current == Ov.DETAIL || overlay.current == Ov.CREATE
-                || overlay.current == Ov.EDIT || overlay.current == Ov.CONFIRM
-                || overlay.current == Ov.TAB_INPUT || overlay.current == Ov.TAB_MANAGE
-                || overlay.current == Ov.JOURNAL
-                || overlay.current == Ov.CTX;
+                || overlay.current == OverlayType.DETAIL || overlay.current == OverlayType.CREATE
+                || overlay.current == OverlayType.EDIT || overlay.current == OverlayType.CONFIRM
+                || overlay.current == OverlayType.TAB_INPUT || overlay.current == OverlayType.TAB_MANAGE
+                || overlay.current == OverlayType.JOURNAL
+                || overlay.current == OverlayType.CTX;
     }
     public int mid(int w) { return (width - w) / 2; }
     public int midY(int h) { return Math.max(20, (height - h) / 2); }
@@ -183,7 +183,7 @@ public class AdvancementScreen extends Screen {
     @Override
     protected void init() {
         if (editPanel != null && editPanel.isVisible()) editPanel.close();
-        if (overlay.current != Ov.NONE) overlay.close();
+        if (overlay.current != OverlayType.NONE) overlay.close();
         showDim = false; showSel = false; showHelp = false;
         screenState.reset();
         tabDrag.reset();
@@ -304,10 +304,10 @@ public class AdvancementScreen extends Screen {
             // 全屏完全不透明遮罩（选择器弹窗需要完全遮挡底层卡片）
             g.fill(0, 0, width, height, 0xFF1A1A2E);
         } else if (hasOv()) {
-            if (overlay.current == Ov.CTX) {
+            if (overlay.current == OverlayType.CTX) {
                 // CTX 浮动小菜单无需遮罩，让用户仍能看到底层画布
                 return;
-            } else if (overlay.current == Ov.CREATE || overlay.current == Ov.EDIT) {
+            } else if (overlay.current == OverlayType.CREATE || overlay.current == OverlayType.EDIT) {
                 // 编辑/创建面板使用半透明遮罩，保持对底层画布的可见性
                 g.fill(0, TAB_H, width, height - BOTTOM_H, 0xA01A1A2E);
             } else {
@@ -330,7 +330,7 @@ public class AdvancementScreen extends Screen {
      * tab-name input, card tooltips, and toast notifications.
      */
     private void renderOverlayLayer(GuiGraphics g, int mx, int my, float pt) {
-        boolean ebVis = (overlay.current == Ov.CREATE || overlay.current == Ov.EDIT)
+        boolean ebVis = (overlay.current == OverlayType.CREATE || overlay.current == OverlayType.EDIT)
                 && !showSel && !editPanel.isCondSelActive();
         editPanel.updateVisibility(ebVis);
 
@@ -338,7 +338,7 @@ public class AdvancementScreen extends Screen {
         g.pose().translate(0, 0, 300);
 
         overlayRenderer.renderOv(g, mx, my);
-        if (overlay.current == Ov.JOURNAL) overlayRenderer.renderJournal(g, mx, my, font, width, height);
+        if (overlay.current == OverlayType.JOURNAL) overlayRenderer.renderJournal(g, mx, my, font, width, height);
         if (showDim) dimPanel.render(g, mx, my);
         if (showSel) listSel.render(g, mx, my);
         if (showHelp) overlayRenderer.renderHelp(g, mx, my, font, width, height);
@@ -352,7 +352,7 @@ public class AdvancementScreen extends Screen {
         }
 
         // Tab name input popup
-        if (overlay.current == Ov.TAB_INPUT) {
+        if (overlay.current == OverlayType.TAB_INPUT) {
             int px = mid(OverlayLayout.TAB_INPUT_W);
             int py = midY(OverlayLayout.TAB_INPUT_H);
             tabNameBox.setX(px + OverlayLayout.TAB_INPUT_INNER_PAD);
@@ -423,7 +423,7 @@ public class AdvancementScreen extends Screen {
         editPanel.openCreate(font);
         editPanel.setCreatePos(canvas.toWorldX(mx), canvas.toWorldY(my));
         if (curTab != null && !DataStore.TAB_VANILLA.equals(curTab) && !"hidden".equals(curTab)) editPanel.setEdTab(curTab);
-        overlay.current = Ov.CREATE;
+        overlay.current = OverlayType.CREATE;
         setFocused(editPanel.getNameBox());
     }
 
@@ -431,7 +431,7 @@ public class AdvancementScreen extends Screen {
         var a = adv(id);
         if (a == null) return;
         editPanel.openEdit(font, a);
-        overlay.current = Ov.EDIT;
+        overlay.current = OverlayType.EDIT;
     }
 
     // ═══════════════ Delegation methods ═══════════════

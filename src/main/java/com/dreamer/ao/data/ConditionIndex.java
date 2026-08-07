@@ -1,6 +1,6 @@
 package com.dreamer.ao.data;
 
-import com.dreamer.ao.data.DataStore.ConditionType;
+import com.dreamer.ao.data.ConditionType;
 
 import java.util.Collections;
 import java.util.HashMap;

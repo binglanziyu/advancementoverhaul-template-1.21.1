@@ -95,7 +95,15 @@ public class NetworkHandler {
     private static final int CMD_MAX_UTF8_BYTES = 16384;
     private static final int IMPORT_MAX_CHARS = 1_048_576;
 
-    /** JSON 嵌套深度上限，防止深度嵌套导致栈溢出 / DoS */
+    /**
+     * JSON 嵌套深度上限，防止深度嵌套导致栈溢出 / DoS。
+     * <p>
+     * 正常 JSON 嵌套深度通常在 5-15 层，32 层为防御性上限：<br>
+     * — Guava JsonParser 使用递归解析，无显式深度保护<br>
+     * — 攻击者可能构造 10,000+ 层嵌套的 JSON（Billion Laughs 变体）<br>
+     * — 32 层足以容纳任何合法配置文件且远低于 JVM 默认栈限制<br>
+     * — 如确实需要更深嵌套，建议重构数据结构而非调高此值
+     */
     private static final int JSON_MAX_DEPTH = 32;
 
     // ═══════════════ 注册 ═══════════════
@@ -400,6 +408,11 @@ public class NetworkHandler {
 
             try {
                 String raw = content.trim();
+                if (!checkJsonDepth(raw, JSON_MAX_DEPTH)) {
+                    LOGGER.warn("Import JSON nesting too deep (max {})", JSON_MAX_DEPTH);
+                    player.sendSystemMessage(Component.translatable(LangKeys.CMD_IMPORT_FAILED, "JSON nesting too deep"));
+                    return;
+                }
                 JsonObject data = JsonParser.parseString(raw).getAsJsonObject();
                 // 导入前备份当前数据，失败时回滚
                 JsonObject backup = ServerDataStore.getInstance().exportAll();

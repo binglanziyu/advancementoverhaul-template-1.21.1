@@ -2,7 +2,9 @@ package com.dreamer.ao.client.gui.panel;
 
 import com.dreamer.ao.LangKeys;
 import com.dreamer.ao.client.gui.GuiUtils;
+import com.dreamer.ao.data.ConditionType;
 import com.dreamer.ao.data.DataStore;
+import com.dreamer.ao.data.NbtMatchMode;
 import com.dreamer.ao.data.model.AdvancementCondition;
 import net.minecraft.network.chat.Component;
 
@@ -27,8 +29,8 @@ class EditPanelSerializer {
         cm.put("type", c.getType().name().toLowerCase());
         if (c.getTargetId() != null && !c.getTargetId().isEmpty()) cm.put("targetId", c.getTargetId());
         cm.put("count", c.getCount());
-        DataStore.NbtMatchMode nbtMode = c.getNbtMatchMode();
-        if (nbtMode != null && nbtMode != DataStore.NbtMatchMode.IGNORE) cm.put("nbtMatchMode", nbtMode.getSaveName());
+        NbtMatchMode nbtMode = c.getNbtMatchMode();
+        if (nbtMode != null && nbtMode != NbtMatchMode.IGNORE) cm.put("nbtMatchMode", nbtMode.getSaveName());
         if (c.getTargetNbt() != null && !c.getTargetNbt().isEmpty()) cm.put("targetNbt", c.getTargetNbt());
         return cm;
     }
@@ -83,7 +85,7 @@ class EditPanelSerializer {
         // 验证：至少有一个条件（或前置条件）
         if (panel.edConds.isEmpty() && panel.edPrereqs.isEmpty()) {
             panel.edConds.add(new AdvancementCondition(
-                DataStore.ConditionType.KILL_ENTITY, "", 1));
+                ConditionType.KILL_ENTITY, "", 1));
         }
 
         String advId;

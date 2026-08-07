@@ -1,7 +1,7 @@
 package com.dreamer.ao.data.model;
 
-import com.dreamer.ao.data.DataStore.ConditionType;
-import com.dreamer.ao.data.DataStore.NbtMatchMode;
+import com.dreamer.ao.data.ConditionType;
+import com.dreamer.ao.data.NbtMatchMode;
 
 /**
  * 单个进度条件：类型、目标、数量、NBT/Component 匹配配置。

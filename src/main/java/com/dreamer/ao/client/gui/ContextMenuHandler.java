@@ -3,7 +3,7 @@ package com.dreamer.ao.client.gui;
 import com.dreamer.ao.LangKeys;
 import com.dreamer.ao.client.gui.panel.ListSelector;
 import com.dreamer.ao.client.gui.state.OverlayState.CtxAct;
-import com.dreamer.ao.client.gui.state.OverlayState.Ov;
+import com.dreamer.ao.client.gui.state.OverlayType;
 import com.dreamer.ao.data.ClientDataStore;
 import com.dreamer.ao.data.model.VanillaAdvMeta;
 import net.minecraft.client.Minecraft;
@@ -42,7 +42,7 @@ final class ContextMenuHandler {
             String key = a.isHidden() ? LangKeys.SHOW : LangKeys.HIDE;
             ov.ctxActions.add(new CtxAct(Component.translatable(key).getString(), () -> GuiUtils.sendCommand("adv togglehidden " + id)));
         }
-        ov.current = Ov.CTX;
+        ov.current = OverlayType.CTX;
     }
 
     // ═══════════════ 原版成就右键菜单 ═══════════════
@@ -67,7 +67,7 @@ final class ContextMenuHandler {
                     () -> screen.tabManager.openVanillaTabSel(id)));
         }
 
-        ov.current = Ov.CTX;
+        ov.current = OverlayType.CTX;
     }
 
     private void openVanillaEdit(String id) {
@@ -75,7 +75,7 @@ final class ContextMenuHandler {
         String name = va != null ? va.getLocalizedName() : id;
         String desc = va != null ? va.getLocalizedDesc() : "";
         screen.editPanel.openVanillaEdit(Minecraft.getInstance().font, id, name, desc);
-        screen.overlay.current = Ov.EDIT;
+        screen.overlay.current = OverlayType.EDIT;
     }
 
     // ═══════════════ 批量右键菜单 ═══════════════
@@ -109,7 +109,7 @@ final class ContextMenuHandler {
                         }
                     }
                 }));
-        ov.current = Ov.CTX;
+        ov.current = OverlayType.CTX;
     }
 
     // ═══════════════ 删除确认 ═══════════════
@@ -119,7 +119,7 @@ final class ContextMenuHandler {
         screen.overlay.confirmText = Component.translatable(LangKeys.CONFIRM_DELETE_PREFIX,
                 a != null ? a.getName() : id).getString();
         screen.overlay.confirmAction = () -> GuiUtils.sendCommand("adv delete " + id);
-        screen.overlay.current = Ov.CONFIRM;
+        screen.overlay.current = OverlayType.CONFIRM;
     }
 
     void requestBatchDelete() {
@@ -129,7 +129,7 @@ final class ContextMenuHandler {
             GuiUtils.sendCommand("adv batchdelete " + String.join(",", screen.selection.multiSel));
             screen.selection.clear();
         };
-        screen.overlay.current = Ov.CONFIRM;
+        screen.overlay.current = OverlayType.CONFIRM;
     }
 
     // ═══════════════ 画布空白右键 / 创建 ═══════════════
@@ -141,7 +141,7 @@ final class ContextMenuHandler {
                 () -> screen.openCreateAt(mx, my)));
         ov.ctxActions.add(new CtxAct(Component.translatable(LangKeys.CREATE_IMAGE).getString(),
                 () -> openImageCreator(mx, my)));
-        ov.current = Ov.CTX;
+        ov.current = OverlayType.CTX;
     }
 
     // ═══════════════ 图片元素 ═══════════════
@@ -151,7 +151,7 @@ final class ContextMenuHandler {
         if (files.isEmpty()) {
             screen.overlay.confirmText = Component.translatable(LangKeys.IMAGE_NO_FILES).getString();
             screen.overlay.confirmAction = null;
-            screen.overlay.current = Ov.CONFIRM;
+            screen.overlay.current = OverlayType.CONFIRM;
             return;
         }
         List<ListSelector.Entry> entries = new ArrayList<>();
@@ -176,7 +176,7 @@ final class ContextMenuHandler {
             screen.overlay.confirmText = Component.translatable(LangKeys.IMAGE_LOAD_FAIL,
                     error != null ? error : Component.translatable(LangKeys.UNKNOWN_ERROR).getString()).getString();
             screen.overlay.confirmAction = null;
-            screen.overlay.current = Ov.CONFIRM;
+            screen.overlay.current = OverlayType.CONFIRM;
         }
     }
 
@@ -210,7 +210,7 @@ final class ContextMenuHandler {
 
         ov.ctxActions.add(new CtxAct(Component.translatable(LangKeys.IMAGE_DELETE).getString(),
                 () -> requestImageDelete(imageId)));
-        ov.current = Ov.CTX;
+        ov.current = OverlayType.CTX;
     }
 
     void requestImageDelete(String imageId) {
@@ -223,7 +223,7 @@ final class ContextMenuHandler {
             if (imageId.equals(screen.selectedImageId)) screen.selectedImageId = null;
             ImageManager.save(screen.imageElements);
         };
-        screen.overlay.current = Ov.CONFIRM;
+        screen.overlay.current = OverlayType.CONFIRM;
     }
 
     // ═══════════════ 查看模式右键 / 详情 ═══════════════
@@ -233,14 +233,14 @@ final class ContextMenuHandler {
         ov.ctxX = (int) mx; ov.ctxY = (int) my; ov.ctxActions.clear();
         ov.ctxActions.add(new CtxAct(Component.translatable(LangKeys.DETAIL_TITLE).getString(),
                 () -> openDetail(id)));
-        ov.current = Ov.CTX;
+        ov.current = OverlayType.CTX;
     }
 
     private void openDetail(String id) {
         screen.selection.select(id);
         screen.overlay.detailId = id;
         screen.overlay.detailOpenTime = System.currentTimeMillis();
-        screen.overlay.current = Ov.DETAIL;
+        screen.overlay.current = OverlayType.DETAIL;
     }
 
     // ═══════════════ 图片元素查找 ═══════════════
@@ -268,7 +268,7 @@ final class ContextMenuHandler {
     // ═══════════════ 标签管理 ═══════════════
 
     void openTabManage() {
-        screen.overlay.current = Ov.TAB_MANAGE;
+        screen.overlay.current = OverlayType.TAB_MANAGE;
     }
 
     /**

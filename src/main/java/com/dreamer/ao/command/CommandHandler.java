@@ -113,6 +113,20 @@ public class CommandHandler {
 
     // ═══════════════ 注册入口 ═══════════════
 
+    /**
+     * 安全获取命令权限等级，配置未初始化时回退为 2（默认 OP 等级）。
+     * <p>
+     * 防御性封装：在极早期注册阶段 Config 可能未加载完成，避免
+     * {@code ConfigValue.get()} 抛出 {@code IllegalStateException} 导致崩溃。
+     */
+    private static int getPermissionLevel() {
+        try {
+            return Config.EDIT_PERMISSION_LEVEL.get();
+        } catch (IllegalStateException e) {
+            return 2; // 默认 OP 权限等级
+        }
+    }
+
     /** NeoForge 事件回调入口 */
     public static void registerCommands(RegisterCommandsEvent event) {
         register(event.getDispatcher());
@@ -133,7 +147,7 @@ public class CommandHandler {
      */
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("adv")
-                .requires(source -> source.hasPermission(Config.EDIT_PERMISSION_LEVEL.get()))
+                .requires(source -> source.hasPermission(getPermissionLevel()))
                 // ── 玩家操作 ──
                 .then(Commands.literal("complete")
                         .then(Commands.argument("id", StringArgumentType.greedyString())

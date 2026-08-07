@@ -5,7 +5,7 @@ import com.dreamer.ao.client.gui.GuiUtils;
 import com.dreamer.ao.client.gui.ImageElement;
 import com.dreamer.ao.client.gui.ImageManager;
 import com.dreamer.ao.client.gui.state.OverlayLayout;
-import com.dreamer.ao.client.gui.state.OverlayState.Ov;
+import com.dreamer.ao.client.gui.state.OverlayType;
 import com.dreamer.ao.data.ClientDataStore;
 import com.dreamer.ao.data.model.VanillaAdvMeta;
 import net.minecraft.client.Minecraft;
@@ -83,7 +83,7 @@ public class InputManager {
         }
 
         // Priority 3: Modal overlays
-        if (screen.overlay.current != Ov.NONE) {
+        if (screen.overlay.current != OverlayType.NONE) {
             return OverlayClickHandler.handleOverlayClick(screen, mx, my, btn);
         }
 
@@ -378,7 +378,7 @@ public class InputManager {
             }
         }
 
-        if (screen.overlay.current == Ov.DETAIL) {
+        if (screen.overlay.current == OverlayType.DETAIL) {
             // Bug 2 修复：使用 OverlayRenderer 中计算的真实 maxScroll
             int ms = com.dreamer.ao.client.gui.render.OverlayRenderer.detailMaxScroll;
             screen.overlay.detailScrollOff = (int) Math.clamp(
@@ -386,7 +386,7 @@ public class InputManager {
             return true;
         }
 
-        if (screen.overlay.current == Ov.JOURNAL) {
+        if (screen.overlay.current == OverlayType.JOURNAL) {
             ClientDataStore cs = ClientDataStore.getInstance();
             int count = 0;
             for (var entry : cs.getAdvancements().entrySet())
@@ -400,7 +400,7 @@ public class InputManager {
             return true;
         }
 
-        if ((screen.overlay.current == Ov.CREATE || screen.overlay.current == Ov.EDIT)
+        if ((screen.overlay.current == OverlayType.CREATE || screen.overlay.current == OverlayType.EDIT)
                 && screen.editPanel.handleScroll(mx, my, sy, screen.getScreenWidth(), screen.getScreenHeight()))
             return true;
 
@@ -447,7 +447,7 @@ public class InputManager {
             return true;
         }
 
-        if (screen.overlay.current == Ov.TAB_INPUT) {
+        if (screen.overlay.current == OverlayType.TAB_INPUT) {
             if (kc == GLFW.GLFW_KEY_ENTER) {
                 String tn = screen.tabNameBox.getValue().trim();
                 if (!tn.isEmpty()) GuiUtils.sendCommand("adv tab add " + tn);
@@ -458,7 +458,7 @@ public class InputManager {
             return false;
         }
 
-        if (screen.overlay.current != Ov.NONE) {
+        if (screen.overlay.current != OverlayType.NONE) {
             if (kc == GLFW.GLFW_KEY_ESCAPE) { screen.overlay.close(); screen.editPanel.close(); return true; }
         }
 

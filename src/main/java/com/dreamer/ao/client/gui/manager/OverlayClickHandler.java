@@ -5,7 +5,7 @@ import com.dreamer.ao.client.gui.AdvancementScreen;
 import com.dreamer.ao.client.gui.GuiUtils;
 import com.dreamer.ao.client.gui.TranslatedStrings;
 import com.dreamer.ao.client.gui.state.OverlayLayout;
-import com.dreamer.ao.client.gui.state.OverlayState.Ov;
+import com.dreamer.ao.client.gui.state.OverlayType;
 import com.dreamer.ao.data.ClientDataStore;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -106,7 +106,7 @@ class OverlayClickHandler {
             int idx = (int) ((my - cy - OverlayLayout.CTX_PAD) / OverlayLayout.CTX_ITEM_H);
             if (idx >= 0 && idx < screen.overlay.ctxActions.size()) {
                 screen.overlay.ctxActions.get(idx).action().run();
-                if (screen.overlay.current == Ov.CTX) {
+                if (screen.overlay.current == OverlayType.CTX) {
                     screen.overlay.close();
                 }
                 return;
@@ -173,7 +173,7 @@ class OverlayClickHandler {
                         screen.cascadeDeleteTab(screen.overlay.manageTabTarget);
                         screen.overlay.manageTabTarget = null;
                     };
-                    screen.overlay.current = Ov.CONFIRM;
+                    screen.overlay.current = OverlayType.CONFIRM;
                 } else {
                     GuiUtils.sendCommand("adv tab delete " + tab);
                 }

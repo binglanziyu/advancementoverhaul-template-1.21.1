@@ -5,7 +5,7 @@ import com.dreamer.ao.ModInfo;
 import com.dreamer.ao.compat.AdvancementRegistry;
 import com.dreamer.ao.compat.ftb.FtbQuestsBridge;
 import com.dreamer.ao.data.*;
-import com.dreamer.ao.data.DataStore.ConditionType;
+import com.dreamer.ao.data.ConditionType;
 import com.dreamer.ao.data.model.CustomAdvancement;
 import com.dreamer.ao.logic.ConditionEvaluator;
 import com.dreamer.ao.network.SyncManager;

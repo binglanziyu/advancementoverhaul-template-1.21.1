@@ -10,7 +10,7 @@ import com.dreamer.ao.LangKeys;
 import com.dreamer.ao.client.gui.AdvancementScreen;
 import com.dreamer.ao.client.gui.GuiUtils;
 import com.dreamer.ao.client.gui.TranslatedStrings;
-import com.dreamer.ao.client.gui.state.OverlayState.Ov;
+import com.dreamer.ao.client.gui.state.OverlayType;
 import com.dreamer.ao.data.ClientDataStore;
 import com.dreamer.ao.data.DataStore;
 import net.minecraft.client.Minecraft;
@@ -241,7 +241,7 @@ public class TabRenderer {
         cx -= s + gap;
         // 冒险日志按钮
         GuiUtils.drawIconBtn(g, font, cx, cy, s, "\uD83D\uDCD6",
-                GuiUtils.inRect(mx, my, cx, cy, s, s), screen.overlay.current == Ov.JOURNAL);
+                GuiUtils.inRect(mx, my, cx, cy, s, s), screen.overlay.current == OverlayType.JOURNAL);
         cx -= s + gap;
         // 标签管理按钮
         GuiUtils.drawIconBtn(g, font, cx, cy, s, "\u2630",

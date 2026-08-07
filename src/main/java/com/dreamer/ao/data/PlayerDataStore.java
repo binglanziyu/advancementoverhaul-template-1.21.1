@@ -353,6 +353,7 @@ final class PlayerDataStore {
                 newCompletions.size(), newProgress.size(), newPending.size());
 
         // 应用数据迁移（如果玩家文件中版本低于 DATA_VERSION）
+        boolean migrationOccurred = false;
         for (var entry : newCompletions.keySet()) {
             UUID uuid = entry;
             try {
@@ -363,12 +364,19 @@ final class PlayerDataStore {
                         int fileVersion = obj.get("version").getAsInt();
                         if (fileVersion < DATA_VERSION) {
                             applyMigrations(uuid, fileVersion);
+                            migrationOccurred = true;
                         }
                     }
                 }
             } catch (Exception e) {
                 LOGGER.warn("Failed to apply migrations for UUID {}: {}", uuid, e.getMessage());
             }
+        }
+
+        // 迁移完成后立即持久化，防止崩溃导致迁移状态丢失
+        if (migrationOccurred) {
+            saveAll(baseDir);
+            LOGGER.info("Migrated player data and immediately persisted to disk");
         }
     }
 

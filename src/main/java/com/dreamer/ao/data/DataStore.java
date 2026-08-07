@@ -11,14 +11,18 @@ import java.lang.reflect.Type;
 import java.util.*;
 
 /**
- * 标签页常量 · 条件枚举 · JSON 序列化配置。
+ * 标签页常量 · JSON 序列化配置。
+ *
+ * <p>枚举类型已拆分为独立的顶层文件：
+ * <ul>
+ *   <li>{@link ConditionType} - 11 种条件类型</li>
+ *   <li>{@link NbtMatchMode} - 4 种 NBT 匹配模式</li>
+ *   <li>{@link DataSource} - 条件数据源类别</li>
+ * </ul>
  *
  * <h2>数据模型分布</h2>
  * <table>
  *   <tr><th>位置</th><th>类型</th><th>说明</th></tr>
- *   <tr><td>{@link ConditionType 本类}</td><td>枚举</td><td>11 种条件类型</td></tr>
- *   <tr><td>{@link NbtMatchMode 本类}</td><td>枚举</td><td>4 种 NBT 匹配模式</td></tr>
- *   <tr><td>{@link DataSource 本类}</td><td>枚举</td><td>条件数据源类别</td></tr>
  *   <tr><td>{@link com.dreamer.ao.data.model.CustomAdvancement model/}</td><td>类</td><td>自定义进度</td></tr>
  *   <tr><td>{@link com.dreamer.ao.data.model.AdvancementCondition model/}</td><td>类</td><td>进度条件</td></tr>
  *   <tr><td>{@link com.dreamer.ao.data.model.VanillaAdvMeta model/}</td><td>类</td><td>原版进度元数据</td></tr>
@@ -94,62 +98,9 @@ public class DataStore {
         };
     }
 
-    // ═══════════════ 枚举定义 ═══════════════
-
-    /**
-     * 条件类型对应的数据源类别。
-     * 在 GUI 中用于决定显示哪个注册表选择器（实体/物品/方块/维度/无）。
-     */
-    public enum DataSource {
-        ENTITY_TYPE, ITEM, BLOCK, DIMENSION, NONE
-    }
-
-    /**
-     * 十一种进度条件类型。
-     */
-    public enum ConditionType {
-        KILL_ENTITY(DataSource.ENTITY_TYPE),
-        CRAFT_ITEM(DataSource.ITEM),
-        GET_ITEM(DataSource.ITEM),
-        BREAK_BLOCK(DataSource.BLOCK),
-        PLACE_BLOCK(DataSource.BLOCK),
-        CHANGE_DIMENSION(DataSource.DIMENSION),
-        DEAL_DAMAGE(DataSource.NONE),
-        TAKE_DAMAGE(DataSource.NONE),
-        FISH_ITEM(DataSource.ITEM),
-        FTB_QUEST_COMPLETE(DataSource.NONE),
-        STAT_REACH(DataSource.NONE);
-
-        private final DataSource dataSource;
-        ConditionType(DataSource dataSource) { this.dataSource = dataSource; }
-        public DataSource getDataSource() { return dataSource; }
-    }
-
-    /**
-     * NBT/Component 匹配模式。
-     */
-    public enum NbtMatchMode {
-        IGNORE("ignore"),
-        CONTAINS("contains"),
-        EXACT("exact"),
-        NONE_EMPTY("none_empty");
-
-        private final String saveName;
-        NbtMatchMode(String saveName) { this.saveName = saveName; }
-        public String getSaveName() { return saveName; }
-
-        public static NbtMatchMode fromSaveName(String name) {
-            if (name == null) return IGNORE;
-            for (NbtMatchMode m : values()) {
-                if (m.saveName.equalsIgnoreCase(name)) return m;
-            }
-            return IGNORE;
-        }
-    }
-
     // ═══════════════ JSON 序列化配置 ═══════════════
 
-    private static final ConditionTypeAdapter COND_TYPE_ADAPTER = new ConditionTypeAdapter();
+    private static final ConditionType.ConditionTypeAdapter COND_TYPE_ADAPTER = new ConditionType.ConditionTypeAdapter();
 
     /** 紧凑 Gson 实例，用于网络传输 */
     public static final Gson GSON = new GsonBuilder()
@@ -170,28 +121,5 @@ public class DataStore {
         Type t = new TypeToken<Map<String, CustomAdvancement>>() {}.getType();
         Map<String, CustomAdvancement> r = GSON.fromJson(json, t);
         return r != null ? r : new HashMap<>();
-    }
-
-    // ═══════════════ 内部类：类型适配器 ═══════════════
-
-    private static class ConditionTypeAdapter
-            implements JsonSerializer<ConditionType>, JsonDeserializer<ConditionType> {
-
-        @Override
-        public JsonElement serialize(ConditionType src, Type t, JsonSerializationContext ctx) {
-            return new JsonPrimitive(src.name().toLowerCase());
-        }
-
-        @Override
-        public ConditionType deserialize(JsonElement json, Type t,
-                                         JsonDeserializationContext ctx) throws JsonParseException {
-            String name = json.getAsString();
-            try {
-                return ConditionType.valueOf(name.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                LOGGER.warn("Unknown condition type '{}' in data file, defaulting to KILL_ENTITY", name);
-                return ConditionType.KILL_ENTITY;
-            }
-        }
     }
 }

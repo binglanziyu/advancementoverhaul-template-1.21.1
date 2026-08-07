@@ -37,8 +37,10 @@ final class VanillaStateStore {
 
     // ═══════════════ 启用/禁用状态 ═══════════════
 
-    private final Set<String> disabled = Collections.synchronizedSet(new HashSet<>());
-    private final Set<String> enabled = Collections.synchronizedSet(new HashSet<>());
+    private final Set<String> disabled = new HashSet<>();
+    private final Set<String> enabled = new HashSet<>();
+    /** 跨集合复合操作锁：保证 enabled/disabled 之间的一致性 */
+    private final Object stateLock = new Object();
 
     // ═══════════════ 原版元数据 ═══════════════
 
@@ -51,34 +53,46 @@ final class VanillaStateStore {
 
     // ═══════════════ 启用/禁用 ═══════════════
 
-    Set<String> getDisabled() { return disabled; }
-    Set<String> getEnabled() { return enabled; }
+    Set<String> getDisabled() {
+        synchronized (stateLock) { return new HashSet<>(disabled); }
+    }
+    Set<String> getEnabled() {
+        synchronized (stateLock) { return new HashSet<>(enabled); }
+    }
 
     /**
      * 判断某个原版/模组进度是否启用。
      * 优先级：enabled 列表 > disabled 列表 > 配置默认值。
      */
     boolean isEnabled(String id) {
-        if (enabled.contains(id)) return true;
-        if (disabled.contains(id)) return false;
+        synchronized (stateLock) {
+            if (enabled.contains(id)) return true;
+            if (disabled.contains(id)) return false;
+        }
         try { return Config.VANILLA_DEFAULT_ENABLED.get(); }
         catch (IllegalStateException e) { return false; }
     }
 
     void setEnabled(String id, boolean value) {
-        if (value) { disabled.remove(id); enabled.add(id); }
-        else       { enabled.remove(id); disabled.add(id); }
+        synchronized (stateLock) {
+            if (value) { disabled.remove(id); enabled.add(id); }
+            else       { enabled.remove(id); disabled.add(id); }
+        }
     }
 
     void setDisabledBatch(Set<String> ids) {
-        disabled.addAll(ids);
-        enabled.removeAll(ids);
+        synchronized (stateLock) {
+            disabled.addAll(ids);
+            enabled.removeAll(ids);
+        }
     }
 
     void enableAll(Set<String> allIds) {
-        disabled.clear();
-        enabled.clear();
-        enabled.addAll(allIds);
+        synchronized (stateLock) {
+            disabled.clear();
+            enabled.clear();
+            enabled.addAll(allIds);
+        }
     }
 
     // ═══════════════ 原版元数据 ═══════════════
@@ -146,10 +160,12 @@ final class VanillaStateStore {
 
     /** 保存启用/禁用状态为 JSON */
     JsonObject statesToJson() {
-        JsonObject root = new JsonObject();
-        root.add("disabled", DataStore.GSON.toJsonTree(new ArrayList<>(disabled)));
-        root.add("enabled", DataStore.GSON.toJsonTree(new ArrayList<>(enabled)));
-        return root;
+        synchronized (stateLock) {
+            JsonObject root = new JsonObject();
+            root.add("disabled", DataStore.GSON.toJsonTree(new ArrayList<>(disabled)));
+            root.add("enabled", DataStore.GSON.toJsonTree(new ArrayList<>(enabled)));
+            return root;
+        }
     }
 
     /** 从 JSON 加载启用/禁用状态 */
@@ -157,13 +173,16 @@ final class VanillaStateStore {
         if (file == null || !Files.exists(file)) return;
         try {
             JsonObject root = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
-            disabled.clear(); enabled.clear();
-            if (root.has("disabled") && root.get("disabled").isJsonArray())
-                for (JsonElement e : root.getAsJsonArray("disabled"))
-                    if (e.isJsonPrimitive()) disabled.add(e.getAsString());
-            if (root.has("enabled") && root.get("enabled").isJsonArray())
-                for (JsonElement e : root.getAsJsonArray("enabled"))
-                    if (e.isJsonPrimitive()) enabled.add(e.getAsString());
+            synchronized (stateLock) {
+                disabled.clear();
+                enabled.clear();
+                if (root.has("disabled") && root.get("disabled").isJsonArray())
+                    for (JsonElement e : root.getAsJsonArray("disabled"))
+                        if (e.isJsonPrimitive()) disabled.add(e.getAsString());
+                if (root.has("enabled") && root.get("enabled").isJsonArray())
+                    for (JsonElement e : root.getAsJsonArray("enabled"))
+                        if (e.isJsonPrimitive()) enabled.add(e.getAsString());
+            }
         } catch (Exception e) { LOGGER.warn("Failed to load vanilla states: {}", e.getMessage()); }
     }
 

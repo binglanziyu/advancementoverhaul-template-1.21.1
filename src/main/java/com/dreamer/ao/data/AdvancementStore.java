@@ -1,6 +1,6 @@
 package com.dreamer.ao.data;
 
-import com.dreamer.ao.data.DataStore.ConditionType;
+import com.dreamer.ao.data.ConditionType;
 import com.dreamer.ao.data.model.AdvancementCondition;
 import com.dreamer.ao.data.model.CustomAdvancement;
 import com.google.gson.Gson;

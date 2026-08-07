@@ -113,12 +113,4 @@ public class EchoEntry {
         }
     }
 
-    public enum EchoConditionType {
-        BIOME,
-        Y_BELOW,
-        Y_ABOVE,
-        FIRST_TIME,
-        DIMENSION,
-        STRUCTURE
-    }
 }

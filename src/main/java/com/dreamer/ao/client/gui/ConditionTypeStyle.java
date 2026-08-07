@@ -1,7 +1,7 @@
 package com.dreamer.ao.client.gui;
 
 import com.dreamer.ao.LangKeys;
-import com.dreamer.ao.data.DataStore.ConditionType;
+import com.dreamer.ao.data.ConditionType;
 import net.minecraft.network.chat.Component;
 
 import java.util.EnumMap;

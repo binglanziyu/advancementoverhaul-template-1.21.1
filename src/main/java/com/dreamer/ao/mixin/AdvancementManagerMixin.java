@@ -9,6 +9,7 @@ import com.dreamer.ao.network.SyncManager;
 import com.google.gson.JsonElement;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.ServerAdvancementManager;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.util.profiling.ProfilerFiller;
@@ -64,7 +65,10 @@ public class AdvancementManagerMixin {
 
     /**
      * RETURN 注入：进度加载完成后将不可变 Map 包装为可变的 HashMap。
-     * 然后根据 vanillaStates 过滤禁用的原版进度。
+     * <p>
+     * 初始启动时不在此处过滤禁用进度——延迟到 {@code ServerStartedEvent}，
+     * 确保所有模组的 RETURN 注入器都能看到完整进度 Map。<br>
+     * 仅重载（/reload）时立即过滤，防止禁用进度被同步给已连接玩家。
      */
     @Inject(method = "apply", at = @At("RETURN"))
     private void advancementoverhaul$makeMutable(CallbackInfo ci) {
@@ -75,11 +79,15 @@ public class AdvancementManagerMixin {
         this.advancements = new HashMap<>(this.advancements);
         AdvancementMapHolder.setRuntimeMap(this.advancements);
 
-        // 基于已加载的 vanillaStates 做初步过滤
-        // 不依赖 server 实例，仅使用持久化数据
-        filterDisabledVanillaFromMap(this.advancements);
-
         net.minecraft.server.MinecraftServer server = ServerDataStore.getInstance().getServer();
+        boolean isReload = server != null;
+
+        if (isReload) {
+            // 重载时立即过滤，防止禁用进度短暂暴露给已连接玩家
+            filterDisabledVanillaFromMap(this.advancements);
+        }
+        // 初始启动时延迟到 ServerStartedEvent 过滤（server 为 null）
+
         if (server != null) {
             AdvancementRegistry.syncAllRuntime(server);
         }
@@ -89,8 +97,10 @@ public class AdvancementManagerMixin {
     /**
      * 基于已加载的 vanillaStates 过滤禁用的原版进度。
      * 不依赖 server 实例，在 server 启动前的 reload 阶段也可工作。
+     * <p>
+     * 改为 public static，允许外部（如 ServerStartedEvent 监听器）在延迟过滤时调用。
      */
-    private void filterDisabledVanillaFromMap(Map<ResourceLocation, AdvancementHolder> map) {
+    public static void filterDisabledVanillaFromMap(Map<ResourceLocation, AdvancementHolder> map) {
         ServerDataStore store = ServerDataStore.getInstance();
         boolean defaultEnabled;
         try {
@@ -112,6 +122,25 @@ public class AdvancementManagerMixin {
                 return store.getDisabledVanilla().contains(id.toString());
             });
         }
+    }
+
+    /**
+     * 初始启动时延迟过滤禁用的原版进度。
+     * 由 {@code ServerStartedEvent} 监听器调用，确保所有模组的 RETURN 注入器
+     * 都有机会完整读取进度 Map 后再进行过滤。
+     *
+     * @param server 当前 MinecraftServer 实例
+     */
+    public static void filterDisabledVanillaDelayed(MinecraftServer server) {
+        var map = AdvancementMapHolder.getRuntimeMap();
+        if (map == null) {
+            LOGGER.warn("[Mixin] Runtime map is null at ServerStartedEvent, cannot apply deferred filter");
+            return;
+        }
+        filterDisabledVanillaFromMap(map);
+        AdvancementRegistry.syncAllRuntime(server);
+        SyncManager.syncAll(server);
+        LOGGER.info("[Mixin] Deferred vanilla advancement filter applied, {} entries remaining", map.size());
     }
 
     /**

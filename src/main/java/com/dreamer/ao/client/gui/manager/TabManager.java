@@ -2,7 +2,7 @@ package com.dreamer.ao.client.gui.manager;
 
 import com.dreamer.ao.LangKeys;
 import com.dreamer.ao.client.gui.AdvancementScreen;
-import com.dreamer.ao.client.gui.state.OverlayState.Ov;
+import com.dreamer.ao.client.gui.state.OverlayType;
 import com.dreamer.ao.client.gui.state.ScreenState;
 import com.dreamer.ao.client.gui.GuiUtils;
 import com.dreamer.ao.client.gui.TranslatedStrings;
@@ -92,7 +92,7 @@ public class TabManager {
 
     void openTabAddSelector() {
         screen.tabNameBox.setValue("");
-        screen.overlay.current = Ov.TAB_INPUT;
+        screen.overlay.current = OverlayType.TAB_INPUT;
         screen.tabNameBox.setFocused(true);
         screen.setFocused(screen.tabNameBox);
     }
@@ -182,7 +182,7 @@ public class TabManager {
     // ═══════════════ TAB 输入框 ═══════════════
 
     public void closeTabInput() {
-        screen.overlay.current = Ov.NONE;
+        screen.overlay.current = OverlayType.NONE;
         screen.tabNameBox.setVisible(false);
         screen.tabNameBox.setFocused(false);
         screen.setFocused(null);
