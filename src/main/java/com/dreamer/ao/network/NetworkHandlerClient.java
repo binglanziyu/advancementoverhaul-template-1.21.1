@@ -13,6 +13,7 @@ import com.dreamer.ao.data.PlayerStats;
 import com.dreamer.ao.data.model.CustomAdvancement;
 import com.dreamer.ao.data.model.VanillaAdvMeta;
 import com.dreamer.ao.network.payload.FtbQuestCompletedPayload;
+import com.dreamer.ao.util.JsonParse;
 import com.dreamer.ao.network.payload.ProgressSyncPayload;
 import com.dreamer.ao.network.payload.StatsSyncPayload;
 import com.dreamer.ao.network.payload.SyncChunkPayload;
@@ -243,93 +244,33 @@ public final class NetworkHandlerClient {
     }
 
     private static boolean parseAdvancements(Gson gson, ClientDataStore store, JsonObject root) {
-        if (!root.has("advancements")) {
-            return true;
-        }
-        try {
-            Type t = new TypeToken<Map<String, CustomAdvancement>>(){}.getType();
-            Map<String, CustomAdvancement> advs = gson.fromJson(root.get("advancements"), t);
-            if (advs != null) {
-                store.setAdvancements(advs);
-            }
-            return true;
-        }
-        catch (Exception e) {
-            LOGGER.warn("Failed to parse 'advancements': {}", e.getMessage());
-            return false;
-        }
+        return JsonParse.parseField(gson, root, "advancements",
+                new TypeToken<Map<String, CustomAdvancement>>() {}.getType(),
+                store::setAdvancements);
     }
 
     private static boolean parseDimensionLocks(Gson gson, ClientDataStore store, JsonObject root) {
-        if (!root.has("dimensionLocks")) {
-            return true;
-        }
-        try {
-            Type t = new TypeToken<Map<String, DimensionLock>>(){}.getType();
-            Map<String, DimensionLock> locks = gson.fromJson(root.get("dimensionLocks"), t);
-            if (locks != null) {
-                store.setDimensionLocks(locks);
-            }
-            return true;
-        }
-        catch (Exception e) {
-            LOGGER.warn("Failed to parse 'dimensionLocks': {}", e.getMessage());
-            return false;
-        }
+        return JsonParse.parseField(gson, root, "dimensionLocks",
+                new TypeToken<Map<String, DimensionLock>>() {}.getType(),
+                store::setDimensionLocks);
     }
 
     private static boolean parseCompletions(Gson gson, ClientDataStore store, JsonObject root) {
-        if (!root.has("completions")) {
-            return true;
-        }
-        try {
-            Type t = new TypeToken<Map<String, Boolean>>(){}.getType();
-            Map<String, Boolean> comps = gson.fromJson(root.get("completions"), t);
-            if (comps != null) {
-                store.setCompletedAdvancements(comps);
-            }
-            return true;
-        }
-        catch (Exception e) {
-            LOGGER.warn("Failed to parse 'completions': {}", e.getMessage());
-            return false;
-        }
+        return JsonParse.parseField(gson, root, "completions",
+                new TypeToken<Map<String, Boolean>>() {}.getType(),
+                store::setCompletedAdvancements);
     }
 
     private static boolean parseProgress(Gson gson, ClientDataStore store, JsonObject root) {
-        if (!root.has("progress")) {
-            return true;
-        }
-        try {
-            Type t = new TypeToken<Map<String, Integer>>(){}.getType();
-            Map<String, Integer> progs = gson.fromJson(root.get("progress"), t);
-            if (progs != null) {
-                store.setAdvancementProgress(progs);
-            }
-            return true;
-        }
-        catch (Exception e) {
-            LOGGER.warn("Failed to parse 'progress': {}", e.getMessage());
-            return false;
-        }
+        return JsonParse.parseField(gson, root, "progress",
+                new TypeToken<Map<String, Integer>>() {}.getType(),
+                store::setAdvancementProgress);
     }
 
     private static boolean parseCustomTabs(Gson gson, ClientDataStore store, JsonObject root) {
-        if (!root.has("customTabs")) {
-            return true;
-        }
-        try {
-            Type t = new TypeToken<List<String>>(){}.getType();
-            List<String> tabs = gson.fromJson(root.get("customTabs"), t);
-            if (tabs != null) {
-                store.setCustomTabs(tabs);
-            }
-            return true;
-        }
-        catch (Exception e) {
-            LOGGER.warn("Failed to parse 'customTabs': {}", e.getMessage());
-            return false;
-        }
+        return JsonParse.parseField(gson, root, "customTabs",
+                new TypeToken<List<String>>() {}.getType(),
+                store::setCustomTabs);
     }
 
     private static boolean parseVanillaStates(Gson gson, ClientDataStore store, JsonObject root) {
@@ -394,57 +335,21 @@ public final class NetworkHandlerClient {
     }
 
     private static boolean parseVanillaMeta(Gson gson, ClientDataStore store, JsonObject root) {
-        if (!root.has("vanillaMeta")) {
-            return true;
-        }
-        try {
-            Type t = new TypeToken<Map<String, VanillaAdvMeta>>(){}.getType();
-            Map<String, VanillaAdvMeta> meta = gson.fromJson(root.get("vanillaMeta"), t);
-            if (meta != null) {
-                store.setVanillaMeta(meta);
-            }
-            return true;
-        }
-        catch (Exception e) {
-            LOGGER.warn("Failed to parse 'vanillaMeta': {}", e.getMessage());
-            return false;
-        }
+        return JsonParse.parseField(gson, root, "vanillaMeta",
+                new TypeToken<Map<String, VanillaAdvMeta>>() {}.getType(),
+                store::setVanillaMeta);
     }
 
     private static boolean parseVanillaParentMap(Gson gson, ClientDataStore store, JsonObject root) {
-        if (!root.has("vanillaParentMap")) {
-            return true;
-        }
-        try {
-            Type t = new TypeToken<Map<String, String>>(){}.getType();
-            Map<String, String> pm = gson.fromJson(root.get("vanillaParentMap"), t);
-            if (pm != null) {
-                store.setVanillaParentMap(pm);
-            }
-            return true;
-        }
-        catch (Exception e) {
-            LOGGER.warn("Failed to parse 'vanillaParentMap': {}", e.getMessage());
-            return false;
-        }
+        return JsonParse.parseField(gson, root, "vanillaParentMap",
+                new TypeToken<Map<String, String>>() {}.getType(),
+                store::setVanillaParentMap);
     }
 
     private static boolean parseTabOrder(Gson gson, ClientDataStore store, JsonObject root) {
-        if (!root.has("tabOrder")) {
-            return true;
-        }
-        try {
-            Type t = new TypeToken<List<String>>(){}.getType();
-            List<String> to = gson.fromJson(root.get("tabOrder"), t);
-            if (to != null) {
-                store.setTabOrder(to);
-            }
-            return true;
-        }
-        catch (Exception e) {
-            LOGGER.warn("Failed to parse 'tabOrder': {}", e.getMessage());
-            return false;
-        }
+        return JsonParse.parseField(gson, root, "tabOrder",
+                new TypeToken<List<String>>() {}.getType(),
+                store::setTabOrder);
     }
 
     private static boolean parsePending(ClientDataStore store, JsonObject root) {
@@ -467,33 +372,12 @@ public final class NetworkHandlerClient {
     }
 
     private static boolean parsePlayerStats(Gson gson, ClientDataStore store, JsonObject root) {
-        if (!root.has("playerStats")) {
-            return true;
-        }
-        try {
-            PlayerStats stats = gson.fromJson(root.get("playerStats"), PlayerStats.class);
-            if (stats != null) {
-                store.setPlayerStats(stats);
-            }
-            return true;
-        }
-        catch (Exception e) {
-            LOGGER.warn("Failed to parse 'playerStats': {}", e.getMessage());
-            return false;
-        }
+        return JsonParse.parseField(gson, root, "playerStats",
+                PlayerStats.class, store::setPlayerStats);
     }
 
     private static Set<String> parseStringSet(Gson gson, JsonElement elem) {
-        if (elem == null || elem.isJsonNull()) {
-            return Set.of();
-        }
-        try {
-            Set<String> result = gson.fromJson(elem, new TypeToken<Set<String>>(){}.getType());
-            return result != null ? result : Set.of();
-        }
-        catch (Exception e) {
-            return Set.of();
-        }
+        return JsonParse.parseStringSet(gson, elem);
     }
 
     private static class ChunkAssembly {

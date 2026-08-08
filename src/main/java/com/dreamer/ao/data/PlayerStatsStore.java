@@ -1,5 +1,6 @@
 package com.dreamer.ao.data;
 
+import com.dreamer.ao.util.AtomicFileWriter;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -147,9 +148,7 @@ public class PlayerStatsStore {
             JsonObject obj = this.statsToJson(stats);
             try {
                 Path target = this.dataDir.resolve(uuid.toString() + ".json");
-                Path tmp = this.dataDir.resolve(uuid.toString() + ".json.tmp");
-                Files.writeString(tmp, DataStore.GSON_PRETTY.toJson(obj));
-                Files.move(tmp, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                AtomicFileWriter.writeString(target, DataStore.GSON_PRETTY.toJson(obj), 1);
             } catch (Exception e) {
                 LOGGER.warn("Failed to write stats for UUID {}: {}", uuid, e.getMessage());
             }

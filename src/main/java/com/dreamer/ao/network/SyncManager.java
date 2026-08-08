@@ -18,7 +18,6 @@ import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.network.PacketDistributor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -149,10 +148,10 @@ public final class SyncManager {
                 LOGGER.info("Sending chunked sync to {}: {} chunks, total {} KB",
                         player.getName().getString(), chunks.length, byteSize / 1024);
                 for (SyncChunkPayload chunk : chunks) {
-                    PacketDistributor.sendToPlayer(player, chunk);
+                    NetworkSender.toPlayer(player, chunk);
                 }
             } else {
-                PacketDistributor.sendToPlayer(player, payload);
+                NetworkSender.toPlayer(player, payload);
             }
         }, player.server).exceptionally(e -> {
             LOGGER.error("Failed to serialize sync payload for {}", player.getName().getString(), e);

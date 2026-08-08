@@ -7,12 +7,12 @@ import com.dreamer.ao.network.payload.StatsRequestPayload;
 import com.dreamer.ao.network.payload.StatsSyncPayload;
 import com.dreamer.ao.network.payload.TimelineRequestPayload;
 import com.dreamer.ao.network.payload.TimelineSyncPayload;
+import com.dreamer.ao.network.NetworkSender;
 import com.dreamer.ao.milestone.store.TimelineStore;
 import com.google.gson.JsonArray;
 import java.util.UUID;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
-import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,7 +31,7 @@ public final class TimelineNetworkHandler {
         context.enqueueWork(() -> {
             UUID uuid = serverPlayer.getUUID();
             JsonArray data = TimelineStore.getInstance().toSyncJson(uuid);
-            PacketDistributor.sendToPlayer(serverPlayer, new TimelineSyncPayload(data.toString()));
+            NetworkSender.toPlayer(serverPlayer, new TimelineSyncPayload(data.toString()));
             LOGGER.debug("Timeline sync sent to {} ({} milestones)", serverPlayer.getName().getString(), data.size());
         });
     }
@@ -46,7 +46,7 @@ public final class TimelineNetworkHandler {
             PlayerStats stats = PlayerStatsStore.getInstance().getOrCreate(uuid);
             String json = DataStore.GSON.toJson(stats);
             LOGGER.debug("Stats request from {} \u2014 replying with {} bytes", serverPlayer.getName().getString(), json.length());
-            PacketDistributor.sendToPlayer(serverPlayer, new StatsSyncPayload(json));
+            NetworkSender.toPlayer(serverPlayer, new StatsSyncPayload(json));
         });
     }
 
@@ -54,6 +54,6 @@ public final class TimelineNetworkHandler {
         PlayerStats stats = PlayerStatsStore.getInstance().getOrCreate(player.getUUID());
         String json = DataStore.GSON.toJson(stats);
         LOGGER.debug("Pushing stats sync to {} ({} chars)", player.getName().getString(), json.length());
-        PacketDistributor.sendToPlayer(player, new StatsSyncPayload(json));
+        NetworkSender.toPlayer(player, new StatsSyncPayload(json));
     }
 }

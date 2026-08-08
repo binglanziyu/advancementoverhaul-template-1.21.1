@@ -520,7 +520,7 @@ public class NetworkHandler {
             String json = DataStore.GSON.toJson(stats);
             LOGGER.debug("Stats request from {} — replying with {} bytes",
                     player.getName().getString(), json.length());
-            net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player, new StatsSyncPayload(json));
+            NetworkSender.toPlayer(player, new StatsSyncPayload(json));
         });
     }
 
@@ -531,7 +531,7 @@ public class NetworkHandler {
         int len = json.length();
         LOGGER.debug("Pushing stats sync to {} ({} chars)",
                 player.getName().getString(), len);
-        net.neoforged.neoforge.network.PacketDistributor.sendToPlayer(player, new StatsSyncPayload(json));
+        NetworkSender.toPlayer(player, new StatsSyncPayload(json));
     }
 
     // ═══════════════ 文件导入处理 ═══════════════
@@ -602,6 +602,6 @@ public class NetworkHandler {
 
     /** 客户端 → 服务端：发送阶段定义编辑请求（保存/删除） */
     public static void sendPhaseDefEdit(PhaseDefEditPayload payload) {
-        net.neoforged.neoforge.network.PacketDistributor.sendToServer(payload);
+        NetworkSender.toServer(payload);
     }
 }

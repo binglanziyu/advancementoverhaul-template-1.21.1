@@ -1,6 +1,7 @@
 package com.dreamer.ao.data;
 
 import com.dreamer.ao.data.model.CustomAdvancement;
+import com.dreamer.ao.util.AtomicFileWriter;
 import com.google.gson.*;
 
 import java.nio.file.Files;
@@ -310,15 +311,7 @@ final class PlayerDataStore {
 
             try {
                 Path target = dataDir.resolve(uuid.toString() + ".json");
-                Path tmp = dataDir.resolve(uuid.toString() + ".json.tmp");
-                Files.writeString(tmp, DataStore.GSON_PRETTY.toJson(playerObj));
-                try {
-                    Files.move(tmp, target, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
-                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                } catch (java.nio.file.AtomicMoveNotSupportedException e) {
-                    LOGGER.debug("Atomic move not supported, falling back to non-atomic move for {}", target);
-                    Files.move(tmp, target, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-                }
+                AtomicFileWriter.writeString(target, DataStore.GSON_PRETTY.toJson(playerObj), 1);
             } catch (Exception e) { LOGGER.warn("Failed to write player data for UUID {}: {}", uuid, e.getMessage()); }
         }
     }
