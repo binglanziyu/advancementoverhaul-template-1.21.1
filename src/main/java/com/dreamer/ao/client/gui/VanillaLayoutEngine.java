@@ -85,10 +85,19 @@ final class VanillaLayoutEngine {
         screen.screenState.clearDirty(ScreenState.DIRTY_VANILLA_POS);
 
         ClientDataStore cs = ClientDataStore.getInstance();
+        // 备份本次重算前客户端已显示的实时位置（含刚拖拽的原版卡片）。
+        // syncAll 往返期间服务端 meta 可能暂时缺失该卡片，若仅依赖 vanillaMeta
+        // 恢复会导致"拖到父成就上方"等场景被自动布局覆盖（表现为主动重置）。
+        Map<String, int[]> prevPos = new HashMap<>(screen.vanillaPos);
         screen.vanillaPos.clear();
 
-        // 1. 使用元数据中已有的位置
+        // 1. 优先保留客户端当前实时位置，其次使用元数据中已保存的位置
         for (var va : screen.vanillaAdvs) {
+            int[] cur = prevPos.get(va.id());
+            if (cur != null) {
+                screen.vanillaPos.put(va.id(), cur);
+                continue;
+            }
             var meta = cs.getVanillaMeta(va.id());
             if (meta != null && meta.hasPosition())
                 screen.vanillaPos.put(va.id(), new int[]{meta.getX(), meta.getY()});

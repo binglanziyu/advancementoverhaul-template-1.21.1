@@ -4,6 +4,7 @@ import com.dreamer.ao.Config;
 import com.dreamer.ao.data.DataStore.*;
 import com.dreamer.ao.data.model.CustomAdvancement;
 import com.dreamer.ao.data.model.VanillaAdvMeta;
+import com.dreamer.ao.network.payload.PhaseSyncPayload;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -120,8 +121,42 @@ public class ClientDataStore {
 
     // ═══════════════ 成就数据 ═══════════════
 
+    /**
+     * 本地拖动（已修改、尚未被服务端同步确认）的自定义卡片 id -> 拖动结束时间戳。
+     * <p>
+     * syncAll 全量覆盖 {@link #setAdvancements(Map)} 时，对这些卡片保留客户端坐标，
+     * 避免"拖完父成就后，拖动其子成就触发 syncAll 把父拉回原位"。
+     * 条目超过 {@link #LOCAL_ADV_DIRTY_TTL_MS} 自动失效（下次 setAdvancements 时清理），
+     * 不长期偏离服务端权威数据。
+     */
+    private static final long LOCAL_ADV_DIRTY_TTL_MS = 4000;
+    private final Map<String, Long> localAdvDirty = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** 标记一张卡片为"本地拖动未同步"，记录当前时间戳。 */
+    public void markLocalAdvDirty(String id) {
+        if (id != null) localAdvDirty.put(id, System.currentTimeMillis());
+    }
+
     public void setAdvancements(Map<String, CustomAdvancement> map) {
-        this.advancements = map;
+        long now = System.currentTimeMillis();
+        // 清理过期的本地脏标记
+        localAdvDirty.values().removeIf(ts -> now - ts > LOCAL_ADV_DIRTY_TTL_MS);
+        Map<String, CustomAdvancement> result = map;
+        if (!localAdvDirty.isEmpty()) {
+            result = new java.util.HashMap<>(map); // 浅拷贝，避免修改服务端传入的 Map
+            for (String id : localAdvDirty.keySet()) {
+                CustomAdvancement local = this.advancements.get(id); // 客户端当前（拖动后）坐标
+                if (local == null) continue;
+                CustomAdvancement incoming = result.get(id);
+                if (incoming != null) {
+                    incoming.setX(local.getX());
+                    incoming.setY(local.getY());
+                } else {
+                    result.put(id, local);
+                }
+            }
+        }
+        this.advancements = result;
         markTabsDirty();
     }
     public Map<String, CustomAdvancement> getAdvancements() { return advancements; }
@@ -131,6 +166,39 @@ public class ClientDataStore {
 
     public void setDimensionLocks(Map<String, DimensionLock> map) { this.dimensionLocks = map; }
     public Map<String, DimensionLock> getDimensionLocks() { return dimensionLocks; }
+
+    // ═══════════════ 阶段系统 ═══════════════
+
+    /** 服务端推送的阶段态摘要（来自 PhaseSyncPayload） */
+    private volatile String phaseWorldPhase;
+    private volatile Map<String, String> phaseDimensionPhases = new HashMap<>();
+    private volatile String phasePlayerPhase;
+    private volatile String phaseTempPhase;
+    private volatile List<String> phaseUnlocked = new ArrayList<>();
+    private volatile List<String> phaseDefBriefs = new ArrayList<>();
+    /** 阶段数据版本（每次 setPhaseData 递增，供面板检测刷新） */
+    private volatile int phaseVersion = 0;
+
+    public void setPhaseData(PhaseSyncPayload payload) {
+        this.phaseWorldPhase = payload.worldPhase();
+        this.phaseDimensionPhases = payload.dimensionPhases() != null
+                ? new HashMap<>(payload.dimensionPhases()) : new HashMap<>();
+        this.phasePlayerPhase = payload.playerPhase();
+        this.phaseTempPhase = payload.tempPhase();
+        this.phaseUnlocked = payload.unlockedPhases() != null
+                ? new ArrayList<>(payload.unlockedPhases()) : new ArrayList<>();
+        this.phaseDefBriefs = payload.defBriefs() != null
+                ? new ArrayList<>(payload.defBriefs()) : new ArrayList<>();
+        this.phaseVersion++;
+    }
+    public int getPhaseVersion() { return phaseVersion; }
+    public String getPhaseWorldPhase() { return phaseWorldPhase; }
+    public Map<String, String> getPhaseDimensionPhases() { return phaseDimensionPhases; }
+    public String getPhasePlayerPhase() { return phasePlayerPhase; }
+    public String getPhaseTempPhase() { return phaseTempPhase; }
+    public List<String> getPhaseUnlocked() { return phaseUnlocked; }
+    public List<String> getPhaseDefBriefs() { return phaseDefBriefs; }
+    public boolean isPhaseUnlocked(String id) { return phaseUnlocked.contains(id); }
 
     // ═══════════════ 完成状态 ═══════════════
 
@@ -322,9 +390,8 @@ public class ClientDataStore {
 
         LinkedHashSet<String> all = new LinkedHashSet<>();
         all.add(DataStore.TAB_VANILLA);
-        if (hasDefaultContent) {
-            all.add(DataStore.TAB_DEFAULT);
-        }
+        // 默认分类（"默认"）始终显示
+        all.add(DataStore.TAB_DEFAULT);
 
         for (String t : tabOrder) {
             if (t.equals(DataStore.TAB_VANILLA) || t.equals(DataStore.TAB_DEFAULT)) continue;

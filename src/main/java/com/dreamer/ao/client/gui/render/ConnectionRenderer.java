@@ -24,6 +24,9 @@ import static com.dreamer.ao.client.gui.Theme.*;
  */
 public class ConnectionRenderer {
 
+    /** 低于此缩放时省略连线拐点圆点（半径过小会整数偏移、偏离中点）。 */
+    private static final double ZOOM_DOT_MIN = 0.6;
+
     private final AdvancementScreen screen;
 
     private String cachedSelId = null;
@@ -112,20 +115,21 @@ public class ConnectionRenderer {
     private void drawCustomPrereqLines(GuiGraphics g, ClientDataStore cs,
             String selId, int t, int hw,
             BiPredicate<CustomAdvancement, ClientDataStore> shouldRenderCard, boolean highlight) {
-        var cv = screen.canvas;
         for (var a : screen.frameFiltered) {
             if (!shouldRenderCard.test(a, cs)) continue;
             var prereqs = a.getPrerequisites();
             if (prereqs == null) continue;
-            int cx = cv.toScreenX(a.getX()) + cv.screenW(CARD_W) / 2;
-            int cy = cv.toScreenY(a.getY()) + cv.screenH(CARD_H) / 2;
+            long centerA = cardCenter(cs, a.getId());
+            if (centerA < 0) continue;
+            int cx = (int) (centerA >>> 32);
+            int cy = (int) (centerA & 0xFFFFFFFFL);
             boolean done = cs.isCompleted(a.getId());
             for (String pid : prereqs) {
                 if (pid == null || pid.isEmpty()) continue;
-                int[] pos = resolvePos(cs, pid);
-                if (pos == null) continue;
-                int px = cv.toScreenX(pos[0]) + cv.screenW(CARD_W) / 2;
-                int py = cv.toScreenY(pos[1]) + cv.screenH(CARD_H) / 2;
+                long centerP = cardCenter(cs, pid);
+                if (centerP < 0) continue;
+                int px = (int) (centerP >>> 32);
+                int py = (int) (centerP & 0xFFFFFFFFL);
 
                 boolean isHL = selId != null && (selId.equals(a.getId()) || selId.equals(pid));
                 if (highlight != isHL) continue;
@@ -146,24 +150,19 @@ public class ConnectionRenderer {
 
     private void drawVanillaParentLines(GuiGraphics g, ClientDataStore cs,
             String selId, int t, int hw, boolean highlight) {
-        var cv = screen.canvas;
         Map<String, String> parentMap = cs.getVanillaParentMap();
         if (parentMap == null || parentMap.isEmpty()) return;
         for (var e : parentMap.entrySet()) {
             String cid = e.getKey(), pid = e.getValue();
             if (highlight && !selId.equals(cid) && !selId.equals(pid)) continue;
-            int[] cp = screen.vanillaPos.get(cid), pp = screen.vanillaPos.get(pid);
-            if (cp == null || pp == null) continue;
-            if (!screen.shouldShowVanilla(cid) || !screen.shouldShowVanilla(pid)) continue;
-            int px = cv.toScreenX(pp[0]) + cv.screenW(CARD_W) / 2;
-            int py = cv.toScreenY(pp[1]) + cv.screenH(CARD_H) / 2;
-            int cx = cv.toScreenX(cp[0]) + cv.screenW(CARD_W) / 2;
-            int cy = cv.toScreenY(cp[1]) + cv.screenH(CARD_H) / 2;
-
-            if (highlight) {
-                boolean isHL = selId.equals(cid) || selId.equals(pid);
-                if (!isHL) continue;
-            }
+            long centerC = cardCenter(cs, cid);
+            if (centerC < 0) continue;
+            long centerP = cardCenter(cs, pid);
+            if (centerP < 0) continue;
+            int px = (int) (centerP >>> 32);
+            int py = (int) (centerP & 0xFFFFFFFFL);
+            int cx = (int) (centerC >>> 32);
+            int cy = (int) (centerC & 0xFFFFFFFFL);
 
             boolean done = cs.isCompleted(cid);
             int color;
@@ -181,27 +180,25 @@ public class ConnectionRenderer {
 
     private void drawVanillaMetaLines(GuiGraphics g, ClientDataStore cs,
             String selId, int t, int hw, boolean highlight) {
-        var cv = screen.canvas;
         for (var va : screen.vanillaAdvs) {
-            if (!screen.shouldShowVanilla(va.id())) continue;
-            int[] cp = screen.vanillaPos.get(va.id());
-            if (cp == null) continue;
             VanillaAdvMeta meta = cs.getVanillaMeta(va.id());
             if (meta == null) continue;
             var metaPrqs = meta.getPrerequisites();
             if (metaPrqs == null) continue;
 
             if (highlight && !selId.equals(va.id()) && !metaPrqs.contains(selId)) continue;
-
-            int cx = cv.toScreenX(cp[0]) + cv.screenW(CARD_W) / 2;
-            int cy = cv.toScreenY(cp[1]) + cv.screenH(CARD_H) / 2;
+            if (!screen.shouldShowVanilla(va.id())) continue;
+            long centerC = cardCenter(cs, va.id());
+            if (centerC < 0) continue;
+            int cx = (int) (centerC >>> 32);
+            int cy = (int) (centerC & 0xFFFFFFFFL);
             boolean done = cs.isCompleted(va.id());
             for (String pid : metaPrqs) {
                 if (pid == null || pid.isEmpty()) continue;
-                int[] pos = resolvePos(cs, pid);
-                if (pos == null) continue;
-                int px = cv.toScreenX(pos[0]) + cv.screenW(CARD_W) / 2;
-                int py = cv.toScreenY(pos[1]) + cv.screenH(CARD_H) / 2;
+                long centerP = cardCenter(cs, pid);
+                if (centerP < 0) continue;
+                int px = (int) (centerP >>> 32);
+                int py = (int) (centerP & 0xFFFFFFFFL);
 
                 int color;
                 if (highlight) {
@@ -217,12 +214,28 @@ public class ConnectionRenderer {
 
     // ═══════════════ Helpers ═══════════════
 
-    private int[] resolvePos(ClientDataStore cs, String id) {
+    /**
+     * 解析卡片屏幕中心点，消除各 draw 方法中重复的
+     * {@code cv.toScreenX(x) + cv.screenW(CARD_W)/2} 换算。
+     * 返回打包的 long（高 32 位为屏幕 X，低 32 位为屏幕 Y）；
+     * 找不到有效位置（自定义进度不存在或原版未显示）时返回 -1。
+     */
+    private long cardCenter(ClientDataStore cs, String id) {
+        int wx, wy;
         var cust = cs.getAdvancement(id);
-        if (cust != null) return new int[]{cust.getX(), cust.getY()};
-        int[] vp = screen.vanillaPos.get(id);
-        if (vp != null && screen.shouldShowVanilla(id)) return vp;
-        return null;
+        if (cust != null) {
+            wx = cust.getX();
+            wy = cust.getY();
+        } else {
+            int[] vp = screen.vanillaPos.get(id);
+            if (vp == null || !screen.shouldShowVanilla(id)) return -1L;
+            wx = vp[0];
+            wy = vp[1];
+        }
+        var cv = screen.canvas;
+        int sx = cv.toScreenX(wx) + cv.screenW(CARD_W) / 2;
+        int sy = cv.toScreenY(wy) + cv.screenH(CARD_H) / 2;
+        return ((long) sx << 32) | (sy & 0xFFFFFFFFL);
     }
 
     private void drawTreeConnection(GuiGraphics g, int px, int py, int cx, int cy,
@@ -246,8 +259,12 @@ public class ConnectionRenderer {
             g.fill(cx - hw, y1, cx + hw + (thickness & 1), y2, color);
         }
 
-        int dotR = Math.max(1, (int) (thickness * JUNCTION_DOT_RATIO / 2f));
-        if (px != cx) GuiUtils.fillCircle(g, px, midY, dotR, color);
-        if (py != midY && px != cx) GuiUtils.fillCircle(g, cx, midY, dotR, color);
+        // 缩放较小时圆点半径仅 1px，整数定位会导致圆心偏离连线中点，
+        // 此时直接省略圆点，仅保留已正确居中的连线本身。
+        if (screen.canvas.zoom >= ZOOM_DOT_MIN) {
+            int dotR = Math.max(2, (int) (thickness * JUNCTION_DOT_RATIO / 2f));
+            if (px != cx) GuiUtils.fillCircle(g, px, midY, dotR, color);
+            if (py != midY && px != cx) GuiUtils.fillCircle(g, cx, midY, dotR, color);
+        }
     }
 }

@@ -230,9 +230,15 @@ public class OverlayRenderer {
             g.drawString(font, Component.translatable(LangKeys.TAB_MANAGE_EMPTY).getString(),
                     px + 14, ty + 8, TEXT_DIM, false);
         } else {
+            int dragFrom = screen.tabManageDrag.dragFrom;
+            boolean dragging = screen.tabManageDrag.dragging;
             for (int i = 0; i < customTabs.size(); i++) {
                 String tab = customTabs.get(i);
                 if (ty + TAB_MANAGE_ROW_H > py + ph) break;
+
+                // 拖拽中：被拖行跟随鼠标，不参与正常行布局
+                int drawY = ty;
+                if (dragging && i == dragFrom) drawY = (int) screen.tabManageDrag.dragVisualY;
 
                 int advCount = 0;
                 int vanillaCount = 0;
@@ -244,14 +250,21 @@ public class OverlayRenderer {
                 String countStr = advCount + (vanillaCount > 0 ? "+" + vanillaCount : "");
                 String label = tab + " (" + countStr + ")";
 
-                boolean rowHov = GuiUtils.inRect(mx, my, px + 10, ty, pw - 40, TAB_MANAGE_ROW_H - 2);
-                if (rowHov) g.fill(px + 10, ty, px + pw - 10, ty + TAB_MANAGE_ROW_H - 2, BTN_HOV);
+                boolean rowHov = !dragging && GuiUtils.inRect(mx, my, px + 10, drawY, pw - 40, TAB_MANAGE_ROW_H - 2);
+                if (dragging && i == dragFrom) {
+                    g.fill(px + 10, drawY, px + pw - 10, drawY + TAB_MANAGE_ROW_H - 2, BTN_HOV);
+                    g.renderOutline(px + 10, drawY, pw - 20, TAB_MANAGE_ROW_H - 2, ACCENT);
+                } else if (rowHov) {
+                    g.fill(px + 10, drawY, px + pw - 10, drawY + TAB_MANAGE_ROW_H - 2, BTN_HOV);
+                }
 
                 g.drawString(font, GuiUtils.truncate(font, label, pw - 56),
-                        px + 14, ty + 7, TEXT, false);
+                        px + 14, drawY + 7, TEXT, false);
 
-                boolean delHov = GuiUtils.inRect(mx, my, px + pw - 30, ty, 20, TAB_MANAGE_ROW_H - 2);
-                g.drawString(font, "\u2715", px + pw - 24, ty + 7, delHov ? PINK : TEXT_DIM, false);
+                if (!dragging) {
+                    boolean delHov = GuiUtils.inRect(mx, my, px + pw - 30, ty, 20, TAB_MANAGE_ROW_H - 2);
+                    g.drawString(font, "\u2715", px + pw - 24, ty + 7, delHov ? PINK : TEXT_DIM, false);
+                }
 
                 ty += TAB_MANAGE_ROW_H;
             }

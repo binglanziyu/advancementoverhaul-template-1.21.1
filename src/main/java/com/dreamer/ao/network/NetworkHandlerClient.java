@@ -18,6 +18,7 @@ import com.dreamer.ao.network.payload.StatsSyncPayload;
 import com.dreamer.ao.network.payload.SyncChunkPayload;
 import com.dreamer.ao.network.payload.SyncPayload;
 import com.dreamer.ao.network.payload.TimelineSyncPayload;
+import com.dreamer.ao.network.payload.PhaseSyncPayload;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -184,6 +185,17 @@ public final class NetworkHandlerClient {
             Minecraft mc = Minecraft.getInstance();
             CompletionChime.play(mc);
             CompletionPlaque.show(payload.questName());
+        });
+    }
+
+    static void handlePhaseSync(PhaseSyncPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> {
+            try {
+                ClientDataStore.getInstance().setPhaseData(payload);
+                LOGGER.debug("Phase sync received ({} defs)", payload.defBriefs().size());
+            } catch (Exception e) {
+                LOGGER.warn("Failed to process phase sync: {}", e.getMessage());
+            }
         });
     }
 

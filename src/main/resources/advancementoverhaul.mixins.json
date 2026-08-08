@@ -10,9 +10,9 @@
   ],
   "client": [
     "SetScreenMixin",
-    {"mixin": "ftb.FtbToastMixin", "require": 0},
-    {"mixin": "ftb.FtbSoundMixin", "require": 0},
-    {"mixin": "ftb.SyncKsrMixin", "require": 0},
+    "ftb.FtbToastMixin",
+    "ftb.FtbSoundMixin",
+    "ftb.SyncKsrMixin",
     "AdvancementTaskMixin",
     "EnumConfigMixin"
   ],

@@ -319,8 +319,13 @@ final class AdvancementStore {
     /** 从 JSON 文件加载所有成就，加载后立即重建索引和反向前置索引 */
     void loadFromFile(Path file, Gson gson) {
         if (file == null || !Files.exists(file)) return;
+        String content = DataStoreIO.readWithFallback(file, DataStoreIO::isValidJsonObject);
+        if (content == null) {
+            LOGGER.warn("Failed to load advancements: no readable file or backup");
+            return;
+        }
         try {
-            Map<String, CustomAdvancement> loaded = DataStore.mapFromJson(Files.readString(file));
+            Map<String, CustomAdvancement> loaded = DataStore.mapFromJson(content);
             // 迁移旧版标签页名称（"vanilla:xxx" → 内置标签页常量）
             for (CustomAdvancement adv : loaded.values()) {
                 String tab = adv.getTab();

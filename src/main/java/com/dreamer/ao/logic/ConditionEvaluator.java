@@ -1,6 +1,7 @@
 package com.dreamer.ao.logic;
 
 import com.dreamer.ao.LangKeys;
+import com.dreamer.ao.ServerConstants;
 import com.dreamer.ao.compat.AdvancementRegistry;
 import com.dreamer.ao.data.ConditionIndex.AdvIdCondIndex;
 import com.dreamer.ao.data.DataStore;
@@ -13,6 +14,7 @@ import com.dreamer.ao.achievement.event.AdvCompletedEvent;
 import com.dreamer.ao.achievement.event.AdvProgressEvent;
 import com.dreamer.ao.network.payload.ProgressSyncPayload;
 import net.minecraft.core.HolderLookup;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.Component;
@@ -29,8 +31,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
-
 /**
  * 进度条件评估引擎。
  *
@@ -67,22 +67,44 @@ public final class ConditionEvaluator {
     private static final Logger LOGGER = LoggerFactory.getLogger(ConditionEvaluator.class);
 
     /**
-     * 级联深度上限，防止超长前置链（A→B→C→...→A 循环依赖）导致死循环。
-     * <p>
-     * 选择 64 的原因：<br>
-     * — 原版进度系统最深层级约 16 层（如 nether/all_effects 链）<br>
-     * — 自定义模组进度链通常不超过 10 层<br>
-     * — 64 层提供 4x 安全余量，同时确保每次遍历耗时在数毫秒内<br>
-     * — 超出此深度视为前置链存在循环依赖，记录警告并终止级联计算
+     * 级联深度上限。详见 {@link ServerConstants#MAX_CASCADE_DEPTH}。
      */
-    private static final int MAX_CASCADE_DEPTH = 64;
+    private static final int MAX_CASCADE_DEPTH = ServerConstants.MAX_CASCADE_DEPTH;
+
+    /**
+     * 去重表键：玩家 + 进度 + 条件索引的不可变组合。
+     * <p>
+     * 相较此前的 {@code uuid + ":" + advId + ":" + condIndex} 字符串拼接，
+     * record 避免了每次条件匹配都产生 StringBuilder 与 String 两个对象；
+     * 同时相较将三者哈希折叠为单个 long，record 保留完整字段做 equals 比较，
+     * 不存在哈希碰撞导致合法评估被静默跳过的正确性风险。
+     */
+    private record DedupKey(UUID uuid, String advId, int condIndex) {}
 
     /** Tick 级重入保护：防止同一 tick 内 Mixin + Event 双重触发导致重复评估。
-     *  使用 AtomicLong 做 CAS 风格竞态保护，ConcurrentHashMap.newKeySet 保证多线程安全。 */
-    private static final AtomicLong lastEvaluatedTick = new AtomicLong(-1L);
-    private static final Set<String> evaluatedKeys = ConcurrentHashMap.newKeySet();
+     *  使用 ConcurrentHashMap 做 per-key 自包含 tick 比较，消除 clear() 与 put() 之间的竞态窗口。
+     *  Value 为上次评估时的 tick 值，由 {@link #pruneEvaluatedKeys(long)} 周期驱逐。 */
+    private static final ConcurrentHashMap<DedupKey, Long> evaluatedKeys = new ConcurrentHashMap<>();
 
     private ConditionEvaluator() {}
+
+    /**
+     * 驱逐超出保留窗口的去重条目，由服务端 tick 周期调用。
+     * <p>
+     * 去重语义只需覆盖「同一 tick」，因此任何早于
+     * {@code currentTick - DEDUP_RETENTION_TICKS} 的条目都已无用。
+     * 若无此清理，键空间会随「玩家 × 进度 × 条件」持续增长而无界泄漏。
+     *
+     * @param currentTick 当前服务端 tick
+     */
+    public static void pruneEvaluatedKeys(long currentTick) {
+        if (evaluatedKeys.isEmpty()) return;
+        long cutoff = currentTick - ServerConstants.DEDUP_RETENTION_TICKS;
+        // 服务器刚启动（tick < 保留窗口）时 cutoff 为负，此时无条目可能过期，跳过以免误删当前 tick 的守卫
+        if (cutoff <= 0) return;
+        // 同时剔除「记录 tick 晚于当前 tick」的条目：存档回退或 tick 计数重置会产生此类陈旧项
+        evaluatedKeys.entrySet().removeIf(e -> e.getValue() < cutoff || e.getValue() > currentTick);
+    }
 
     // ═══════════════ 公共评估入口 ═══════════════
 
@@ -114,6 +136,10 @@ public final class ConditionEvaluator {
      * 复用 {@link #evaluate} 核心路径，消除与 progress 模式之间的代码重复。
      * <p>
      * 由 {@code StatsEventHandler} 在每次更新统计值后调用。
+     * <p>
+     * <b>int 上限说明：</b>{@code count} 字段和进度系统全程使用 {@code int} 存储，
+     * 当统计值超过 {@link Integer#MAX_VALUE}（约 21 亿）时会饱和。
+     * 对于 Minecraft 统计值的量级而言，此上限在实践中有充分余量。
      *
      * @param player   目标玩家
      * @param statId   PlayerStats 字段名（如 "sunrisesViewed"）
@@ -239,12 +265,9 @@ public final class ConditionEvaluator {
         var server = store.getServer();
         if (server != null) {
             long currentTick = server.getTickCount();
-            long prev = lastEvaluatedTick.getAndSet(currentTick);
-            if (prev != currentTick) {
-                evaluatedKeys.clear();
-            }
-            String dedupKey = uuid + ":" + advId + ":" + condIndex;
-            if (!evaluatedKeys.add(dedupKey)) {
+            DedupKey dedupKey = new DedupKey(uuid, advId, condIndex);
+            Long lastTick = evaluatedKeys.put(dedupKey, currentTick);
+            if (lastTick != null && lastTick == currentTick) {
                 LOGGER.debug("Skipping duplicate evaluation: {} @ tick {}", dedupKey, currentTick);
                 return;
             }
@@ -397,11 +420,16 @@ public final class ConditionEvaluator {
         return allConditionsMet(uuid, advId, adv);
     }
 
+    /** 已警告过空条件列表的成就 ID（每个 ID 仅警告一次，避免日志刷屏） */
+    private static final Set<String> warnedEmptyAdvs = ConcurrentHashMap.newKeySet();
+
     private static boolean allConditionsMet(UUID uuid, String advId, CustomAdvancement adv) {
         ServerDataStore store = ServerDataStore.getInstance();
         List<AdvancementCondition> conditions = adv.getConditions();
         if (conditions.isEmpty()) {
-            LOGGER.warn("Advancement '{}' has no conditions and will auto-complete on first trigger", advId);
+            if (warnedEmptyAdvs.add(advId)) {
+                LOGGER.warn("Advancement '{}' has no conditions and will auto-complete on first trigger", advId);
+            }
             return true;
         }
         for (int i = 0; i < conditions.size(); i++) {
@@ -413,9 +441,17 @@ public final class ConditionEvaluator {
 
     // ═══════════════ 匹配辅助方法 ═══════════════
 
+    /**
+     * 匹配条件的 targetId 与事件的 targetId。
+     * <p>
+     * <b>空值语义：</b>condTarget 为空表示通配（匹配一切），eventTarget 为 null/空
+     * 则表示事件无有效目标，此时返回 {@code false} 拒绝匹配。
+     * 这与条件索引的分发逻辑保持一致——索引路径下不存在 null-target 条目，
+     * 因此这里的 {@code return false} 仅影响全量遍历回退路径中的极端边缘情况。
+     */
     private static boolean matchesTarget(String condTarget, String eventTarget) {
         if (condTarget == null || condTarget.isEmpty()) return true;
-        if (eventTarget == null || eventTarget.isEmpty()) return true;
+        if (eventTarget == null || eventTarget.isEmpty()) return false;
         return condTarget.equals(eventTarget);
     }
 
@@ -458,12 +494,20 @@ public final class ConditionEvaluator {
         return true;
     }
 
+    /**
+     * 将 NBT 字符串反序列化为 ItemStack。
+     * <p>
+     * <b>异常范围：</b>仅捕获 {@link CommandSyntaxException}（NBT 格式错误），
+     * 而非泛化的 {@code Exception}。{@link TagParser#parseTag} 明确声明抛出此异常，
+     * 其他未预期的运行时异常（如 OOM）应向上传播而非静默吞没。
+     * 返回空堆叠后调用方 {@link #matchComponents} 将其视为不匹配。
+     */
     private static ItemStack deserializeStack(String nbt, HolderLookup.Provider registryAccess) {
         if (nbt == null || nbt.isEmpty()) return ItemStack.EMPTY;
         try {
             CompoundTag tag = TagParser.parseTag(nbt);
             return ItemStack.parse(registryAccess, tag).orElse(ItemStack.EMPTY);
-        } catch (Exception e) {
+        } catch (CommandSyntaxException e) {
             LOGGER.warn("Failed to parse condition NBT ({} chars): {}", nbt.length(), e.getMessage());
             return ItemStack.EMPTY;
         }

@@ -2,143 +2,165 @@ package com.dreamer.ao.client.gui.timeline;
 
 import com.dreamer.ao.LangKeys;
 import com.dreamer.ao.client.gui.GuiUtils;
+import com.dreamer.ao.data.ClientDataStore;
 import com.dreamer.ao.data.DisplayNameResolver;
+import com.dreamer.ao.network.NetworkHandler;
+import com.dreamer.ao.network.payload.PhaseDefEditPayload;
+import com.dreamer.ao.network.payload.PhaseSyncPayload;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.screens.ConfirmScreen;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
-import java.util.*;
-import java.util.function.Consumer;
+import net.minecraft.resources.ResourceLocation;
 
 /**
- * 故事阶段管理面板 —— 三列（世界/维度/玩家）状态可视化界面。
+ * 故事阶段管理面板 —— 三列（全局/维度/玩家）状态可视化界面。
  * <p>
- * 玩家模式：查看当前世界、各维度和指定玩家的阶段状态及效果。
- * OP 模式（需权限等级 &ge; 2）：额外暴露强制切换、编辑定义、新建状态、
- * 施加/清除临时状态等管理入口。
+ * 浏览模式：只读查看三个作用域的阶段与效果。
+ * 编辑模式（仅 OP）：列标题可点击展开阶段下拉，下拉项左侧箭头可强制切换；
+ * 效果列表首行为“新建”，每行末尾可删除。
  * <p>
- * 注意：本文件仅负责 UI 面板的布局、交互与显示规则。
- * 后端状态管理逻辑、网络协议、命令执行由其他模块负责，
- * 此处仅预留调用桩方法（以 {@code // TODO: 后端对接} 标记）。
+ * 底部固定区域展示当前实际生效效果（全局 + 维度 + 玩家 三层叠加，可滚动）。
  */
 public class PhasePanelScreen extends Screen {
 
     // ── 布局常量 ──
-    private static final int PANEL_W       = 520;
-    private static final int PANEL_H       = 360;
-    private static final int HEADER_H      = 26;
-    private static final int COL_W         = 165;
-    private static final int COL_GAP       = 5;
-    private static final int PADDING_X     = 8;
-    private static final int COL_Y_START   = 38;  // header 下方
-    private static final int EFFECT_ROW_H  = 14;
-    private static final int BTN_H         = 16;
-    private static final int BTN_GAP       = 3;
+    private static final int PANEL_W      = 520;
+    private static final int PANEL_H      = 380;
+    private static final int MIN_PANEL_W  = 360;
+    private static final int MIN_PANEL_H  = 260;
+    private static final int HEADER_H     = 26;
+    private static final int COL_GAP      = 5;
+    private static final int PADDING_X    = 8;
+    private static final int COL_Y_START  = 34;
+    private static final int ROW_H        = 12;
+    private static final int TITLE_H      = 15;
+    private static final int BOTTOM_H     = 78;
 
     // ── 色彩 ──
-    private static final int BG_DARK          = 0xE62A2A36;
-    private static final int BG_HEADER        = 0x50333344;
-    private static final int BG_COL_HEADER    = 0x30FFFFFF;
-    private static final int BG_STATE_BOX     = 0x30FFFFFF;
-    private static final int BG_STATE_PREVIEW = 0x30F59E0B;
-    private static final int DIVIDER          = 0x40FFFFFF;
-    private static final int TEXT_PRIMARY     = 0xFFFFFFFF;
-    private static final int TEXT_SECONDARY   = 0xFFAAAAAA;
-    private static final int TEXT_DIM         = 0xFF777777;
-    private static final int OP_BTN_PRIMARY   = 0xFF6AB4BC;
-    private static final int OP_BTN_SECONDARY = 0xFF3C9BB0;
-    private static final int TEXT_OP_BTN      = 0xFFFFFFFF;
-    private static final int TEXT_EFFECT_POS  = 0xFF4ADE80;  // 正向效果
-    private static final int TEXT_EFFECT_NEG  = 0xFFF87171;  // 负向效果
+    private static final int BG_DARK        = 0xE62A2A36;
+    private static final int BG_HEADER      = 0x50333344;
+    private static final int BG_COL_TITLE   = 0x40FFFFFF;
+    private static final int BG_COL_TITLE_A = 0x60F59E0B;
+    private static final int BG_DROPDOWN    = 0xF01E1E2A;
+    private static final int DIVIDER        = 0x40FFFFFF;
+    private static final int TEXT_PRIMARY   = 0xFFFFFFFF;
+    private static final int TEXT_SECONDARY = 0xFFAAAAAA;
+    private static final int TEXT_DIM       = 0xFF777777;
+    private static final int TEXT_ACTIVE    = 0xFF6AB4BC;
+    private static final int TEXT_POS       = 0xFF4ADE80;
+    private static final int TEXT_NEG       = 0xFFF87171;
+    private static final int SCROLL_BAR     = 0xFF5A5A5A;
+    private static final int SCROLL_BG      = 0x40000000;
+
+    private static final int SCOPE_GLOBAL = 0;
+    private static final int SCOPE_DIM    = 1;
+    private static final int SCOPE_PLAYER = 2;
 
     // ── 状态 ──
     private final Screen parent;
     private final boolean isOp;
-    private boolean opMode = false;               // OP 管理模式开关
-    private boolean previewMode = false;
-    private int previewColumn = -1;               // 当前预览列索引 (0=世界, 1=维度, 2=玩家)
+    private boolean editMode = false;
 
-    private int panelLeft, panelTop;
-    private int effectiveW, effectiveH, colW;    // 响应式尺寸，由 init() 根据屏幕大小计算
+    private int panelLeft, panelTop, effectiveW, effectiveH, colW;
+    private int colTop, colBottom;
 
-    // 维度选择
     private String selectedDimKey = "minecraft:overworld";
-    private List<String> availableDims = new ArrayList<>();
-
-    // 玩家选择
+    private final List<String> availableDims = new ArrayList<>();
     private UUID selectedPlayer;
-    private List<UUID> availablePlayers = new ArrayList<>();
+    private final List<UUID> availablePlayers = new ArrayList<>();
 
-    // 下拉状态
-    private boolean dimDropdownOpen = false;
-    private boolean playerDropdownOpen = false;
-    private int dimDropdownScroll = 0;
-    private int playerDropdownScroll = 0;
+    /** 展开阶段下拉的列，-1 表示未展开 */
+    private int openTitleDropdown = -1;
+    private int titleDropdownScroll = 0;
 
-    /**
-     * 三列数据容器（含 mock 数据，后续改为从 ClientDataStore 读取）。
-     */
-    private static final class Column {
-        String title;
-        String stateName;
-        List<EffectRow> effects;
+    private final int[] effectScroll = new int[3];
+    private final int[] effectContentH = new int[3];
 
-        // 仅世界/维度列
-        String nextState    = null;
-        String transitionCnd = null;
+    private int bottomScroll = 0;
+    private final List<EffectRow> currentEffects = new ArrayList<>();
 
-        // 仅玩家列
-        String tempState    = null;  // null = 无临时状态
-        String history      = null;
-    }
+    private final List<Hotspot> hotspots = new ArrayList<>();
 
-    private static final class EffectRow {
-        final String key;
-        final double value;
-        final boolean isPercentage;
-
-        EffectRow(String key, double value, boolean isPercentage) {
-            this.key = key;
-            this.value = value;
-            this.isPercentage = isPercentage;
+    private record Hotspot(int x, int y, int w, int h, Runnable action) {
+        boolean hit(int mx, int my) {
+            return mx >= x && mx < x + w && my >= y && my < y + h;
         }
     }
 
-    private final Column colWorld = new Column();
-    private final Column colDim   = new Column();
-    private final Column colPlayer = new Column();
+    private record EffectRow(String label, double value, boolean percent, boolean plain, String tag) {
+        static EffectRow num(String label, double v, boolean pct) {
+            return new EffectRow(label, v, pct, false, null);
+        }
 
-    // ── 构造 ──
+        static EffectRow text(String label) {
+            return new EffectRow(label, 0, false, true, null);
+        }
+
+        /** 带删除标签的数值/文本行（tag 形如 attributes:max_health） */
+        static EffectRow tagged(String label, String tag) {
+            return new EffectRow(label, 0, false, true, tag);
+        }
+
+        EffectRow withTag(String tag) {
+            return new EffectRow(this.label, this.value, this.percent, this.plain, tag);
+        }
+    }
+
+    private static final class Column {
+        String title;
+        String phaseId;
+        String stateName;
+        List<EffectRow> effects = List.of();
+    }
+
+    private final Column colWorld = new Column();
+    private final Column colDim = new Column();
+    private final Column colPlayer = new Column();
 
     public PhasePanelScreen(Screen parent) {
         super(Component.translatable(LangKeys.PHASE_PANEL_TITLE));
         this.parent = parent;
         var player = Minecraft.getInstance().player;
         this.isOp = player != null && player.hasPermissions(2);
-        if (player != null) {
-            this.selectedPlayer = player.getUUID();
-        }
+        if (player != null) this.selectedPlayer = player.getUUID();
     }
-
-    // ── 布局初始化 ──
 
     @Override
     protected void init() {
-        this.effectiveW = Math.min(PANEL_W, this.width - 10);
-        this.effectiveH = Math.min(PANEL_H, this.height - 10);
-        this.colW = effectiveW == PANEL_W ? COL_W : (effectiveW - 2 * PADDING_X - 2 * COL_GAP) / 3;
-        this.panelLeft = (this.width  - effectiveW) / 2;
-        this.panelTop  = (this.height - effectiveH) / 2;
+        computeLayout();
         refreshDimensionList();
         refreshPlayerList();
         refreshAllColumns();
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
+                new com.dreamer.ao.network.payload.PhaseRequestPayload());
+    }
+
+    private void computeLayout() {
+        effectiveW = Math.max(MIN_PANEL_W, Math.min(PANEL_W, this.width - 20));
+        effectiveH = Math.max(MIN_PANEL_H, Math.min(PANEL_H, this.height - 20));
+        colW = (effectiveW - 2 * PADDING_X - 2 * COL_GAP) / 3;
+        panelLeft = (this.width - effectiveW) / 2;
+        panelTop = (this.height - effectiveH) / 2;
+        colTop = panelTop + COL_Y_START;
+        colBottom = panelTop + effectiveH - BOTTOM_H - 6;
     }
 
     @Override
     public void onClose() {
-        if (this.minecraft != null) {
-            this.minecraft.setScreen(parent);
-        }
+        if (this.minecraft != null) this.minecraft.setScreen(parent);
     }
 
     @Override
@@ -146,612 +168,443 @@ public class PhasePanelScreen extends Screen {
         return false;
     }
 
-    // ── 主渲染 ──
+    // ────────────────────────── 渲染 ──────────────────────────
 
     @Override
     public void render(GuiGraphics g, int mouseX, int mouseY, float partialTick) {
         super.render(g, mouseX, mouseY, partialTick);
+        computeLayout();
+        hotspots.clear();
 
-        // 裁剪区域，防止面板内容溢出屏幕边界
-        g.enableScissor(panelLeft, panelTop, panelLeft + effectiveW, panelTop + effectiveH);
-
-        renderPanelBackground(g);
-        renderHeader(g, mouseX, mouseY);
-        renderColumn(g, 0, mouseX, mouseY);  // 世界
-        renderColumn(g, 1, mouseX, mouseY);  // 维度
-        renderColumn(g, 2, mouseX, mouseY);  // 玩家
-
-        g.disableScissor();
-
-        if (dimDropdownOpen)  renderDimDropdown(g, mouseX, mouseY);
-        if (playerDropdownOpen) renderPlayerDropdown(g, mouseX, mouseY);
-    }
-
-    // ── 面板背景 ──
-
-    private void renderPanelBackground(GuiGraphics g) {
         GuiUtils.fillRoundedCard(g, panelLeft, panelTop, effectiveW, effectiveH, BG_DARK);
-    }
+        renderHeader(g, mouseX, mouseY);
 
-    // ── 标题栏 ──
+        for (int ci = 0; ci < 3; ci++) {
+            renderColumn(g, ci, mouseX, mouseY);
+        }
+
+        renderBottomCurrentEffects(g);
+
+        // 下拉浮层最后绘制
+        if (openTitleDropdown >= 0) {
+            renderTitleDropdown(g, openTitleDropdown, mouseX, mouseY);
+        }
+    }
 
     private void renderHeader(GuiGraphics g, int mouseX, int mouseY) {
-        int headerRight = panelLeft + effectiveW;
-
-        // 标题栏背景
         g.fill(panelLeft, panelTop, panelLeft + effectiveW, panelTop + HEADER_H, BG_HEADER);
 
-        // 标题
         Component title = Component.translatable(LangKeys.PHASE_PANEL_TITLE);
-        int titleX = panelLeft + (effectiveW - font.width(title)) / 2;
-        g.drawString(font, title, titleX, panelTop + 6, TEXT_PRIMARY, false);
+        g.drawString(font, title, panelLeft + (effectiveW - font.width(title)) / 2,
+                panelTop + 6, TEXT_PRIMARY, false);
 
-        // 关闭按钮 (右上角 X)
-        Component closeText = Component.literal("✕");
-        int closeW = font.width(closeText);
-        int closeX = headerRight - closeW - 10;
-        int closeY = panelTop + 6;
-        g.drawString(font, closeText, closeX, closeY, TEXT_SECONDARY, false);
+        int right = panelLeft + effectiveW;
+        Component close = Component.literal("\u2715");
+        int closeX = right - font.width(close) - 10;
+        g.drawString(font, close, closeX, panelTop + 6, TEXT_SECONDARY, false);
+        hotspots.add(new Hotspot(closeX - 3, panelTop + 4, font.width(close) + 6, 14, this::onClose));
 
-        // OP 切换按钮（仅 OP 玩家可见）
+        // 右侧“编辑”（仅 OP 可见可点），左侧“浏览”
+        int cursor = closeX - 8;
         if (isOp) {
-            Component opTag = Component.translatable(LangKeys.PHASE_OP_TAG);
-            String opLabel = opTag.getString() + (opMode ? " §a管理" : "§7管理");
-            int opW = font.width(Component.literal(opTag.getString() + " 管理"));
-            int opX = closeX - opW - 8;
-            boolean hovered = mouseX >= opX && mouseX < opX + opW && mouseY >= closeY - 1 && mouseY < closeY + 11;
-            int color = opMode ? 0xFF6AB4BC : (hovered ? 0xFF8AAACC : TEXT_SECONDARY);
-            g.drawString(font, Component.literal(opLabel), opX, closeY, color, false);
+            Component edit = Component.translatable(LangKeys.PHASE_MODE_EDIT);
+            int w = font.width(edit) + 10;
+            int x = cursor - w;
+            boolean hov = inRect(mouseX, mouseY, x, panelTop + 4, w, 15);
+            g.fill(x, panelTop + 5, x + w, panelTop + 20, editMode ? BG_COL_TITLE_A : (hov ? 0x40FFFFFF : 0x25FFFFFF));
+            g.drawString(font, edit, x + 5, panelTop + 9, editMode ? TEXT_PRIMARY : TEXT_SECONDARY, false);
+            hotspots.add(new Hotspot(x, panelTop + 5, w, 15, () -> {
+                editMode = true;
+                openTitleDropdown = -1;
+            }));
+            cursor = x - 4;
         }
+        Component browse = Component.translatable(LangKeys.PHASE_MODE_BROWSE);
+        int bw = font.width(browse) + 10;
+        int bx = cursor - bw;
+        boolean bhov = inRect(mouseX, mouseY, bx, panelTop + 4, bw, 15);
+        g.fill(bx, panelTop + 5, bx + bw, panelTop + 20, !editMode ? BG_COL_TITLE_A : (bhov ? 0x40FFFFFF : 0x25FFFFFF));
+        g.drawString(font, browse, bx + 5, panelTop + 9, !editMode ? TEXT_PRIMARY : TEXT_SECONDARY, false);
+        hotspots.add(new Hotspot(bx, panelTop + 5, bw, 15, () -> {
+            editMode = false;
+            openTitleDropdown = -1;
+        }));
     }
 
-    // ── 列渲染 ──
+    private void renderColumn(GuiGraphics g, int ci, int mouseX, int mouseY) {
+        int x = colX(ci);
+        Column col = getColumn(ci);
 
-    private void renderColumn(GuiGraphics g, int colIndex, int mouseX, int mouseY) {
-        int x = colX(colIndex);
-        Column col = getColumn(colIndex);
-
-        // 列标题背景
-        g.fill(x, panelTop + COL_Y_START - 2, x + colW, panelTop + COL_Y_START + 12, BG_COL_HEADER);
-        Component titleText = Component.translatable(col.title);
-        g.drawString(font, titleText, x + 6, panelTop + COL_Y_START, TEXT_SECONDARY, false);
-
-        int cy = panelTop + COL_Y_START + 16;
-
-        // 维度选择器（仅维度列）
-        if (colIndex == 1 && !availableDims.isEmpty()) {
-            cy = renderDimSelector(g, x, cy, mouseX, mouseY);
-            cy += 4;
+        // ── 列标题（模块内居中，可点击切换） ──
+        boolean active = openTitleDropdown == ci;
+        boolean hov = inRect(mouseX, mouseY, x, colTop, colW, TITLE_H);
+        g.fill(x, colTop, x + colW, colTop + TITLE_H,
+                active ? BG_COL_TITLE_A : (hov && editMode ? 0x55FFFFFF : BG_COL_TITLE));
+        Component t = Component.translatable(col.title);
+        String suffix = editMode ? " \u25BE" : "";
+        int tw = font.width(t) + font.width(suffix);
+        g.drawString(font, Component.literal(t.getString() + suffix),
+                x + (colW - tw) / 2, colTop + 4, TEXT_PRIMARY, false);
+        if (editMode) {
+            final int idx = ci;
+            // 维度/玩家列标题点击 = 切换维度/玩家（不再展开阶段下拉）
+            if (ci == SCOPE_DIM) {
+                hotspots.add(new Hotspot(x, colTop, colW, TITLE_H, () -> cycleDimension()));
+            } else if (ci == SCOPE_PLAYER) {
+                hotspots.add(new Hotspot(x, colTop, colW, TITLE_H, () -> cyclePlayer()));
+            }
+            // 全局列标题不再承担切换，阶段切换移至"当前阶段"行内
         }
-        // 玩家选择器（仅玩家列）
-        if (colIndex == 2 && !availablePlayers.isEmpty()) {
-            cy = renderPlayerSelector(g, x, cy, mouseX, mouseY);
-            cy += 4;
+
+        int cy = colTop + TITLE_H + 3;
+
+        // ── 维度 / 玩家 选择器 ──
+        if (ci == SCOPE_DIM) {
+            cy = renderPicker(g, x, cy, mouseX, mouseY,
+                    DisplayNameResolver.friendlyDimension(selectedDimKey), () -> cycleDimension());
+        } else if (ci == SCOPE_PLAYER) {
+            cy = renderPicker(g, x, cy, mouseX, mouseY,
+                    getPlayerDisplayName(selectedPlayer), () -> cyclePlayer());
         }
 
-        // 当前阶段状态框
-        boolean isPreviewCol = previewMode && colIndex == previewColumn;
-        cy = renderStateBox(g, x, cy, col.stateName, isPreviewCol, mouseX, mouseY, colIndex);
+        // ── 当前阶段名（点击展开阶段切换下拉） ──
+        boolean phaseActive = openTitleDropdown == ci;
+        boolean phov = editMode && inRect(mouseX, mouseY, x, cy, colW, 16);
+        g.fill(x, cy, x + colW, cy + 16, phaseActive ? 0x55FFFFFF : (phov ? 0x40FFFFFF : 0x30FFFFFF));
+        String arrow = editMode ? " \u25BE" : "";
+        g.drawString(font, Component.literal(trunc(col.stateName, colW - 8) + arrow),
+                x + 4, cy + 4, TEXT_ACTIVE, false);
+        if (editMode) {
+            final int idx = ci;
+            hotspots.add(new Hotspot(x, cy, colW, 16, () -> {
+                openTitleDropdown = (openTitleDropdown == idx) ? -1 : idx;
+                titleDropdownScroll = 0;
+            }));
+        }
+        cy += 19;
 
-        cy += 4;
-
-        // 分隔线
         g.fill(x, cy, x + colW, cy + 1, DIVIDER);
-        cy += 5;
-
-        // 效果列表
-        Component effectsHeader = Component.translatable(LangKeys.PHASE_EFFECTS);
-        g.drawString(font, effectsHeader, x + 4, cy, TEXT_DIM, false);
-        cy += 12;
-        for (EffectRow eff : col.effects) {
-            cy = renderEffectRow(g, x, cy, eff);
-        }
-
         cy += 4;
 
-        // 维度/世界列特有信息
-        if (colIndex != 2) {
-            if (col.nextState != null) {
-                g.fill(x, cy, x + colW, cy + 1, DIVIDER);
-                cy += 5;
-                cy = renderNextState(g, x, cy, col);
+        // ── 效果列表（滚动 + 自动换行） ──
+        int listTop = cy;
+        int listH = Math.max(20, colBottom - listTop);
+        g.enableScissor(x, listTop, x + colW, listTop + listH);
+        int y = listTop - effectScroll[ci];
+
+        if (editMode) {
+            boolean nhov = inRect(mouseX, mouseY, x, y, colW - 5, 12);
+            g.fill(x, y, x + colW - 5, y + 12, nhov ? 0x60FFFFFF : 0x30FFFFFF);
+            g.drawString(font, Component.translatable(LangKeys.PHASE_ROW_NEW), x + 4, y + 2,
+                    TEXT_PRIMARY, false);
+            final int ciNew = ci;
+            hotspots.add(new Hotspot(x, y, colW - 5, 12, () -> openPhaseEditor(ciNew, null)));
+            y += 14;
+        }
+
+        int textW = colW - (editMode ? 22 : 10);
+        for (EffectRow eff : col.effects) {
+            List<String> lines = wrap(eff.label(), textW);
+            for (int li = 0; li < lines.size(); li++) {
+                if (y + ROW_H >= listTop && y <= listTop + listH) {
+                    g.drawString(font, Component.literal(lines.get(li)), x + 4, y, TEXT_SECONDARY, false);
+                    if (li == lines.size() - 1 && !eff.plain()) {
+                        String v = eff.percent()
+                                ? String.format("%+.0f%%", eff.value() * 100)
+                                : String.format("%+.1f", eff.value());
+                        int clr = eff.value() > 0 ? TEXT_POS : (eff.value() < 0 ? TEXT_NEG : TEXT_DIM);
+                        g.drawString(font, Component.literal(v),
+                                x + colW - font.width(v) - (editMode ? 18 : 6), y, clr, false);
+                    }
+                }
+                y += ROW_H;
+            }
+            // 编辑模式：末尾 × 删除
+            if (editMode) {
+                int bx = x + colW - 14;
+                int by = y - ROW_H;
+                if (by + 10 >= listTop && by <= listTop + listH) {
+                    boolean xh = inRect(mouseX, mouseY, bx, by, 10, 10);
+                    g.fill(bx, by, bx + 10, by + 10, xh ? 0xFF8B3030 : 0x40FFFFFF);
+                    g.drawString(font, Component.literal("x"), bx + 3, by + 1, TEXT_PRIMARY, false);
+                    final int ciX = ci;
+                    final Column colX = col;
+                    final EffectRow effX = eff;
+                    hotspots.add(new Hotspot(bx, by, 10, 10, () -> {
+                        if (effX.tag() != null) requestRemoveEffect(ciX, colX, effX.tag());
+                        else openPhaseEditor(ciX, colX.phaseId);
+                    }));
+                }
             }
         }
-
-        // 玩家列特有：历史和临时状态
-        if (colIndex == 2) {
-            g.fill(x, cy, x + colW, cy + 1, DIVIDER);
-            cy += 5;
-            cy = renderTempState(g, x, cy, col);
-            cy += 6;
-            g.fill(x, cy, x + colW, cy + 1, DIVIDER);
-            cy += 5;
-            cy = renderHistory(g, x, cy, col);
-        }
-
-        // OP 操作区
-        if (isOp && opMode) {
-            int dividerY = panelTop + effectiveH - 88;
-            g.fill(x, dividerY, x + colW, dividerY + 1, DIVIDER);
-            renderOpButtons(g, x, dividerY + 4, colIndex, mouseX, mouseY);
-        }
+        g.disableScissor();
+        effectContentH[ci] = (y + effectScroll[ci]) - listTop;
+        drawScrollbar(g, x + colW - 3, listTop, listH, effectContentH[ci], effectScroll[ci]);
     }
 
-    // ── 阶段状态框 ──
-
-    private int renderStateBox(GuiGraphics g, int x, int y, String name, boolean preview, int mouseX, int mouseY, int colIndex) {
-        int boxH = 20;
-        boolean hovered = mouseX >= x && mouseX < x + colW && mouseY >= y && mouseY < y + boxH;
-        int bg = preview ? BG_STATE_PREVIEW : (hovered ? 0x40FFFFFF : BG_STATE_BOX);
-        g.fill(x, y, x + colW, y + boxH, bg);
-
-        Component label = Component.literal(name);
-        int nameW = font.width(label);
-        g.drawString(font, label, x + 8, y + 6, preview ? 0xFFFFFFFF : TEXT_PRIMARY, false);
-
-        if (preview) {
-            Component tag = Component.translatable(LangKeys.PHASE_PREVIEW);
-            int tagW = font.width(tag);
-            g.fill(x + colW - tagW - 12, y + 2, x + colW - 4, y + 18, TimelineTheme.PREVIEW_TAG_BG);
-            g.drawString(font, tag, x + colW - tagW - 8, y + 4, TimelineTheme.PREVIEW_TAG_FG, false);
-        }
-
-        return y + boxH;
+    private int renderPicker(GuiGraphics g, int x, int y, int mouseX, int mouseY,
+                             String label, Runnable onClick) {
+        boolean hov = inRect(mouseX, mouseY, x, y, colW, 13);
+        g.fill(x, y, x + colW, y + 13, hov ? 0x50FFFFFF : 0x28FFFFFF);
+        g.drawString(font, Component.literal(trunc(label, colW - 16)), x + 4, y + 2,
+                TEXT_PRIMARY, false);
+        g.drawString(font, Component.literal("\u21BB"), x + colW - 10, y + 2, TEXT_DIM, false);
+        hotspots.add(new Hotspot(x, y, colW, 13, onClick));
+        return y + 16;
     }
 
-    // ── 效果行 ──
+    /** 列标题下拉：列出该作用域全部阶段；左侧箭头点击 = 强制切换 */
+    private void renderTitleDropdown(GuiGraphics g, int ci, int mouseX, int mouseY) {
+        String scope = scopeOf(ci);
+        List<JsonObject> defs = defsForScope(scope);
+        if (defs.isEmpty()) return;
 
-    private int renderEffectRow(GuiGraphics g, int x, int y, EffectRow eff) {
-        Component keyText = Component.translatable(eff.key);
-        g.drawString(font, keyText, x + 8, y, TEXT_SECONDARY, false);
-
-        String valStr = eff.isPercentage ? String.format("%+.0f%%", eff.value * 100) : String.format("%+.1f", eff.value);
-        int color = eff.value > 0 ? TEXT_EFFECT_POS : (eff.value < 0 ? TEXT_EFFECT_NEG : TEXT_DIM);
-        int valW = font.width(valStr);
-        g.drawString(font, Component.literal(valStr), x + colW - valW - 8, y, color, false);
-
-        return y + EFFECT_ROW_H;
-    }
-
-    // ── 下一阶段 ──
-
-    private int renderNextState(GuiGraphics g, int x, int y, Column col) {
-        Component nextHeader = Component.translatable(LangKeys.PHASE_NEXT_STATE);
-        g.drawString(font, nextHeader, x + 4, y, TEXT_DIM, false);
-        y += 11;
-        Component nameComp = Component.literal(col.nextState);
-        g.drawString(font, nameComp, x + 8, y, TEXT_PRIMARY, false);
-        y += 12;
-        if (col.transitionCnd != null) {
-            Component condHeader = Component.translatable(LangKeys.PHASE_TRANSITION_COND);
-            g.drawString(font, condHeader, x + 4, y, TEXT_DIM, false);
-            y += 11;
-            Component condVal = Component.literal(col.transitionCnd);
-            g.drawString(font, condVal, x + 8, y, TEXT_SECONDARY, false);
-            y += 12;
-        }
-        return y;
-    }
-
-    // ── 历史 ──
-
-    private int renderHistory(GuiGraphics g, int x, int y, Column col) {
-        Component histHeader = Component.translatable(LangKeys.PHASE_HISTORY);
-        g.drawString(font, histHeader, x + 4, y, TEXT_DIM, false);
-        y += 11;
-        String content = col.history != null ? col.history : "-";
-        g.drawString(font, Component.literal(content), x + 8, y, TEXT_SECONDARY, false);
-        return y + 12;
-    }
-
-    // ── 临时状态 ──
-
-    private int renderTempState(GuiGraphics g, int x, int y, Column col) {
-        Component tempHeader = Component.translatable(LangKeys.PHASE_TEMP_STATE);
-        g.drawString(font, tempHeader, x + 4, y, TEXT_DIM, false);
-        y += 11;
-        String content = col.tempState != null ? col.tempState : Component.translatable(LangKeys.PHASE_NO_TEMP).getString();
-        int clr = col.tempState != null ? 0xFFFACC15 : TEXT_DIM;
-        g.drawString(font, Component.literal(content), x + 8, y, clr, false);
-        return y + 12;
-    }
-
-    // ── 维度选择器（内嵌下拉） ──
-
-    private int renderDimSelector(GuiGraphics g, int x, int y, int mouseX, int mouseY) {
-        Component label = Component.translatable(LangKeys.PHASE_SELECT_DIMENSION);
-        g.drawString(font, label, x + 4, y, TEXT_DIM, false);
-        y += 10;
-
-        String friendly = DisplayNameResolver.friendlyDimension(selectedDimKey);
-        int btnW = colW - 12;
-        int btnH = 14;
-        boolean hovered = mouseX >= x + 6 && mouseX < x + 6 + btnW && mouseY >= y && mouseY < y + btnH;
-        int bg = hovered ? 0x50FFFFFF : 0x30FFFFFF;
-        g.fill(x + 6, y, x + 6 + btnW, y + btnH, bg);
-        g.drawString(font, Component.literal(friendly), x + 10, y + 3, TEXT_PRIMARY, false);
-
-        // 下拉箭头
-        String arrow = dimDropdownOpen ? "▲" : "▼";
-        int arrowW = font.width(arrow);
-        g.drawString(font, Component.literal(arrow), x + 6 + btnW - arrowW - 6, y + 3, TEXT_DIM, false);
-
-        return y + btnH + 2;
-    }
-
-    private void renderDimDropdown(GuiGraphics g, int mouseX, int mouseY) {
-        int x = colX(1) + 6;
-        int baseY = getDimDropdownY();
-        int ddW = colW - 12;
-        int maxVis = 6;
+        int x = colX(ci);
+        int y = colTop + TITLE_H;
         int rowH = 14;
-        int total = availableDims.size();
-        int vis  = Math.min(maxVis, total);
+        int maxVis = Math.min(8, Math.max(1, (colBottom - y) / rowH));
+        int vis = Math.min(maxVis, defs.size());
+        int h = vis * rowH + 4;
 
-        int ddH = vis * rowH + 4;
-        GuiUtils.fillRoundedCard(g, x, baseY - 2, ddW, ddH, 0xE61E1E2A);
+        GuiUtils.fillRoundedCard(g, x, y, colW, h, BG_DROPDOWN);
 
         for (int i = 0; i < vis; i++) {
-            int idx = i + dimDropdownScroll;
-            if (idx >= total) break;
-            int ry = baseY + i * rowH;
-            boolean hovered = mouseX >= x && mouseX < x + ddW && mouseY >= ry && mouseY < ry + rowH;
-            if (hovered) g.fill(x + 2, ry, x + ddW - 2, ry + rowH, 0x30FFFFFF);
+            int idx = i + titleDropdownScroll;
+            if (idx >= defs.size()) break;
+            JsonObject o = defs.get(idx);
+            String id = o.get("id").getAsString();
+            String name = o.has("name") ? o.get("name").getAsString() : id;
+            int ry = y + 2 + i * rowH;
 
-            String dimKey = availableDims.get(idx);
-            String name = DisplayNameResolver.friendlyDimension(dimKey);
-            int clr = dimKey.equals(selectedDimKey) ? 0xFF6AB4BC : (hovered ? TEXT_PRIMARY : TEXT_SECONDARY);
-            g.drawString(font, Component.literal(name), x + 6, ry + 2, clr, false);
+            // 左侧箭头：强制切换
+            boolean ah = inRect(mouseX, mouseY, x + 2, ry, 12, rowH);
+            g.fill(x + 2, ry, x + 14, ry + rowH, ah ? 0xFF2E7D32 : 0x30FFFFFF);
+            g.drawString(font, Component.literal("\u25B6"), x + 4, ry + 3,
+                    ah ? TEXT_PRIMARY : TEXT_DIM, false);
+            hotspots.add(new Hotspot(x + 2, ry, 12, rowH,
+                    () -> confirmForceSwitch(ci, id, name)));
+
+            // 名称：切换预览
+            boolean nh = inRect(mouseX, mouseY, x + 15, ry, colW - 17, rowH);
+            if (nh) g.fill(x + 15, ry, x + colW - 2, ry + rowH, 0x30FFFFFF);
+            g.drawString(font, Component.literal(trunc(name, colW - 22)), x + 18, ry + 3,
+                    nh ? TEXT_PRIMARY : TEXT_SECONDARY, false);
+            hotspots.add(new Hotspot(x + 15, ry, colW - 17, rowH, () -> {
+                previewPhase(ci, id);
+                openTitleDropdown = -1;
+            }));
         }
     }
 
-    private int getDimDropdownY() {
-        // 维度列状态框 y = panelTop + COL_Y_START + 16 + dimSelector高度 + 4 + stateBox高度 + ...
-        // 简化：维度选择器下方
-        int dimSelBaseY = panelTop + COL_Y_START + 16 + 10 + 16;
-        return dimSelBaseY + 4;
-    }
+    /** 底部：当前实际生效效果（全局 + 维度 + 玩家 合并数值，可滚动） */
+    private void renderBottomCurrentEffects(GuiGraphics g) {
+        int top = panelTop + effectiveH - BOTTOM_H;
+        int left = panelLeft + PADDING_X;
+        int w = effectiveW - 2 * PADDING_X;
 
-    // ── 玩家选择器（内嵌下拉） ──
+        g.fill(left, top - 4, left + w, top - 3, DIVIDER);
+        Component header = Component.translatable(LangKeys.PHASE_CURRENT_EFFECTS);
+        g.drawString(font, header, left, top, TEXT_DIM, false);
 
-    private int renderPlayerSelector(GuiGraphics g, int x, int y, int mouseX, int mouseY) {
-        Component label = Component.translatable(LangKeys.PHASE_SELECT_PLAYER);
-        g.drawString(font, label, x + 4, y, TEXT_DIM, false);
-        y += 10;
+        int listTop = top + 12;
+        int listH = panelTop + effectiveH - 6 - listTop;
+        if (listH <= 0) return;
 
-        String name = getPlayerDisplayName(selectedPlayer);
-        int btnW = colW - 12;
-        int btnH = 14;
-        boolean hovered = mouseX >= x + 6 && mouseX < x + 6 + btnW && mouseY >= y && mouseY < y + btnH;
-        int bg = hovered ? 0x50FFFFFF : 0x30FFFFFF;
-        g.fill(x + 6, y, x + 6 + btnW, y + btnH, bg);
-        g.drawString(font, Component.literal(name), x + 10, y + 3, TEXT_PRIMARY, false);
-
-        String arrow = playerDropdownOpen ? "▲" : "▼";
-        int arrowW = font.width(arrow);
-        g.drawString(font, Component.literal(arrow), x + 6 + btnW - arrowW - 6, y + 3, TEXT_DIM, false);
-
-        return y + btnH + 2;
-    }
-
-    private void renderPlayerDropdown(GuiGraphics g, int mouseX, int mouseY) {
-        int x = colX(2) + 6;
-        int baseY = getPlayerDropdownY();
-        int ddW = colW - 12;
-        int maxVis = 6;
-        int rowH = 14;
-        int total = availablePlayers.size();
-        int vis  = Math.min(maxVis, total);
-
-        int ddH = vis * rowH + 4;
-        GuiUtils.fillRoundedCard(g, x, baseY - 2, ddW, ddH, 0xE61E1E2A);
-
-        for (int i = 0; i < vis; i++) {
-            int idx = i + playerDropdownScroll;
-            if (idx >= total) break;
-            int ry = baseY + i * rowH;
-            boolean hovered = mouseX >= x && mouseX < x + ddW && mouseY >= ry && mouseY < ry + rowH;
-            if (hovered) g.fill(x + 2, ry, x + ddW - 2, ry + rowH, 0x30FFFFFF);
-
-            UUID pid = availablePlayers.get(idx);
-            String name = getPlayerDisplayName(pid);
-            int clr = pid.equals(selectedPlayer) ? 0xFF6AB4BC : (hovered ? TEXT_PRIMARY : TEXT_SECONDARY);
-            g.drawString(font, Component.literal(name), x + 6, ry + 2, clr, false);
-        }
-    }
-
-    private int getPlayerDropdownY() {
-        int playerSelBaseY = panelTop + COL_Y_START + 16 + 10 + 16;
-        return playerSelBaseY + 4;
-    }
-
-    // ── OP 操作按钮 ──
-
-    private void renderOpButtons(GuiGraphics g, int x, int y, int colIndex, int mouseX, int mouseY) {
-        int btnW = colW - 16;
-        int btnX = x + 8;
-        int curY = y;
-
-        if (colIndex == 2) {
-            // 玩家列：施加临时 + 清除临时
-            curY = renderOpButton(g, btnX, curY, btnW, LangKeys.PHASE_APPLY_TEMP, mouseX, mouseY);
-            curY += BTN_GAP;
-            curY = renderOpButton(g, btnX, curY, btnW, LangKeys.PHASE_CLEAR_TEMP, mouseX, mouseY);
+        g.enableScissor(left, listTop, left + w, listTop + listH);
+        int y = listTop - bottomScroll;
+        if (currentEffects.isEmpty()) {
+            g.drawString(font, Component.translatable(LangKeys.PHASE_CURRENT_EMPTY),
+                    left + 4, y, TEXT_DIM, false);
+            y += ROW_H;
         } else {
-            // 世界/维度列：强制切换 + 编辑定义
-            curY = renderOpButton(g, btnX, curY, btnW, LangKeys.PHASE_FORCE_TRANSITION, mouseX, mouseY);
-            curY += BTN_GAP;
-            curY = renderOpButton(g, btnX, curY, btnW, LangKeys.PHASE_EDIT_DEF, mouseX, mouseY);
+            // 双列排布，减少滚动量
+            int colHalf = w / 2;
+            for (int i = 0; i < currentEffects.size(); i++) {
+                EffectRow eff = currentEffects.get(i);
+                int cx = left + (i % 2) * colHalf;
+                int cyy = y + (i / 2) * ROW_H;
+                if (cyy + ROW_H >= listTop && cyy <= listTop + listH) {
+                    g.drawString(font, Component.literal(trunc(eff.label(), colHalf - 46)),
+                            cx + 4, cyy, TEXT_SECONDARY, false);
+                    if (!eff.plain()) {
+                        String v = eff.percent()
+                                ? String.format("%+.0f%%", eff.value() * 100)
+                                : String.format("%+.1f", eff.value());
+                        int clr = eff.value() > 0 ? TEXT_POS : (eff.value() < 0 ? TEXT_NEG : TEXT_DIM);
+                        g.drawString(font, Component.literal(v),
+                                cx + colHalf - font.width(v) - 8, cyy, clr, false);
+                    }
+                }
+            }
+            y += ((currentEffects.size() + 1) / 2) * ROW_H;
         }
-        curY += BTN_GAP;
-        // 新建
-        renderOpButton(g, btnX, curY, btnW, LangKeys.PHASE_NEW_STATE, mouseX, mouseY);
+        g.disableScissor();
+
+        int contentH = (y + bottomScroll) - listTop;
+        drawScrollbar(g, left + w - 3, listTop, listH, contentH, bottomScroll);
     }
 
-    private int renderOpButton(GuiGraphics g, int x, int y, int w, String langKey, int mouseX, int mouseY) {
-        boolean hovered = mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + BTN_H;
-        int bg = hovered ? 0x60808090 : 0x30444450;
-        g.fill(x, y, x + w, y + BTN_H, bg);
-
-        Component label = Component.translatable(langKey);
-        int textW = font.width(label);
-        g.drawString(font, label, x + (w - textW) / 2, y + 2, TEXT_OP_BTN, false);
-        return y + BTN_H;
+    private void drawScrollbar(GuiGraphics g, int x, int y, int viewH, int contentH, int scroll) {
+        if (contentH <= viewH || viewH <= 0) return;
+        int barH = Math.max(10, viewH * viewH / contentH);
+        int maxScroll = contentH - viewH;
+        int barY = y + (maxScroll <= 0 ? 0 : (viewH - barH) * scroll / maxScroll);
+        g.fill(x, y, x + 3, y + viewH, SCROLL_BG);
+        g.fill(x, barY, x + 3, barY + barH, SCROLL_BAR);
     }
 
-    // ── 鼠标交互 ──
+    // ────────────────────────── 交互 ──────────────────────────
 
     @Override
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button != 0) return super.mouseClicked(mouseX, mouseY, button);
+        int mx = (int) mouseX, my = (int) mouseY;
 
-        int mx = (int) mouseX;
-        int my = (int) mouseY;
-
-        // 关闭按钮
-        if (hitClose(mx, my)) { onClose(); return true; }
-
-        // OP 模式切换
-        if (hitOpToggle(mx, my)) { opMode = !opMode; return true; }
-
-        // 维度下拉
-        if (hitDimSelector(mx, my)) { dimDropdownOpen = !dimDropdownOpen; playerDropdownOpen = false; return true; }
-
-        // 维度下拉项
-        if (dimDropdownOpen && hitDimDropdown(mx, my, this::onDimSelected)) { return true; }
-
-        // 玩家下拉
-        if (hitPlayerSelector(mx, my)) { playerDropdownOpen = !playerDropdownOpen; dimDropdownOpen = false; return true; }
-
-        // 玩家下拉项
-        if (playerDropdownOpen && hitPlayerDropdown(mx, my, this::onPlayerSelected)) { return true; }
-
-        // 阶段状态框点击 → 预览模式
-        for (int ci = 0; ci < 3; ci++) {
-            if (hitStateBox(ci, mx, my)) {
-                if (previewMode && previewColumn == ci) {
-                    // 双击 → 进入状态选择器（TODO）
-                    previewMode = false;
-                    previewColumn = -1;
-                } else {
-                    previewMode = true;
-                    previewColumn = ci;
-                }
+        for (int i = hotspots.size() - 1; i >= 0; i--) {
+            Hotspot h = hotspots.get(i);
+            if (h.hit(mx, my)) {
+                h.action().run();
                 return true;
             }
         }
-
-        // OP 按钮
-        if (isOp && opMode) {
-            for (int ci = 0; ci < 3; ci++) {
-                if (hitOpButton(ci, mx, my, this::onOpAction)) return true;
-            }
+        if (openTitleDropdown >= 0) {
+            openTitleDropdown = -1;
+            return true;
         }
-
-        // 点击面板外部 → 关闭
-        if (mx < panelLeft || mx > panelLeft + effectiveW || my < panelTop || my > panelTop + effectiveH) {
-            dimDropdownOpen = false;
-            playerDropdownOpen = false;
-        }
-
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (dimDropdownOpen) {
-            int maxScroll = Math.max(0, availableDims.size() - 6);
-            dimDropdownScroll = Math.clamp(dimDropdownScroll - (int) Math.signum(scrollY), 0, maxScroll);
+        int mx = (int) mouseX, my = (int) mouseY;
+        int delta = (int) Math.signum(scrollY) * 12;
+
+        if (openTitleDropdown >= 0) {
+            List<JsonObject> defs = defsForScope(scopeOf(openTitleDropdown));
+            int max = Math.max(0, defs.size() - 8);
+            titleDropdownScroll = Math.clamp(titleDropdownScroll - (int) Math.signum(scrollY), 0, max);
             return true;
         }
-        if (playerDropdownOpen) {
-            int maxScroll = Math.max(0, availablePlayers.size() - 6);
-            playerDropdownScroll = Math.clamp(playerDropdownScroll - (int) Math.signum(scrollY), 0, maxScroll);
+        // 底部当前效果区
+        if (my >= panelTop + effectiveH - BOTTOM_H) {
+            int listTop = panelTop + effectiveH - BOTTOM_H + 12;
+            int listH = panelTop + effectiveH - 6 - listTop;
+            int contentH = Math.max(1, ((currentEffects.size() + 1) / 2)) * ROW_H;
+            bottomScroll = Math.clamp(bottomScroll - delta, 0, Math.max(0, contentH - listH));
             return true;
+        }
+        // 三列效果区
+        for (int ci = 0; ci < 3; ci++) {
+            int x = colX(ci);
+            if (mx >= x && mx < x + colW && my >= colTop && my < colBottom) {
+                int listH = Math.max(20, colBottom - colTop);
+                effectScroll[ci] = Math.clamp(effectScroll[ci] - delta, 0,
+                        Math.max(0, effectContentH[ci] - listH));
+                return true;
+            }
         }
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
     }
 
-    // ── 命中检测 ──
+    // ────────────────────────── 动作 ──────────────────────────
 
-    private boolean hitClose(int mx, int my) {
-        int x = panelLeft + effectiveW - 20;
-        return mx >= x && mx < x + 14 && my >= panelTop + 4 && my < panelTop + 18;
-    }
-
-    private boolean hitOpToggle(int mx, int my) {
-        if (!isOp) return false;
-        Component opTag = Component.translatable(LangKeys.PHASE_OP_TAG);
-        int opW = font.width(Component.literal(opTag.getString() + " 管理"));
-        int closeX = panelLeft + effectiveW - 20;
-        int opX = closeX - opW - 8;
-        return mx >= opX && mx < opX + opW && my >= panelTop + 4 && my < panelTop + 17;
-    }
-
-    private boolean hitDimSelector(int mx, int my) {
-        int x = colX(1) + 6;
-        int y = panelTop + COL_Y_START + 16 + 10;
-        return mx >= x && mx < x + colW - 12 && my >= y && my < y + 14;
-    }
-
-    private boolean hitPlayerSelector(int mx, int my) {
-        int x = colX(2) + 6;
-        int y = panelTop + COL_Y_START + 16 + 10;
-        return mx >= x && mx < x + colW - 12 && my >= y && my < y + 14;
-    }
-
-    private boolean hitDimDropdown(int mx, int my, Consumer<String> callback) {
-        int x = colX(1) + 6;
-        int baseY = getDimDropdownY();
-        int ddW = colW - 12;
-        int rowH = 14;
-        int total = availableDims.size();
-        int vis = Math.min(6, total);
-        for (int i = 0; i < vis; i++) {
-            int idx = i + dimDropdownScroll;
-            if (idx >= total) break;
-            int ry = baseY + i * rowH;
-            if (mx >= x && mx < x + ddW && my >= ry && my < ry + rowH) {
-                callback.accept(availableDims.get(idx));
-                dimDropdownOpen = false;
-                return true;
+    private void confirmForceSwitch(int ci, String phaseId, String phaseName) {
+        openTitleDropdown = -1;
+        if (minecraft == null) return;
+        String scopeLabel = Component.translatable(getColumn(ci).title).getString();
+        minecraft.setScreen(new ConfirmScreen(ok -> {
+            if (ok) {
+                runClientCommand("/adv phase force " + scopeOf(ci) + " " + phaseId);
             }
-        }
-        // 点击下拉区域外
-        if (mx < x || mx > x + ddW || my < baseY - 2 || my > baseY + vis * rowH + 2) {
-            dimDropdownOpen = false;
-            return true;
-        }
-        return false;
+            if (minecraft != null) minecraft.setScreen(this);
+        },
+                Component.translatable(LangKeys.PHASE_SWITCH_TO),
+                Component.translatable(LangKeys.PHASE_SWITCH_CONFIRM, scopeLabel, phaseName)));
     }
 
-    private boolean hitPlayerDropdown(int mx, int my, Consumer<UUID> callback) {
-        int x = colX(2) + 6;
-        int baseY = getPlayerDropdownY();
-        int ddW = colW - 12;
-        int rowH = 14;
-        int total = availablePlayers.size();
-        int vis = Math.min(6, total);
-        for (int i = 0; i < vis; i++) {
-            int idx = i + playerDropdownScroll;
-            if (idx >= total) break;
-            int ry = baseY + i * rowH;
-            if (mx >= x && mx < x + ddW && my >= ry && my < ry + rowH) {
-                callback.accept(availablePlayers.get(idx));
-                playerDropdownOpen = false;
-                return true;
-            }
-        }
-        if (mx < x || mx > x + ddW || my < baseY - 2 || my > baseY + vis * rowH + 2) {
-            playerDropdownOpen = false;
-            return true;
-        }
-        return false;
+    /** 仅本地预览某阶段的效果显示（不改变实际状态） */
+    private void previewPhase(int ci, String phaseId) {
+        Column col = getColumn(ci);
+        JsonObject def = findDef(phaseId);
+        if (def == null) return;
+        col.phaseId = phaseId;
+        col.stateName = def.has("name") ? def.get("name").getAsString() : phaseId;
+        col.effects = buildEffectRows(def);
+        effectScroll[ci] = 0;
+        recomputeCurrentEffects();
     }
 
-    private boolean hitStateBox(int colIndex, int mx, int my) {
-        int x = colX(colIndex);
-        int y = getStateBoxY(colIndex);
-        return mx >= x && mx < x + colW && my >= y && my < y + 20;
+    private void openPhaseEditor(int ci, String editingId) {
+        openTitleDropdown = -1;
+        if (minecraft != null) minecraft.setScreen(new PhaseEditScreen(this, editingId, scopeOf(ci)));
     }
 
-    private int getStateBoxY(int colIndex) {
-        int baseY = panelTop + COL_Y_START + 16;
-        if (colIndex == 1 || colIndex == 2) baseY += 10 + 14 + 2 + 4; // 下拉选择器
-        return baseY;
-    }
-
-    private boolean hitOpButton(int colIndex, int mx, int my, java.util.function.BiConsumer<Integer, String> callback) {
-        int x = colX(colIndex);
-        int y = panelTop + effectiveH - 88 + 4;
-        int btnW = colW - 16;
-        int btnX = x + 8;
-
-        // 玩家列有 2 个按钮，世界/维列也是 2 个，再加一个新建
-        String[] keys;
-        if (colIndex == 2) {
-            keys = new String[]{LangKeys.PHASE_APPLY_TEMP, LangKeys.PHASE_CLEAR_TEMP, LangKeys.PHASE_NEW_STATE};
-        } else {
-            keys = new String[]{LangKeys.PHASE_FORCE_TRANSITION, LangKeys.PHASE_EDIT_DEF, LangKeys.PHASE_NEW_STATE};
+    /** × 直接移除该定义中的某条效果并存盘 */
+    private void requestRemoveEffect(int ci, Column col, String tag) {
+        if (col.phaseId == null || col.phaseId.isBlank()) return;
+        JsonObject payload = new JsonObject();
+        String[] parts = tag.split(":", 2);
+        payload.addProperty("cat", parts[0]);
+        if (tag.startsWith("attributes:") || tag.startsWith("mob_mults:")) {
+            payload.addProperty("key", parts[1]);
+        } else if (tag.startsWith("mob_effects:")) {
+            payload.addProperty("effectId", parts[1]);
+        } else if (tag.startsWith("equipment:")) {
+            payload.addProperty("index", Integer.parseInt(parts[1]));
         }
-
-        int curY = y;
-        for (String key : keys) {
-            if (mx >= btnX && mx < btnX + btnW && my >= curY && my < curY + BTN_H) {
-                callback.accept(colIndex, key);
-                return true;
-            }
-            curY += BTN_H + BTN_GAP;
-        }
-        return false;
+        NetworkHandler.sendPhaseDefEdit(new PhaseDefEditPayload("remove_effect", col.phaseId, payload.toString()));
+        // 立即重新拉取定义，刷新面板
+        refreshAllColumns();
     }
 
-    // ── 交互回调 ──
-
-    private void onDimSelected(String dimKey) {
-        selectedDimKey = dimKey;
+    private void cycleDimension() {
+        if (availableDims.isEmpty()) return;
+        int i = availableDims.indexOf(selectedDimKey);
+        selectedDimKey = availableDims.get((i + 1) % availableDims.size());
         refreshDimColumn();
+        recomputeCurrentEffects();
     }
 
-    private void onPlayerSelected(UUID pid) {
-        selectedPlayer = pid;
+    private void cyclePlayer() {
+        if (availablePlayers.isEmpty()) return;
+        int i = availablePlayers.indexOf(selectedPlayer);
+        selectedPlayer = availablePlayers.get((i + 1) % availablePlayers.size());
         refreshPlayerColumn();
+        recomputeCurrentEffects();
     }
 
-    private void onOpAction(int colIndex, String langKey) {
-        // TODO: 后端对接 —— 通过命令或网络包执行实际的状态变更操作
-        Column col = getColumn(colIndex);
-        if (langKey.equals(LangKeys.PHASE_FORCE_TRANSITION)) {
-            showConfirmDialog(Component.translatable(LangKeys.PHASE_CONFIRM_TRANSITION, col.stateName));
-        } else if (langKey.equals(LangKeys.PHASE_EDIT_DEF)) {
-            // TODO: 打开状态编辑器
-        } else if (langKey.equals(LangKeys.PHASE_NEW_STATE)) {
-            // TODO: 新建状态
-        } else if (langKey.equals(LangKeys.PHASE_APPLY_TEMP)) {
-            // TODO: 打开临时状态选择器
-        } else if (langKey.equals(LangKeys.PHASE_CLEAR_TEMP)) {
-            String playerName = getPlayerDisplayName(selectedPlayer);
-            showConfirmDialog(Component.translatable(LangKeys.PHASE_CONFIRM_CLEAR_TEMP, playerName));
-        }
-    }
-
-    // ── 占位确认对话框 ──
-
-    private void showConfirmDialog(Component msg) {
-        // TODO: 替换为真实确认 UI
+    private void runClientCommand(String cmd) {
         if (minecraft != null && minecraft.player != null) {
-            minecraft.player.displayClientMessage(msg, false);
+            minecraft.player.connection.sendCommand(cmd.startsWith("/") ? cmd.substring(1) : cmd);
         }
     }
 
-    // ── 数据刷新 ──
+    // ────────────────────────── 数据 ──────────────────────────
 
     private void refreshAllColumns() {
         refreshWorldColumn();
         refreshDimColumn();
         refreshPlayerColumn();
+        recomputeCurrentEffects();
     }
 
     private void refreshDimensionList() {
         availableDims.clear();
-        // 从 ClientDataStore / 注册表读取所有已知维度
         Set<String> dims = new LinkedHashSet<>();
         dims.add("minecraft:overworld");
         dims.add("minecraft:the_nether");
         dims.add("minecraft:the_end");
-
-        // 尝试读取连接中的维度列表
         var mc = Minecraft.getInstance();
         if (mc.getConnection() != null) {
             try {
                 var access = mc.getConnection().registryAccess();
                 if (access != null) {
-                    access.registryOrThrow(net.minecraft.core.registries.Registries.DIMENSION_TYPE)
+                    access.registryOrThrow(Registries.DIMENSION_TYPE)
                             .keySet().forEach(rl -> dims.add(rl.toString()));
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
-
         availableDims.addAll(dims);
         if (!availableDims.contains(selectedDimKey) && !availableDims.isEmpty()) {
             selectedDimKey = availableDims.get(0);
@@ -761,61 +614,238 @@ public class PhasePanelScreen extends Screen {
     private void refreshPlayerList() {
         availablePlayers.clear();
         var mc = Minecraft.getInstance();
-        if (mc.player != null) {
-            availablePlayers.add(mc.player.getUUID());
+        if (mc.player != null) availablePlayers.add(mc.player.getUUID());
+        if (mc.level != null) {
+            for (var p : mc.level.players()) {
+                if (!availablePlayers.contains(p.getUUID())) availablePlayers.add(p.getUUID());
+            }
         }
-        // TODO: 从 ClientDataStore 读取在线玩家列表
     }
 
     private void refreshWorldColumn() {
         colWorld.title = LangKeys.PHASE_WORLD;
-        // TODO: 从 ClientDataStore 获取世界阶段数据
-        colWorld.stateName = "宁静之时";
-        colWorld.effects = List.of(
-            new EffectRow(LangKeys.EFFECT_MOB_HEALTH,   1.0, false),
-            new EffectRow(LangKeys.EFFECT_DAMAGE_RECV,  1.0, false),
-            new EffectRow(LangKeys.EFFECT_SPAWN_RATE,   1.0, false)
-        );
-        colWorld.nextState = "初火燎原";
-        colWorld.transitionCnd = "世界加入天数 ≥ 3";
+        String id = ClientDataStore.getInstance().getPhaseWorldPhase();
+        applyDef(colWorld, id);
     }
 
     private void refreshDimColumn() {
         colDim.title = LangKeys.PHASE_DIMENSION;
-        // TODO: 从 ClientDataStore 获取 selectedDimKey 对应的维度阶段
-        colDim.stateName = "[" + DisplayNameResolver.friendlyDimension(selectedDimKey) + "] 当前阶段";
-        colDim.effects = List.of(
-            new EffectRow(LangKeys.EFFECT_MOB_SPEED,    0.0,  false),
-            new EffectRow(LangKeys.EFFECT_DAMAGE_DEALT, 1.0,  false)
-        );
-        colDim.nextState = null;
-        colDim.transitionCnd = null;
+        String id = ClientDataStore.getInstance().getPhaseDimensionPhases().get(selectedDimKey);
+        applyDef(colDim, id);
     }
 
     private void refreshPlayerColumn() {
         colPlayer.title = LangKeys.PHASE_PLAYER;
-        // TODO: 从 ClientDataStore 获取 selectedPlayer 的持久/临时阶段
-        colPlayer.stateName = "个人阶段";
-        colPlayer.effects = List.of(
-            new EffectRow(LangKeys.EFFECT_MOB_ATTACK,   1.0, false),
-            new EffectRow(LangKeys.EFFECT_MOB_ARMOR,    1.0, false)
-        );
-        colPlayer.tempState = null; // TODO
-        colPlayer.history = "无历史记录"; // TODO
+        var cds = ClientDataStore.getInstance();
+        String id = cds.getPhaseTempPhase() != null ? cds.getPhaseTempPhase() : cds.getPhasePlayerPhase();
+        applyDef(colPlayer, id);
     }
 
-    // ── 辅助方法 ──
-
-    private int colX(int colIndex) {
-        return panelLeft + PADDING_X + colIndex * (colW + COL_GAP);
+    private void applyDef(Column col, String id) {
+        JsonObject def = findDef(id);
+        if (def != null) {
+            col.phaseId = id;
+            col.stateName = def.has("name") ? def.get("name").getAsString() : id;
+            col.effects = buildEffectRows(def);
+        } else {
+            col.phaseId = null;
+            col.stateName = Component.translatable(LangKeys.PHASE_NONE).getString();
+            col.effects = List.of();
+        }
     }
 
-    private Column getColumn(int colIndex) {
-        return switch (colIndex) {
-            case 0  -> colWorld;
-            case 1  -> colDim;
-            case 2  -> colPlayer;
-            default -> throw new IllegalArgumentException("Invalid column index: " + colIndex);
+    /** 合并三层效果（同 key 数值相加），用于底部当前效果展示 */
+    private void recomputeCurrentEffects() {
+        currentEffects.clear();
+        Map<String, double[]> merged = new LinkedHashMap<>();
+        List<String> plains = new ArrayList<>();
+
+        for (Column c : List.of(colWorld, colDim, colPlayer)) {
+            for (EffectRow r : c.effects) {
+                if (r.plain()) {
+                    if (!plains.contains(r.label())) plains.add(r.label());
+                    continue;
+                }
+                double[] acc = merged.get(r.label());
+                if (acc == null) {
+                    merged.put(r.label(), new double[]{r.value(), r.percent() ? 1 : 0});
+                } else {
+                    acc[0] += r.value();
+                }
+            }
+        }
+        for (Map.Entry<String, double[]> e : merged.entrySet()) {
+            currentEffects.add(EffectRow.num(e.getKey(), e.getValue()[0], e.getValue()[1] == 1));
+        }
+        for (String p : plains) {
+            currentEffects.add(EffectRow.text(p));
+        }
+        bottomScroll = 0;
+    }
+
+    private JsonObject findDef(String id) {
+        if (id == null) return null;
+        for (String brief : ClientDataStore.getInstance().getPhaseDefBriefs()) {
+            JsonObject o = PhaseSyncPayload.briefToJson(brief);
+            if (o.has("id") && id.equals(o.get("id").getAsString())) return o;
+        }
+        return null;
+    }
+
+    private List<JsonObject> defsForScope(String scope) {
+        List<JsonObject> out = new ArrayList<>();
+        for (String brief : ClientDataStore.getInstance().getPhaseDefBriefs()) {
+            JsonObject o = PhaseSyncPayload.briefToJson(brief);
+            String s = o.has("scope") ? o.get("scope").getAsString() : "";
+            if (s.equals(scope)) out.add(o);
+        }
+        return out;
+    }
+
+    private List<EffectRow> buildEffectRows(JsonObject def) {
+        List<EffectRow> rows = new ArrayList<>();
+        if (!def.has("effects")) return rows;
+        JsonObject eff = def.getAsJsonObject("effects");
+        if (eff.has("attributes")) {
+            for (var e : eff.getAsJsonObject("attributes").entrySet()) {
+                rows.add(EffectRow.num(localized(attributeName(e.getKey())),
+                        e.getValue().getAsDouble(), true).withTag("attributes:" + e.getKey()));
+            }
+        }
+        if (eff.has("mob_mults")) {
+            for (var e : eff.getAsJsonObject("mob_mults").entrySet()) {
+                rows.add(EffectRow.num(localized(multName(e.getKey())),
+                        e.getValue().getAsDouble(), true).withTag("mob_mults:" + e.getKey()));
+            }
+        }
+        if (eff.has("mob_effects")) {
+            for (var el : eff.getAsJsonArray("mob_effects")) {
+                JsonObject o = el.getAsJsonObject();
+                String id = o.get("id").getAsString();
+                rows.add(EffectRow.text(effectDisplayName(id,
+                        o.has("level") ? o.get("level").getAsInt() : 0,
+                        o.has("seconds") ? o.get("seconds").getAsInt() : 0))
+                        .withTag("mob_effects:" + id));
+            }
+        }
+        if (eff.has("equipment")) {
+            int idx = 0;
+            for (var el : eff.getAsJsonArray("equipment")) {
+                JsonObject o = el.getAsJsonObject();
+                String chance = o.has("chance") ? o.get("chance").getAsString() : "1.0";
+                String ent = o.has("entity") ? o.get("entity").getAsString() : "?";
+                StringBuilder sb = new StringBuilder(localized(LangKeys.PHASE_EFFECT_EQUIP) + " [")
+                        .append(chance).append("] ").append(ent);
+                if (o.has("slots")) {
+                    for (var s : o.getAsJsonObject("slots").entrySet()) {
+                        sb.append("  ").append(s.getKey()).append("=").append(s.getValue().getAsString());
+                    }
+                }
+                rows.add(EffectRow.text(sb.toString()).withTag("equipment:" + idx));
+                idx++;
+            }
+        }
+        return rows;
+    }
+
+    private String localized(String keyOrText) {
+        return keyOrText.contains(".") ? Component.translatable(keyOrText).getString() : keyOrText;
+    }
+
+    private String attributeName(String key) {
+        return switch (key) {
+            case "max_health" -> LangKeys.EFFECT_MAX_HEALTH;
+            case "armor" -> LangKeys.EFFECT_ARMOR;
+            case "armor_toughness" -> LangKeys.EFFECT_ARMOR_TOUGHNESS;
+            case "knockback_resistance" -> LangKeys.EFFECT_KNOCKBACK_RESIST;
+            case "movement_speed" -> LangKeys.EFFECT_MOVE_SPEED;
+            case "attack_damage" -> LangKeys.EFFECT_ATTACK_DAMAGE;
+            case "attack_speed" -> LangKeys.EFFECT_ATTACK_SPEED;
+            case "luck" -> LangKeys.EFFECT_LUCK;
+            case "scale" -> LangKeys.EFFECT_SCALE;
+            default -> key;
+        };
+    }
+
+    private String multName(String key) {
+        return switch (key) {
+            case "mob_health_mult" -> LangKeys.EFFECT_MOB_HEALTH;
+            case "mob_damage_mult" -> LangKeys.EFFECT_MOB_ATTACK;
+            case "mob_speed_mult" -> LangKeys.EFFECT_MOB_SPEED;
+            case "mob_spawn_rate_mult" -> LangKeys.EFFECT_SPAWN_RATE;
+            case "mob_armor_mult" -> LangKeys.EFFECT_MOB_ARMOR;
+            case "boss_damage_mult" -> LangKeys.EFFECT_BOSS_DAMAGE;
+            default -> key;
+        };
+    }
+
+    private String effectDisplayName(String effectId, int level, int seconds) {
+        ResourceLocation rl = ResourceLocation.parse(effectId);
+        String transKey = "effect." + rl.getNamespace() + "." + rl.getPath();
+        String name = effectId;
+        var holder = BuiltInRegistries.MOB_EFFECT.getHolder(rl);
+        if (holder != null && holder.isPresent()) {
+            String t = Component.translatable(transKey).getString();
+            if (!t.equals(transKey)) name = t;
+        }
+        if (level > 0) {
+            name += " " + Component.translatable("enchantment.level." + (level + 1)).getString();
+        }
+        if (seconds > 0) name += " (" + seconds + "s)";
+        return name;
+    }
+
+    // ────────────────────────── 工具 ──────────────────────────
+
+    private List<String> wrap(String text, int maxPx) {
+        List<String> out = new ArrayList<>();
+        if (font.width(text) <= maxPx) {
+            out.add(text);
+            return out;
+        }
+        StringBuilder cur = new StringBuilder();
+        for (char c : text.toCharArray()) {
+            if (font.width(cur.toString() + c) > maxPx && cur.length() > 0) {
+                out.add(cur.toString());
+                cur.setLength(0);
+            }
+            cur.append(c);
+        }
+        if (cur.length() > 0) out.add(cur.toString());
+        return out;
+    }
+
+    private String trunc(String s, int maxPx) {
+        if (s == null) return "";
+        if (font.width(s) <= maxPx) return s;
+        while (s.length() > 1 && font.width(s + "..") > maxPx) {
+            s = s.substring(0, s.length() - 1);
+        }
+        return s + "..";
+    }
+
+    private static boolean inRect(int mx, int my, int x, int y, int w, int h) {
+        return mx >= x && mx < x + w && my >= y && my < y + h;
+    }
+
+    private int colX(int ci) {
+        return panelLeft + PADDING_X + ci * (colW + COL_GAP);
+    }
+
+    private static String scopeOf(int ci) {
+        return switch (ci) {
+            case SCOPE_GLOBAL -> "world";
+            case SCOPE_DIM -> "dimension";
+            default -> "player";
+        };
+    }
+
+    private Column getColumn(int ci) {
+        return switch (ci) {
+            case SCOPE_GLOBAL -> colWorld;
+            case SCOPE_DIM -> colDim;
+            case SCOPE_PLAYER -> colPlayer;
+            default -> throw new IllegalArgumentException("Invalid column: " + ci);
         };
     }
 
@@ -825,7 +855,10 @@ public class PhasePanelScreen extends Screen {
         if (mc.player != null && pid.equals(mc.player.getUUID())) {
             return mc.player.getGameProfile().getName();
         }
-        // TODO: 从 ClientDataStore 解析玩家名称
+        if (mc.level != null) {
+            var p = mc.level.getPlayerByUUID(pid);
+            if (p != null) return p.getGameProfile().getName();
+        }
         return pid.toString().substring(0, 8);
     }
 }

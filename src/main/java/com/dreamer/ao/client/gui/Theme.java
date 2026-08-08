@@ -1,5 +1,7 @@
 package com.dreamer.ao.client.gui;
 
+import com.dreamer.ao.client.gui.layout.LayoutMetrics;
+
 import java.util.List;
 
 /**
@@ -175,59 +177,53 @@ public final class Theme {
     public static final int TOOLTIP_BORDER = 0xFF555570;
 
     // ══════════════════════════════════════════════════════════
-    // Layout — Card and icon dimensions
+    // Layout — 转发常量（真源见 LayoutMetrics）
     // ══════════════════════════════════════════════════════════
+    //
+    // 布局尺寸已统一迁移至 LayoutMetrics，此处保留转发常量以兼容大量
+    // `import static Theme.*` 的调用方。常量在编译期内联，零运行时开销。
+    // 新代码请直接引用 LayoutMetrics。
 
-    /** Card width (square icon card). */
-    public static final int CARD_W      = 50;
-    /** Card height. */
-    public static final int CARD_H      = 50;
-    /** Icon circle radius inside the card. */
-    public static final int ICON_RADIUS = 20;
-    /** Width of the colored strip on card edge. */
-    public static final int STRIP_W     = 1;
+    /** @deprecated 使用 {@link LayoutMetrics#CARD_W} */
+    @Deprecated public static final int CARD_W      = LayoutMetrics.CARD_W;
+    /** @deprecated 使用 {@link LayoutMetrics#CARD_H} */
+    @Deprecated public static final int CARD_H      = LayoutMetrics.CARD_H;
+    /** @deprecated 使用 {@link LayoutMetrics#ICON_RADIUS} */
+    @Deprecated public static final int ICON_RADIUS = LayoutMetrics.ICON_RADIUS;
+    /** @deprecated 使用 {@link LayoutMetrics#STRIP_W} */
+    @Deprecated public static final int STRIP_W     = LayoutMetrics.STRIP_W;
 
-    // ══════════════════════════════════════════════════════════
-    // Layout — Chrome (tab bar, bottom bar, toolbar icons)
-    // ══════════════════════════════════════════════════════════
+    /** @deprecated 使用 {@link LayoutMetrics#DRAG_THRESH} */
+    @Deprecated public static final int DRAG_THRESH = LayoutMetrics.DRAG_THRESH;
+    /** @deprecated 使用 {@link LayoutMetrics#TAB_H} */
+    @Deprecated public static final int TAB_H       = LayoutMetrics.TAB_H;
+    /** @deprecated 使用 {@link LayoutMetrics#BOTTOM_H} */
+    @Deprecated public static final int BOTTOM_H    = LayoutMetrics.BOTTOM_H;
+    /** @deprecated 使用 {@link LayoutMetrics#ICON_S} */
+    @Deprecated public static final int ICON_S      = LayoutMetrics.ICON_S;
+    /** @deprecated 使用 {@link LayoutMetrics#ICON_PAD} */
+    @Deprecated public static final int ICON_PAD    = LayoutMetrics.ICON_PAD;
+    /** @deprecated 使用 {@link LayoutMetrics#ICON_GAP} */
+    @Deprecated public static final int ICON_GAP    = LayoutMetrics.ICON_GAP;
+    /** @deprecated 使用 {@link LayoutMetrics#SMALL_BTN_H} */
+    @Deprecated public static final int SMALL_BTN_H = LayoutMetrics.SMALL_BTN_H;
 
-    /** Pixel distance before a mouse-down counts as a drag. */
-    public static final int DRAG_THRESH = 5;
-    /** Tab bar height at the top of the screen. */
-    public static final int TAB_H       = 28;
-    /** Bottom status bar height. */
-    public static final int BOTTOM_H    = 24;
-    /** Toolbar icon size (square). */
-    public static final int ICON_S      = 18;
-    /** Padding from screen edge to first toolbar icon. */
-    public static final int ICON_PAD    = 3;
-    /** Gap between adjacent toolbar icons. */
-    public static final int ICON_GAP    = 3;
-    /** Standard small button height (used by {@code GuiUtils.drawSmallBtn}). */
-    public static final int SMALL_BTN_H = 20;
-
-    // ══════════════════════════════════════════════════════════
-    // Layout — Edit panel dimensions
-    // ══════════════════════════════════════════════════════════
-
-    /** Edit panel total width. */
-    public static final int EP_PW       = 360;
-    /** Edit panel inner padding. */
-    public static final int EP_PAD      = 10;
-    /** Edit panel label width. */
-    public static final int EP_LW       = 24;
-    /** Edit panel field gap. */
-    public static final int EP_FG       = 4;
-    /** Edit panel margin gap. */
-    public static final int EP_MG       = 8;
-    /** Edit panel row height. */
-    public static final int EP_ROW      = 24;
-    /** Max conditions per advancement. */
-    public static final int EP_COND_MAX = 3;
-    /** Condition selector row height. */
-    public static final int EP_COND_ROW = 14;
-    /** Total condition selector area height. */
-    public static final int EP_COND_AREA= EP_COND_MAX * EP_COND_ROW + 4;
+    /** @deprecated 使用 {@link LayoutMetrics#EP_PAD} */
+    @Deprecated public static final int EP_PAD      = LayoutMetrics.EP_PAD;
+    /** @deprecated 使用 {@link LayoutMetrics#EP_LW} */
+    @Deprecated public static final int EP_LW       = LayoutMetrics.EP_LW;
+    /** @deprecated 使用 {@link LayoutMetrics#EP_FG} */
+    @Deprecated public static final int EP_FG       = LayoutMetrics.EP_FG;
+    /** @deprecated 使用 {@link LayoutMetrics#EP_MG} */
+    @Deprecated public static final int EP_MG       = LayoutMetrics.EP_MG;
+    /** @deprecated 使用 {@link LayoutMetrics#EP_ROW} */
+    @Deprecated public static final int EP_ROW      = LayoutMetrics.EP_ROW;
+    /** @deprecated 使用 {@link LayoutMetrics#EP_COND_MAX} */
+    @Deprecated public static final int EP_COND_MAX = LayoutMetrics.EP_COND_MAX;
+    /** @deprecated 使用 {@link LayoutMetrics#EP_COND_ROW} */
+    @Deprecated public static final int EP_COND_ROW = LayoutMetrics.EP_COND_ROW;
+    /** @deprecated 使用 {@link LayoutMetrics#EP_COND_AREA} */
+    @Deprecated public static final int EP_COND_AREA = LayoutMetrics.EP_COND_AREA;
 
     // ══════════════════════════════════════════════════════════
     // Interaction — Zoom and animation

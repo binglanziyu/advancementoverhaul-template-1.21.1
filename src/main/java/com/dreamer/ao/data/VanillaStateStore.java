@@ -171,8 +171,13 @@ final class VanillaStateStore {
     /** 从 JSON 加载启用/禁用状态 */
     void loadStates(Path file) {
         if (file == null || !Files.exists(file)) return;
+        String content = DataStoreIO.readWithFallback(file, DataStoreIO::isValidJsonObject);
+        if (content == null) {
+            LOGGER.warn("Failed to load vanilla states: no readable file or backup");
+            return;
+        }
         try {
-            JsonObject root = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
+            JsonObject root = JsonParser.parseString(content).getAsJsonObject();
             synchronized (stateLock) {
                 disabled.clear();
                 enabled.clear();
@@ -192,9 +197,14 @@ final class VanillaStateStore {
     /** 从 JSON 加载原版元数据 */
     void loadMeta(Path file) {
         if (file == null || !Files.exists(file)) return;
+        String content = DataStoreIO.readWithFallback(file, DataStoreIO::isValidJsonObject);
+        if (content == null) {
+            LOGGER.warn("Failed to load vanilla meta: no readable file or backup");
+            return;
+        }
         try {
             Map<String, VanillaAdvMeta> loaded = DataStore.GSON.fromJson(
-                    Files.readString(file),
+                    content,
                     new TypeToken<Map<String, VanillaAdvMeta>>() {}.getType());
             meta.clear();
             if (loaded != null) meta.putAll(loaded);

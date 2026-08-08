@@ -1,5 +1,6 @@
 package com.dreamer.ao.data;
 
+import com.dreamer.ao.ServerConstants;
 import com.dreamer.ao.data.model.VanillaAdvMeta;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -35,6 +36,7 @@ final class DataStoreIO {
     private static final String VANILLA_META_FILE = "vanilla_meta.json";
     private static final String TAB_ORDER_FILE    = "tab_order.json";
     private static final String DIM_LOCK_FILE     = "dimension_locks.json";
+    private static final String PHASE_STATE_FILE  = "phase_state.json";
     private static final String DATA_DIR  = "advancement_overhaul";
 
     // ── 基础设施 ──
@@ -92,14 +94,30 @@ final class DataStoreIO {
 
     /** 异步（fallback 同步）原子写入文件 */
     void asyncWrite(Path path, String content) {
-        if (saveExecutor.isShutdown()) {
-            writeSync(path, content);
-            return;
-        }
-        saveExecutor.submit(() -> writeSync(path, content));
+        asyncWrite(path, content, ServerConstants.BACKUP_GENERATIONS);
     }
 
-    private static void writeSync(Path path, String content) {
+    /**
+     * 异步原子写入文件，并按指定代数保留滚动备份。
+     *
+     * @param generations 保留的备份代数，{@code <= 0} 表示不备份
+     */
+    void asyncWrite(Path path, String content, int generations) {
+        if (saveExecutor.isShutdown()) {
+            writeSync(path, content, generations);
+            return;
+        }
+        saveExecutor.submit(() -> writeSync(path, content, generations));
+    }
+
+    /**
+     * 同步原子写入，写入前先轮转滚动备份。
+     * <p>
+     * 全部 I/O（含备份复制）都在 {@code saveExecutor} 单线程内串行执行，
+     * 不阻塞服务端主线程，也不会与其它写入任务产生竞态。
+     */
+    private static void writeSync(Path path, String content, int generations) {
+        rotateBackups(path, generations);
         try {
             Path tmp = path.resolveSibling(path.getFileName() + ".tmp");
             Files.writeString(tmp, content);
@@ -107,7 +125,8 @@ final class DataStoreIO {
                 Files.move(tmp, path, java.nio.file.StandardCopyOption.ATOMIC_MOVE,
                         java.nio.file.StandardCopyOption.REPLACE_EXISTING);
             } catch (java.nio.file.AtomicMoveNotSupportedException e) {
-                // ATOMIC_MOVE not supported (e.g. cross-filesystem) — use .bak fallback
+                // ATOMIC_MOVE not supported (e.g. cross-filesystem) — 退化为两步移动。
+                // 此处的 .bak 是移动过程中的中转文件，与下方滚动备份的 .bakN 互不冲突。
                 Path bak = path.resolveSibling(path.getFileName() + ".bak");
                 Files.move(path, bak, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                 Files.move(tmp, path);
@@ -116,6 +135,89 @@ final class DataStoreIO {
             }
         } catch (IOException e) {
             LOGGER.error("Failed to save {}", path.getFileName(), e);
+        }
+    }
+
+    // ── 滚动备份与回滚 ──
+
+    /** 构造第 {@code gen} 代备份文件路径（gen 从 1 开始，1 为最新）。 */
+    private static Path backupPath(Path path, int gen) {
+        return path.resolveSibling(path.getFileName() + ".bak" + gen);
+    }
+
+    /**
+     * 写入前轮转备份：{@code .bak(N-1) → .bakN}，最后将现有主文件复制为 {@code .bak1}。
+     * <p>
+     * 使用复制而非移动保存主文件，确保轮转过程中主文件始终可读——
+     * 即便进程在此刻崩溃，也不会出现主文件缺失的窗口。
+     * <p>
+     * 备份失败仅记录警告，不阻断主写入流程：备份是可靠性增强而非写入前置条件。
+     */
+    private static void rotateBackups(Path path, int generations) {
+        if (generations <= 0 || !Files.exists(path)) return;
+        try {
+            for (int gen = generations; gen > 1; gen--) {
+                Path older = backupPath(path, gen);
+                Path newer = backupPath(path, gen - 1);
+                if (Files.exists(newer)) {
+                    Files.move(newer, older, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+            Files.copy(path, backupPath(path, 1),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            LOGGER.warn("Failed to rotate backups for {}: {}", path.getFileName(), e.getMessage());
+        }
+    }
+
+    /**
+     * 读取文件内容，主文件损坏时自动回退到滚动备份。
+     * <p>
+     * 依次尝试主文件、{@code .bak1}、{@code .bak2}……由 {@code validator} 判定内容是否可用
+     * （通常为 JSON 可解析性检查）。任一候选通过即返回其内容。
+     *
+     * @param path      主文件路径
+     * @param validator 内容有效性校验，返回 false 表示该候选损坏
+     * @return 可用的文件内容；全部候选均不可用时返回 {@code null}
+     */
+    static String readWithFallback(Path path, java.util.function.Predicate<String> validator) {
+        for (int gen = 0; gen <= ServerConstants.BACKUP_GENERATIONS; gen++) {
+            Path candidate = gen == 0 ? path : backupPath(path, gen);
+            if (!Files.exists(candidate)) continue;
+            try {
+                String content = Files.readString(candidate);
+                if (!validator.test(content)) {
+                    LOGGER.warn("Corrupted data file {}, trying next backup", candidate.getFileName());
+                    continue;
+                }
+                if (gen > 0) {
+                    LOGGER.warn("Recovered {} from backup generation {}", path.getFileName(), gen);
+                }
+                return content;
+            } catch (IOException e) {
+                LOGGER.warn("Failed to read {}: {}", candidate.getFileName(), e.getMessage());
+            }
+        }
+        return null;
+    }
+
+    /** 校验内容为可解析的 JSON 对象。 */
+    static boolean isValidJsonObject(String content) {
+        try {
+            JsonElement parsed = com.google.gson.JsonParser.parseString(content);
+            return parsed != null && parsed.isJsonObject();
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /** 校验内容为可解析的 JSON 数组。 */
+    static boolean isValidJsonArray(String content) {
+        try {
+            JsonElement parsed = com.google.gson.JsonParser.parseString(content);
+            return parsed != null && parsed.isJsonArray();
+        } catch (RuntimeException e) {
+            return false;
         }
     }
 
@@ -139,7 +241,9 @@ final class DataStoreIO {
 
     void saveVanillaRawCache(VanillaStateStore store) {
         if (dataFolder == null || store.getRawCache() == null) return;
-        asyncWrite(dataFolder.resolve(VANILLA_RAW_FILE), store.rawCacheToJson());
+        // 原始缓存体积较大且可从服务端注册表重新生成，损坏代价低，只保留 1 代备份
+        asyncWrite(dataFolder.resolve(VANILLA_RAW_FILE), store.rawCacheToJson(),
+                ServerConstants.BACKUP_GENERATIONS_LARGE);
     }
 
     void saveTabOrder(TabStore store) {
@@ -152,9 +256,20 @@ final class DataStoreIO {
         asyncWrite(dataFolder.resolve(DIM_LOCK_FILE), json);
     }
 
+    void savePhaseState(String json) {
+        if (dataFolder == null) return;
+        asyncWrite(dataFolder.resolve(PHASE_STATE_FILE), json);
+    }
+
     void saveAll(AdvancementStore advStore, PlayerDataStore playerStore,
                  VanillaStateStore vanillaStore, TabStore tabStore,
                  String dimensionLocksJson) {
+        saveAll(advStore, playerStore, vanillaStore, tabStore, dimensionLocksJson, null);
+    }
+
+    void saveAll(AdvancementStore advStore, PlayerDataStore playerStore,
+                 VanillaStateStore vanillaStore, TabStore tabStore,
+                 String dimensionLocksJson, String phaseStateJson) {
         saveAdvancements(advStore);
         savePlayerDataIfDirty(playerStore);
         saveVanillaStates(vanillaStore);
@@ -162,6 +277,9 @@ final class DataStoreIO {
         saveTabOrder(tabStore);
         if (dimensionLocksJson != null) {
             saveDimensionLocks(dimensionLocksJson);
+        }
+        if (phaseStateJson != null) {
+            savePhaseState(phaseStateJson);
         }
     }
 
@@ -182,8 +300,12 @@ final class DataStoreIO {
     void loadDimensionLocks(Map<String, DimensionLock> into) {
         Path file = dataFolder.resolve(DIM_LOCK_FILE);
         if (!Files.exists(file)) return;
+        String content = readWithFallback(file, DataStoreIO::isValidJsonObject);
+        if (content == null) {
+            LOGGER.warn("Failed to load dimension locks: no readable file or backup");
+            return;
+        }
         try {
-            String content = Files.readString(file);
             JsonObject obj = com.google.gson.JsonParser.parseString(content).getAsJsonObject();
             if (obj == null || obj.size() == 0) return;
             var type = new com.google.gson.reflect.TypeToken<Map<String, DimensionLock>>() {}.getType();
@@ -195,6 +317,33 @@ final class DataStoreIO {
             }
         } catch (Exception e) {
             LOGGER.warn("Failed to load dimension locks: {}", e.getMessage());
+        }
+    }
+
+    // ── 阶段状态加载（全局 + 维度 + 已解锁集合） ──
+
+    /**
+     * 读取持久化的阶段状态文件。
+     *
+     * <p>返回原始 {@link JsonObject} 交由 {@code ServerDataStore} 解析，避免 IO 层依赖阶段模型。
+     * 文件不存在时返回 {@code null}（首次运行属正常情况，不告警）。
+     */
+    JsonObject loadPhaseState() {
+        if (dataFolder == null) return null;
+        Path file = dataFolder.resolve(PHASE_STATE_FILE);
+        if (!Files.exists(file)) return null;
+        String content = readWithFallback(file, DataStoreIO::isValidJsonObject);
+        if (content == null) {
+            LOGGER.warn("Failed to load phase state: no readable file or backup");
+            return null;
+        }
+        try {
+            JsonObject obj = com.google.gson.JsonParser.parseString(content).getAsJsonObject();
+            if (obj == null || obj.size() == 0) return null;
+            return obj;
+        } catch (Exception e) {
+            LOGGER.warn("Failed to load phase state: {}", e.getMessage());
+            return null;
         }
     }
 

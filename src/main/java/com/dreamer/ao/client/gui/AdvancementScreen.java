@@ -1,6 +1,7 @@
 package com.dreamer.ao.client.gui;
 
 
+import com.dreamer.ao.AdvancementOverhaul;
 import com.dreamer.ao.LangKeys;
 import com.dreamer.ao.client.gui.cache.CircleCache;
 import com.dreamer.ao.client.gui.cache.RegistryCache;
@@ -13,6 +14,7 @@ import com.dreamer.ao.client.gui.panel.EditPanel;
 import com.dreamer.ao.client.gui.panel.ListSelector;
 import com.dreamer.ao.client.gui.render.CardRenderer;
 import com.dreamer.ao.client.gui.render.OverlayRenderer;
+import com.dreamer.ao.client.gui.render.ScreenRenderCoordinator;
 import com.dreamer.ao.client.gui.render.TabRenderer;
 import com.dreamer.ao.client.gui.state.*;
 import com.dreamer.ao.client.gui.state.OverlayState.CtxAct;
@@ -61,6 +63,7 @@ public class AdvancementScreen extends Screen {
     public final OverlayState overlay = new OverlayState();
     public final AnimState anim = new AnimState();
     public final TabDragState tabDrag = new TabDragState();
+    public final TabManageDragState tabManageDrag = new TabManageDragState();
     public boolean editMode = persistEdit;
     public String curTab = null;
     public int frameCount = 0;
@@ -92,22 +95,12 @@ public class AdvancementScreen extends Screen {
     /** Mark the filtered cache as needing refresh (called on tab switch or data update). */
     public void markFilteredDirty() { screenState.markDirty(ScreenState.DIRTY_FILTERED); }
 
-    /** @deprecated use {@link #screenState}{@code .isDirty(ScreenState.DIRTY_VANILLA_POS)} + {@link ScreenState#markDirty(int)} */
-    @Deprecated
-    public boolean vanillaPositionsDirty() { return screenState.isDirty(ScreenState.DIRTY_VANILLA_POS); }
-
-    /** @deprecated use {@link #screenState}{@code .markDirty(ScreenState.DIRTY_VANILLA_POS)} */
-    @Deprecated
-    public void setVanillaPositionsDirty(boolean v) {
-        if (v) screenState.markDirty(ScreenState.DIRTY_VANILLA_POS);
-        else screenState.clearDirty(ScreenState.DIRTY_VANILLA_POS);
-    }
-
     // ═══════════════ Components ═══════════════
 
     public final CardRenderer cardRenderer = new CardRenderer(this);
     public final TabRenderer tabRenderer = new TabRenderer(this);
     public final OverlayRenderer overlayRenderer = new OverlayRenderer(this);
+    public final ScreenRenderCoordinator renderCoordinator = new ScreenRenderCoordinator(this);
     public DimensionPanel dimPanel;
     public ListSelector listSel;
     public EditPanel editPanel;
@@ -140,6 +133,11 @@ public class AdvancementScreen extends Screen {
     public int midY(int h) { return Math.max(20, (height - h) / 2); }
     public int getScreenWidth() { return width; }
     public int getScreenHeight() { return height; }
+
+    /** 暴露画布交互管理器给渲染协调器（位于子包 render）。 */
+    public CanvasManager getCanvasManager() { return canvasManager; }
+    /** 暴露可渲染组件列表给渲染协调器（位于子包 render）。 */
+    public Iterable<net.minecraft.client.gui.components.Renderable> getRenderablesView() { return renderables; }
     public boolean isVanillaAdvId(String id) { return id != null && vanillaAdvIdSet.contains(id); }
     public CustomAdvancement adv(String id) { return id == null ? null : ClientDataStore.getInstance().getAdvancement(id); }
     public VanillaAdv getVanillaAdv(String id) { return vanillaAdvMap.get(id); }
@@ -187,6 +185,7 @@ public class AdvancementScreen extends Screen {
         showDim = false; showSel = false; showHelp = false;
         screenState.reset();
         tabDrag.reset();
+        tabManageDrag.reset();
         canvasManager.resetScrollDrag();
 
         editPanel = new EditPanel();
@@ -222,7 +221,16 @@ public class AdvancementScreen extends Screen {
             }
         }
         vanillaEngine.loadVanillaAdvancements();
+
+        // 客户端初始化曾失败时提示玩家，避免功能不完整却无任何反馈
+        if (AdvancementOverhaul.isClientInitDegraded() && !degradedNoticeShown) {
+            degradedNoticeShown = true;
+            addToast(Component.translatable(LangKeys.CLIENT_INIT_DEGRADED).getString());
+        }
     }
+
+    /** 降级提示每次游戏会话只显示一次，避免每次开启界面都打扰玩家。 */
+    private static boolean degradedNoticeShown = false;
 
     // ═══════════════ TICK (non-rendering updates) ═══════════════
 
@@ -266,115 +274,7 @@ public class AdvancementScreen extends Screen {
 
     @Override
     public void render(GuiGraphics g, int mx, int my, float pt) {
-        renderCanvasBackground(g);
-        renderCanvasContent(g, mx, my);
-        renderBackgroundMask(g);
-        renderChrome(g, mx, my);
-        renderOverlayLayer(g, mx, my, pt);
-        anim.tick();
-    }
-
-    /** Background fill for the entire screen. */
-    private void renderCanvasBackground(GuiGraphics g) {
-        g.fill(0, 0, width, height, BG);
-        cardRenderer.tickFrameTime();
-    }
-
-    /** Scrolled canvas region: grid, connections, cards, box selection, scroll indicators. */
-    private void renderCanvasContent(GuiGraphics g, int mx, int my) {
-        // Bug 4 修复：扩展 scissor 区域，防止 hover zoom 时边缘卡片被截断
-        int hovPad = (int) (CARD_W * canvas.zoom * HOVER_ZOOM);
-        g.enableScissor(-hovPad, TAB_H - hovPad, width + hovPad * 2, height - BOTTOM_H + hovPad);
-        cardRenderer.renderGrid(g);
-        if (!blocksCanvas()) {
-            cardRenderer.renderConnections(g);
-            cardRenderer.renderCards(g, mx, my);
-            if (drag.boxSel && editMode) cardRenderer.renderBoxSel(g);
-        }
-        cardRenderer.renderScrollIndicators(g);
-        g.disableScissor();
-    }
-
-    /**
-     * Opaque mask to prevent {@code renderItem} 3D quads from penetrating
-     * through popup overlays (ListSelector / detail/edit panels).
-     */
-    private void renderBackgroundMask(GuiGraphics g) {
-        if (showSel) {
-            // 全屏完全不透明遮罩（选择器弹窗需要完全遮挡底层卡片）
-            g.fill(0, 0, width, height, 0xFF1A1A2E);
-        } else if (hasOv()) {
-            if (overlay.current == OverlayType.CTX) {
-                // CTX 浮动小菜单无需遮罩，让用户仍能看到底层画布
-                return;
-            } else if (overlay.current == OverlayType.CREATE || overlay.current == OverlayType.EDIT) {
-                // 编辑/创建面板使用半透明遮罩，保持对底层画布的可见性
-                g.fill(0, TAB_H, width, height - BOTTOM_H, 0xA01A1A2E);
-            } else {
-                // DETAIL/CONFIRM/TAB_INPUT 等保持完全不透明遮罩
-                g.fill(0, TAB_H, width, height - BOTTOM_H, 0xFF1A1A2E);
-            }
-        }
-    }
-
-    /** Tab bar, bottom status bar, and toolbar buttons. */
-    private void renderChrome(GuiGraphics g, int mx, int my) {
-        tabRenderer.renderTabs(g, mx, my);
-        tabRenderer.renderBottom(g, mx, my);
-        tabRenderer.renderButtons(g, mx, my);
-    }
-
-    /**
-     * Overlay layer rendered at z=300: edit/detail/create panels,
-     * dimension panel, list selector, help screen, managed EditBoxes,
-     * tab-name input, card tooltips, and toast notifications.
-     */
-    private void renderOverlayLayer(GuiGraphics g, int mx, int my, float pt) {
-        boolean ebVis = (overlay.current == OverlayType.CREATE || overlay.current == OverlayType.EDIT)
-                && !showSel && !editPanel.isCondSelActive();
-        editPanel.updateVisibility(ebVis);
-
-        g.pose().pushPose();
-        g.pose().translate(0, 0, 300);
-
-        overlayRenderer.renderOv(g, mx, my);
-        if (overlay.current == OverlayType.JOURNAL) overlayRenderer.renderJournal(g, mx, my, font, width, height);
-        if (showDim) dimPanel.render(g, mx, my);
-        if (showSel) listSel.render(g, mx, my);
-        if (showHelp) overlayRenderer.renderHelp(g, mx, my, font, width, height);
-
-        // Managed EditBoxes
-        for (var w : renderables) {
-            if (w instanceof EditBox eb && eb.isVisible()) {
-                boolean isInlineCount = eb == editPanel.getInlineCountBox();
-                if (ebVis || isInlineCount) eb.render(g, mx, my, pt);
-            }
-        }
-
-        // Tab name input popup
-        if (overlay.current == OverlayType.TAB_INPUT) {
-            int px = mid(OverlayLayout.TAB_INPUT_W);
-            int py = midY(OverlayLayout.TAB_INPUT_H);
-            tabNameBox.setX(px + OverlayLayout.TAB_INPUT_INNER_PAD);
-            tabNameBox.setY(py + OverlayLayout.TAB_INPUT_BOX_Y);
-            tabNameBox.setWidth(OverlayLayout.TAB_INPUT_W - 2 * OverlayLayout.TAB_INPUT_INNER_PAD);
-            tabNameBox.setVisible(true);
-            tabNameBox.render(g, mx, my, pt);
-        } else {
-            tabNameBox.setVisible(false);
-        }
-
-        // Hover tooltip (only when no overlay is active)
-        if (!hasOv()) {
-            // 图片元素覆盖时不显示卡片 tooltip（避免穿透显示）
-            if (imageAt(mx, my) == null) {
-                String hoverCard = canvasManager.cardAt(mx, my);
-                if (hoverCard != null) overlayRenderer.renderTooltip(g, mx, my, hoverCard);
-            }
-        }
-
-        overlayRenderer.renderToasts(g);
-        g.pose().popPose();
+        renderCoordinator.render(g, mx, my, pt);
     }
 
     // ═══════════════ Event delegation ═══════════════
@@ -392,7 +292,6 @@ public class AdvancementScreen extends Screen {
                 && minecraft.player.hasPermissions(2)) {
             editMode = !editMode;
             persistEdit = editMode;
-            addToast(Component.translatable(editMode ? LangKeys.TOGGLE_EDIT_ON : LangKeys.TOGGLE_EDIT_OFF).getString());
             return true;
         }
         return super.keyPressed(kc, sc, mod);
@@ -453,6 +352,7 @@ public class AdvancementScreen extends Screen {
         PERSIST.scrollY = canvas.scrollY;
         PERSIST.zoom = canvas.zoom;
         tabDrag.reset();
+        tabManageDrag.reset();
         drag.reset();
         journalScrollOff = 0;
         canvasManager.resetScrollDrag();

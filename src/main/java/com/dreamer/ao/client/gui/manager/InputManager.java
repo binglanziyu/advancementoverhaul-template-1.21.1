@@ -113,16 +113,8 @@ public class InputManager {
             return true;
         }
 
-        // Bottom status bar
+        // Bottom status bar (计数显示区，无交互，拦截避免穿透到画布)
         if (my >= screen.getScreenHeight() - BOTTOM_H) {
-            // Help button ("?")
-            int helpW = screen.getFont().width("?") + 10;
-            int helpX = screen.getScreenWidth() - helpW - 8;
-            int helpY = screen.getScreenHeight() - BOTTOM_H;
-            if (btn == 0 && GuiUtils.inRect(mx, my, helpX, helpY, helpW, BOTTOM_H)) {
-                screen.showHelp = !screen.showHelp;
-                return true;
-            }
             return true;
         }
 
@@ -236,6 +228,8 @@ public class InputManager {
                 screen.drag.lastDragMX = mx;
                 screen.drag.lastDragMY = my;
                 screen.drag.dragMoved = false;
+                // 标记本地拖动未同步，避免后续 syncAll 把该卡片坐标覆盖回服务端旧值
+                ClientDataStore.getInstance().markLocalAdvDirty(card);
             }
         } else {
             screen.selection.select(card);
@@ -253,9 +247,11 @@ public class InputManager {
         }
         canvasMgr.resetScrollDrag();
 
-        if (screen.tabDrag.dragIdx >= 0) {
-            screen.tabDrag.dragIdx = -1;
-            screen.tabDrag.dragMoved = false;
+        if (screen.tabManageDrag.dragFrom >= 0) {
+            if (screen.tabManageDrag.dragging) {
+                OverlayClickHandler.commitTabManageReorder(screen, screen.tabManageDrag.dragVisualY);
+            }
+            screen.tabManageDrag.reset();
             return true;
         }
 
@@ -299,10 +295,11 @@ public class InputManager {
             screen.editPanel.mouseDragged(my, screen.getScreenWidth(), screen.getScreenHeight());
         }
 
-        if (screen.tabDrag.dragIdx >= 0) {
-            if (!screen.tabDrag.dragMoved && Math.abs(mx - screen.tabDrag.dragStartX) > DRAG_THRESH)
-                screen.tabDrag.dragMoved = true;
-            if (screen.tabDrag.dragMoved) screen.tabRenderer.setDragVisualX((int) mx);
+        if (screen.tabManageDrag.dragFrom >= 0) {
+            if (!screen.tabManageDrag.dragging
+                    && Math.abs(my - screen.tabManageDrag.dragStartY) > DRAG_THRESH)
+                screen.tabManageDrag.dragging = true;
+            if (screen.tabManageDrag.dragging) screen.tabManageDrag.dragVisualY = my;
             return true;
         }
 

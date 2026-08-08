@@ -4,6 +4,7 @@ import com.dreamer.ao.LangKeys;
 import com.dreamer.ao.client.gui.AdvancementScreen;
 import com.dreamer.ao.client.gui.ConditionTypeStyle;
 import com.dreamer.ao.client.gui.GuiUtils;
+import com.dreamer.ao.client.gui.layout.LayoutMetrics;
 import com.dreamer.ao.client.gui.TranslatedStrings;
 import com.dreamer.ao.client.gui.widget.ScrollBar;
 import com.dreamer.ao.data.DataStore;
@@ -48,11 +49,8 @@ class EditPanelRenderer {
         if (!panel.visible || panel.screen == null) return;
         Font font = panel.font;
 
-        int pw = Math.min(EditPanel.PANEL_W, screenW - 40);
-        int ph = Math.clamp(screenH - 40, 200, EditPanel.PANEL_H);
-        panel.panelX = (screenW - pw) / 2;
-        panel.panelY = Math.max(20, (screenH - ph) / 2);
-        int descFieldW = pw - EditPanel.DESC_AREA_X - 14;
+        panel.updateLayout(screenW, screenH);
+        int pw = panel.panelW, ph = panel.panelH;
 
         GuiUtils.drawPanelBg(g, font, panel.panelX, panel.panelY, pw, ph,
                 TranslatedStrings.get(panel.edId == null ? LangKeys.CREATE_TITLE : LangKeys.EDIT_TITLE),
@@ -63,26 +61,26 @@ class EditPanelRenderer {
         // ── Row 1: 名称 + 描述（vanillaEditMode 下锁定） ──
         g.drawString(font, TranslatedStrings.get(LangKeys.NAME), panel.panelX + 14, ty + 6, panel.vanillaEditMode ? TEXT_DIM : TEXT, false);
         if (!panel.vanillaEditMode && panel.nameActive) {
-            panel.nameBox.setX(panel.panelX + EditPanel.NAME_AREA_X); panel.nameBox.setY(ty); panel.nameBox.setWidth(EditPanel.NAME_FIELD_W);
+            panel.nameBox.setX(panel.panelX + LayoutMetrics.NAME_AREA_X); panel.nameBox.setY(ty); panel.nameBox.setWidth(LayoutMetrics.NAME_FIELD_W);
             panel.nameBox.setVisible(true);
         } else {
             panel.nameBox.setVisible(false);
-            drawFieldArea(g, font, panel.panelX + EditPanel.NAME_AREA_X, ty, EditPanel.NAME_FIELD_W, 20, panel.edName, TranslatedStrings.get(LangKeys.NAME_PLACEHOLDER));
+            drawFieldArea(g, font, panel.panelX + LayoutMetrics.NAME_AREA_X, ty, LayoutMetrics.NAME_FIELD_W, 20, panel.edName, TranslatedStrings.get(LangKeys.NAME_PLACEHOLDER));
         }
 
-        g.drawString(font, TranslatedStrings.get(LangKeys.DESC), panel.panelX + EditPanel.DESC_LABEL_X, ty + 6, panel.vanillaEditMode ? TEXT_DIM : TEXT, false);
+        g.drawString(font, TranslatedStrings.get(LangKeys.DESC), panel.panelX + LayoutMetrics.DESC_LABEL_X, ty + 6, panel.vanillaEditMode ? TEXT_DIM : TEXT, false);
         if (!panel.vanillaEditMode && panel.descActive) {
-            panel.descBox.setX(panel.panelX + EditPanel.DESC_AREA_X); panel.descBox.setY(ty); panel.descBox.setWidth(descFieldW);
+            panel.descBox.setX(panel.panelX + LayoutMetrics.DESC_AREA_X); panel.descBox.setY(ty); panel.descBox.setWidth(panel.descFieldW);
             panel.descBox.setVisible(true);
         } else {
             panel.descBox.setVisible(false);
-            drawFieldArea(g, font, panel.panelX + EditPanel.DESC_AREA_X, ty, descFieldW, 20, panel.edDesc, TranslatedStrings.get(LangKeys.DESC_PLACEHOLDER));
+            drawFieldArea(g, font, panel.panelX + LayoutMetrics.DESC_AREA_X, ty, panel.descFieldW, 20, panel.edDesc, TranslatedStrings.get(LangKeys.DESC_PLACEHOLDER));
         }
         ty += 28;
 
         // ── Row 2: 分类 + 隐 + 图标 + 前置 ──
         if (panel.vanillaEditMode) {
-            int tabW = pw - EditPanel.PREREQ_BTN_W - 14 - EditPanel.BTN_GAP - 14;
+            int tabW = pw - LayoutMetrics.PREREQ_BTN_W - 14 - LayoutMetrics.BTN_GAP - 14;
             String catLbl = TranslatedStrings.get(LangKeys.TAB) + ": " + (panel.edTab != null ? DataStore.getTabDisplayName(panel.edTab) : DataStore.getTabDisplayName(DataStore.TAB_VANILLA));
             String catTrunc = GuiUtils.truncate(font, catLbl, tabW - 8);
             boolean catHov = GuiUtils.inRect(mx, my, panel.panelX + 14, ty, tabW, 20);
@@ -90,26 +88,26 @@ class EditPanelRenderer {
             g.renderOutline(panel.panelX + 14, ty, tabW, 20, panel.edTab != null ? ACCENT : DIVIDER);
             g.drawString(font, catTrunc, panel.panelX + 22, ty + 6, catHov ? TEXT_BR : TEXT, false);
 
-            int pBtnX = panel.panelX + 14 + tabW + EditPanel.BTN_GAP;
-            renderPrereqButton(g, font, mx, my, pBtnX, ty, EditPanel.PREREQ_BTN_W);
+            int pBtnX = panel.panelX + 14 + tabW + LayoutMetrics.BTN_GAP;
+            renderPrereqButton(g, font, mx, my, pBtnX, ty, LayoutMetrics.PREREQ_BTN_W);
 
         } else {
             String catLbl = TranslatedStrings.get(LangKeys.TAB) + ": " + GuiUtils.truncate(font, panel.edTab != null ? DataStore.getTabDisplayName(panel.edTab) : DataStore.getTabDisplayName(DataStore.TAB_DEFAULT), 40);
-            GuiUtils.drawSmallBtn(g, font, panel.panelX + 14, ty, EditPanel.CAT_BTN_W, catLbl, GuiUtils.inRect(mx, my, panel.panelX + 14, ty, EditPanel.CAT_BTN_W, 20));
+            GuiUtils.drawSmallBtn(g, font, panel.panelX + 14, ty, LayoutMetrics.CAT_BTN_W, catLbl, GuiUtils.inRect(mx, my, panel.panelX + 14, ty, LayoutMetrics.CAT_BTN_W, 20));
 
-            boolean hHov = GuiUtils.inRect(mx, my, panel.panelX + EditPanel.HIDDEN_BTN_X, ty, EditPanel.HIDDEN_BTN_W, 20);
-            g.fill(panel.panelX + EditPanel.HIDDEN_BTN_X, ty, panel.panelX + EditPanel.HIDDEN_BTN_X + EditPanel.HIDDEN_BTN_W, ty + 20, panel.edHidden ? 0xFF3A5248 : (hHov ? BTN_HOV : BTN));
-            g.renderOutline(panel.panelX + EditPanel.HIDDEN_BTN_X, ty, EditPanel.HIDDEN_BTN_W, 20, panel.edHidden ? ACCENT : DIVIDER);
+            boolean hHov = GuiUtils.inRect(mx, my, panel.panelX + LayoutMetrics.HIDDEN_BTN_X, ty, LayoutMetrics.HIDDEN_BTN_W, 20);
+            g.fill(panel.panelX + LayoutMetrics.HIDDEN_BTN_X, ty, panel.panelX + LayoutMetrics.HIDDEN_BTN_X + LayoutMetrics.HIDDEN_BTN_W, ty + 20, panel.edHidden ? 0xFF3A5248 : (hHov ? BTN_HOV : BTN));
+            g.renderOutline(panel.panelX + LayoutMetrics.HIDDEN_BTN_X, ty, LayoutMetrics.HIDDEN_BTN_W, 20, panel.edHidden ? ACCENT : DIVIDER);
             String hLbl = TranslatedStrings.get(LangKeys.HIDDEN_SHORT);
-            g.drawString(font, hLbl, panel.panelX + EditPanel.HIDDEN_BTN_X + (EditPanel.HIDDEN_BTN_W - font.width(hLbl)) / 2, ty + 4, panel.edHidden ? ACCENT : (hHov ? TEXT_BR : TEXT), false);
+            g.drawString(font, hLbl, panel.panelX + LayoutMetrics.HIDDEN_BTN_X + (LayoutMetrics.HIDDEN_BTN_W - font.width(hLbl)) / 2, ty + 4, panel.edHidden ? ACCENT : (hHov ? TEXT_BR : TEXT), false);
 
-            int iBtnX = panel.panelX + EditPanel.ICON_BTN_X;
-            boolean iHov = GuiUtils.inRect(mx, my, iBtnX, ty, EditPanel.ICON_BTN_W, 20);
-            g.fill(iBtnX, ty, iBtnX + EditPanel.ICON_BTN_W, ty + 20, iHov ? BTN_HOV : BTN);
-            g.renderOutline(iBtnX, ty, EditPanel.ICON_BTN_W, 20, panel.edIcon != null ? ACCENT : DIVIDER);
-            renderIconButton(g, font, iBtnX, ty, EditPanel.ICON_BTN_W, iHov);
+            int iBtnX = panel.panelX + LayoutMetrics.ICON_BTN_X;
+            boolean iHov = GuiUtils.inRect(mx, my, iBtnX, ty, LayoutMetrics.ICON_BTN_W, 20);
+            g.fill(iBtnX, ty, iBtnX + LayoutMetrics.ICON_BTN_W, ty + 20, iHov ? BTN_HOV : BTN);
+            g.renderOutline(iBtnX, ty, LayoutMetrics.ICON_BTN_W, 20, panel.edIcon != null ? ACCENT : DIVIDER);
+            renderIconButton(g, font, iBtnX, ty, LayoutMetrics.ICON_BTN_W, iHov);
 
-            int pBtnX = panel.panelX + EditPanel.PREREQ_BTN_X_NORMAL;
+            int pBtnX = panel.panelX + LayoutMetrics.PREREQ_BTN_X_NORMAL;
             int pBtnW = panel.panelX + pw - pBtnX - 14;
             renderPrereqButton(g, font, mx, my, pBtnX, ty, pBtnW);
         }
@@ -146,23 +144,23 @@ class EditPanelRenderer {
         panel.condListStartY = ty;
         int condListEndY = panel.panelY + ph - 38;
         panel.condListVisibleH = condListEndY - panel.condListStartY;
-        int totalCondH = panel.edConds.size() * EditPanel.COND_ROW_H;
+        int totalCondH = panel.edConds.size() * LayoutMetrics.COND_ROW_H;
         panel.condScrollBar.update(totalCondH, panel.condListVisibleH);
 
         g.enableScissor(panel.panelX + 1, panel.condListStartY, panel.panelX + pw - 1, condListEndY);
         for (int i = 0; i < panel.edConds.size(); i++) {
-            int rowY = panel.condListStartY + i * EditPanel.COND_ROW_H - panel.condScrollBar.getScroll();
-            if (rowY + EditPanel.COND_ROW_H < panel.condListStartY || rowY > condListEndY) continue;
+            int rowY = panel.condListStartY + i * LayoutMetrics.COND_ROW_H - panel.condScrollBar.getScroll();
+            if (rowY + LayoutMetrics.COND_ROW_H < panel.condListStartY || rowY > condListEndY) continue;
             renderCondRow(g, font, mx, my, i, rowY, pw);
         }
         g.disableScissor();
 
         // ── 统一管理内联数量 EditBox 的位置和可见性 ──
         if (panel.inlineEditingCount && panel.inlineCondIdx >= 0 && panel.inlineCondIdx < panel.edConds.size()) {
-            int editRowY = panel.condListStartY + panel.inlineCondIdx * EditPanel.COND_ROW_H - panel.condScrollBar.getScroll();
-            if (editRowY + EditPanel.COND_ROW_H > panel.condListStartY && editRowY < condListEndY) {
-                int delX = panel.panelX + pw - EditPanel.COND_DEL_W - 6;
-                int cntX = delX - EditPanel.COND_CNT_W - 4;
+            int editRowY = panel.condListStartY + panel.inlineCondIdx * LayoutMetrics.COND_ROW_H - panel.condScrollBar.getScroll();
+            if (editRowY + LayoutMetrics.COND_ROW_H > panel.condListStartY && editRowY < condListEndY) {
+                int delX = panel.panelX + pw - LayoutMetrics.COND_DEL_W - 6;
+                int cntX = delX - LayoutMetrics.COND_CNT_W - 4;
                 panel.condCountBox.setX(cntX);
                 panel.condCountBox.setY(editRowY + 1);
                 panel.condCountBox.setVisible(true);
@@ -303,11 +301,11 @@ class EditPanelRenderer {
         int typeColor = c.getType() != null ? ConditionTypeStyle.of(c.getType()).color() : TEXT_DIM;
 
         // 行分隔线
-        g.fill(panel.panelX + 10, rowY + EditPanel.COND_ROW_H - 1, panel.panelX + pw - 10, rowY + EditPanel.COND_ROW_H, 0x15FFFFFF);
+        g.fill(panel.panelX + 10, rowY + LayoutMetrics.COND_ROW_H - 1, panel.panelX + pw - 10, rowY + LayoutMetrics.COND_ROW_H, 0x15FFFFFF);
 
         // 类型（彩色标签，无背景）
-        g.drawString(font, GuiUtils.truncate(font, typeLabel, EditPanel.COND_TYPE_W - 4),
-                panel.panelX + EditPanel.COND_TYPE_X, rowY + 5, typeColor, false);
+        g.drawString(font, GuiUtils.truncate(font, typeLabel, LayoutMetrics.COND_TYPE_W - 4),
+                panel.panelX + LayoutMetrics.COND_TYPE_X, rowY + 5, typeColor, false);
 
         // 目标（本地化名称）
         String tgtDisp;
@@ -316,13 +314,13 @@ class EditPanelRenderer {
         } else {
             tgtDisp = DisplayNameResolver.resolve(c.getType(), tgt);
         }
-        int maxTgtW = pw - EditPanel.COND_TGT_X - EditPanel.COND_CNT_W - EditPanel.COND_DEL_W - 30;
+        int maxTgtW = pw - LayoutMetrics.COND_TGT_X - LayoutMetrics.COND_CNT_W - LayoutMetrics.COND_DEL_W - 30;
         g.drawString(font, GuiUtils.truncate(font, tgtDisp, maxTgtW),
-                panel.panelX + EditPanel.COND_TGT_X, rowY + 5, TEXT, false);
+                panel.panelX + LayoutMetrics.COND_TGT_X, rowY + 5, TEXT, false);
 
         // 数量和删除按钮（右对齐）
-        int delX = panel.panelX + pw - EditPanel.COND_DEL_W - 6;
-        int cntX = delX - EditPanel.COND_CNT_W - 4;
+        int delX = panel.panelX + pw - LayoutMetrics.COND_DEL_W - 6;
+        int cntX = delX - LayoutMetrics.COND_CNT_W - 4;
         int xLabelX = cntX - 12;
 
         g.drawString(font, "x", xLabelX, rowY + 5, TEXT_DIM, false);
@@ -333,8 +331,8 @@ class EditPanelRenderer {
         }
 
         // 删除按钮（vanillaEditMode 下灰色不可操作）
-        boolean delHov = !panel.vanillaEditMode && GuiUtils.inRect(mx, my, delX, rowY, EditPanel.COND_DEL_W, EditPanel.COND_ROW_H);
-        g.drawString(font, "\u2715", delX + (EditPanel.COND_DEL_W - font.width("\u2715")) / 2, rowY + 5,
+        boolean delHov = !panel.vanillaEditMode && GuiUtils.inRect(mx, my, delX, rowY, LayoutMetrics.COND_DEL_W, LayoutMetrics.COND_ROW_H);
+        g.drawString(font, "\u2715", delX + (LayoutMetrics.COND_DEL_W - font.width("\u2715")) / 2, rowY + 5,
                 panel.vanillaEditMode ? 0xFF333333 : (delHov ? PINK : TEXT_DIM), false);
     }
 

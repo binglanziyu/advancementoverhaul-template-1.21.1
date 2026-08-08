@@ -5,6 +5,8 @@ import com.dreamer.ao.LangKeys;
 import com.dreamer.ao.data.ConditionType;
 import com.dreamer.ao.data.model.CustomAdvancement;
 import com.dreamer.ao.data.model.VanillaAdvMeta;
+import com.dreamer.ao.network.SyncManager;
+import com.dreamer.ao.phase.PhaseDefinition;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
@@ -71,6 +73,7 @@ public class ServerDataStore implements ImportContext {
         }
         try {
             io.initialLoad(advStore, vanillaStore, tabStore, dimensionLocks);
+            loadPhaseState();
         } catch (Exception e) {
             this.initFailed = true;
             LOGGER.error("DataStore initialization failed: error loading initial data", e);
@@ -120,6 +123,7 @@ public class ServerDataStore implements ImportContext {
     public void shutdown() {
         savePlayerDataIfDirty();
         io.shutdown();
+        SyncManager.shutdown();
     }
 
     // Getters
@@ -376,11 +380,12 @@ public class ServerDataStore implements ImportContext {
 
     public void saveAll() {
         String dlJson = dimensionLocks.isEmpty() ? null : DataStore.GSON.toJson(dimensionLocks);
-        io.saveAll(advStore, playerStore, vanillaStore, tabStore, dlJson);
+        io.saveAll(advStore, playerStore, vanillaStore, tabStore, dlJson, phaseStateToJson());
     }
 
     public void forceReload() {
         io.loadAll(advStore, vanillaStore, tabStore, playerStore, dimensionLocks, server);
+        loadPhaseState();
     }
 
     // ══════════════════════════════════════════════════════════
@@ -420,47 +425,59 @@ public class ServerDataStore implements ImportContext {
 
     @Override
     public void restoreFromBackup(JsonObject backup) {
+        // Phase 1: Parse all fields to temporary variables and validate
+        Map<String, CustomAdvancement> parsedAdvs = null;
+        List<String> parsedTabs = null;
+        Map<String, DimensionLock> parsedLocks = null;
+        Map<String, VanillaAdvMeta> parsedMeta = null;
+        List<String> parsedOrder = null;
         try {
             if (backup.has("advancements")) {
-                Map<String, CustomAdvancement> advs = DataStore.GSON.fromJson(
-                        backup.get("advancements"),
+                parsedAdvs = DataStore.GSON.fromJson(backup.get("advancements"),
                         new TypeToken<Map<String, CustomAdvancement>>() {}.getType());
-                if (advs != null) advStore.replaceAll(advs);
             }
             if (backup.has("customTabs")) {
-                List<String> tabs = DataStore.GSON.fromJson(backup.get("customTabs"),
+                parsedTabs = DataStore.GSON.fromJson(backup.get("customTabs"),
                         new TypeToken<List<String>>() {}.getType());
-                if (tabs != null) {
-                    synchronized (tabStore.getCustomTabs()) {
-                        tabStore.getCustomTabs().clear();
-                        tabStore.getCustomTabs().addAll(tabs);
-                    }
-                }
             }
             if (backup.has("dimensionLocks")) {
-                Map<String, DimensionLock> locks = DataStore.GSON.fromJson(backup.get("dimensionLocks"),
+                parsedLocks = DataStore.GSON.fromJson(backup.get("dimensionLocks"),
                         new TypeToken<Map<String, DimensionLock>>() {}.getType());
-                if (locks != null) {
-                    dimensionLocks.clear();
-                    dimensionLocks.putAll(locks);
-                }
             }
             if (backup.has("vanillaMeta")) {
-                Map<String, VanillaAdvMeta> meta = DataStore.GSON.fromJson(backup.get("vanillaMeta"),
+                parsedMeta = DataStore.GSON.fromJson(backup.get("vanillaMeta"),
                         new TypeToken<Map<String, VanillaAdvMeta>>() {}.getType());
-                if (meta != null) {
-                    vanillaStore.getMetaMap().clear();
-                    vanillaStore.getMetaMap().putAll(meta);
-                }
             }
             if (backup.has("tabOrder")) {
-                List<String> order = DataStore.GSON.fromJson(backup.get("tabOrder"),
+                parsedOrder = DataStore.GSON.fromJson(backup.get("tabOrder"),
                         new TypeToken<List<String>>() {}.getType());
-                if (order != null) setTabOrder(order);
             }
+        } catch (Exception e) {
+            LOGGER.error("Backup restoration failed during parsing!", e);
+            return;
+        }
+
+        // Phase 2: Atomically apply all parsed fields
+        try {
+            if (parsedAdvs != null) advStore.replaceAll(parsedAdvs);
+            if (parsedTabs != null) {
+                synchronized (tabStore.getCustomTabs()) {
+                    tabStore.getCustomTabs().clear();
+                    tabStore.getCustomTabs().addAll(parsedTabs);
+                }
+            }
+            if (parsedLocks != null) {
+                dimensionLocks.clear();
+                dimensionLocks.putAll(parsedLocks);
+            }
+            if (parsedMeta != null) {
+                vanillaStore.getMetaMap().clear();
+                vanillaStore.getMetaMap().putAll(parsedMeta);
+            }
+            if (parsedOrder != null) setTabOrder(parsedOrder);
             saveAll();
         } catch (Exception e) {
-            LOGGER.error("Backup restoration failed!", e);
+            LOGGER.error("Backup restoration failed during apply!", e);
         }
     }
 
@@ -495,4 +512,106 @@ public class ServerDataStore implements ImportContext {
 
     @Override
     public int getDimensionLockCount() { return dimensionLocks.size(); }
+
+    // ═══════════════ 阶段系统（全局 + 维度） ═══════════════
+    /** 已解锁阶段 id 集合（全局/维度作用域） */
+    private final Set<String> unlockedPhases = ConcurrentHashMap.newKeySet();
+    /** 维度 -> 当前生效阶段 id（scope=dimension） */
+    private final Map<String, String> dimensionPhase = new ConcurrentHashMap<>();
+    /** 全局当前阶段 id（scope=world） */
+    private volatile String worldPhase;
+
+    public Set<String> getUnlockedPhases() { return unlockedPhases; }
+    public boolean isPhaseUnlocked(String id) { return unlockedPhases.contains(id); }
+
+    public void unlockPhase(String id) {
+        if (id != null && unlockedPhases.add(id)) {
+            savePhaseState();
+        }
+    }
+
+    public String getWorldPhase() { return worldPhase; }
+
+    public void setWorldPhase(String id) {
+        if (!Objects.equals(this.worldPhase, id)) {
+            this.worldPhase = id;
+            savePhaseState();
+        }
+    }
+
+    public String getDimensionPhase(String dim) { return dimensionPhase.get(dim); }
+
+    public void setDimensionPhase(String dim, String id) {
+        if (dim == null) return;
+        String old = id == null ? dimensionPhase.remove(dim) : dimensionPhase.put(dim, id);
+        if (!Objects.equals(old, id)) {
+            savePhaseState();
+        }
+    }
+
+    public Map<String, String> getAllDimensionPhases() { return new HashMap<>(dimensionPhase); }
+
+    /** 将全局/维度阶段状态序列化为 JSON；无任何状态时返回 {@code null} 以跳过写盘。 */
+    private String phaseStateToJson() {
+        if (worldPhase == null && dimensionPhase.isEmpty() && unlockedPhases.isEmpty()) {
+            return null;
+        }
+        com.google.gson.JsonObject root = new com.google.gson.JsonObject();
+        if (worldPhase != null) {
+            root.addProperty("world_phase", worldPhase);
+        }
+        com.google.gson.JsonObject dims = new com.google.gson.JsonObject();
+        dimensionPhase.forEach(dims::addProperty);
+        root.add("dimension_phases", dims);
+        com.google.gson.JsonArray unlocked = new com.google.gson.JsonArray();
+        unlockedPhases.forEach(unlocked::add);
+        root.add("unlocked_phases", unlocked);
+        return DataStore.GSON.toJson(root);
+    }
+
+    /** 单独落盘阶段状态（阶段变更频率低，直接异步写入，不等 saveAll）。 */
+    private void savePhaseState() {
+        String json = phaseStateToJson();
+        if (json != null) {
+            io.savePhaseState(json);
+        }
+    }
+
+    /** 从磁盘恢复全局/维度阶段状态。 */
+    private void loadPhaseState() {
+        com.google.gson.JsonObject obj = io.loadPhaseState();
+        if (obj == null) return;
+        try {
+            if (obj.has("world_phase") && obj.get("world_phase").isJsonPrimitive()) {
+                worldPhase = obj.get("world_phase").getAsString();
+            }
+            dimensionPhase.clear();
+            if (obj.has("dimension_phases") && obj.get("dimension_phases").isJsonObject()) {
+                obj.getAsJsonObject("dimension_phases").entrySet().forEach(e -> {
+                    if (e.getValue().isJsonPrimitive()) {
+                        dimensionPhase.put(e.getKey(), e.getValue().getAsString());
+                    }
+                });
+            }
+            unlockedPhases.clear();
+            if (obj.has("unlocked_phases") && obj.get("unlocked_phases").isJsonArray()) {
+                obj.getAsJsonArray("unlocked_phases").forEach(el -> {
+                    if (el.isJsonPrimitive()) unlockedPhases.add(el.getAsString());
+                });
+            }
+            LOGGER.info("Loaded phase state: world={}, dimensions={}, unlocked={}",
+                    worldPhase, dimensionPhase.size(), unlockedPhases.size());
+        } catch (Exception e) {
+            LOGGER.warn("Failed to parse phase state: {}", e.getMessage());
+        }
+    }
+
+    // 玩家级阶段转发（PlayerDataStore 为包级，对外通过 ServerDataStore 暴露）
+    public String getPlayerPhase(UUID uuid) { return playerStore.getPlayerPhase(uuid); }
+    public void setPlayerPhase(UUID uuid, String phaseId) { playerStore.setPlayerPhase(uuid, phaseId); }
+    public String getTempPhase(UUID uuid) { return playerStore.getTempPhase(uuid); }
+    public boolean hasActiveTempPhase(UUID uuid, long now) { return playerStore.hasActiveTempPhase(uuid, now); }
+    public void setTempPhase(UUID uuid, String phaseId, long expireAt) {
+        playerStore.setTempPhase(uuid, phaseId, expireAt);
+    }
 }

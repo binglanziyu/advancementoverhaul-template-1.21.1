@@ -61,7 +61,16 @@ public final class SyncManager {
 
     /** 脏标记，使用 AtomicBoolean 保证 check-then-rebuild 的原子性 */
     private static final AtomicBoolean vanillaCacheDirty = new AtomicBoolean(true);
-    private static final ExecutorService SYNC_EXECUTOR = Executors.newCachedThreadPool(r -> {
+
+    /**
+     * 同步任务专用固定线程池。
+     * <p>
+     * 线程数绑定 {@link Runtime#availableProcessors()}，上限受 CPU 核心数约束，
+     * 避免无界缓存线程池（{@code CachedThreadPool}）在突发流量下创建过多线程。
+     * 所有线程均为守护线程，JVM 退出时不会阻塞主进程关闭。
+     */
+    private static final ExecutorService SYNC_EXECUTOR = Executors.newFixedThreadPool(
+            Runtime.getRuntime().availableProcessors(), r -> {
         Thread t = new Thread(r, "AO-Sync");
         t.setDaemon(true);
         return t;
@@ -73,7 +82,7 @@ public final class SyncManager {
      * 由 {@link com.dreamer.ao.mixin.AdvancementManagerMixin}
      * 在进度数据 reload 时调用，标记缓存为脏。
      */
-    public static void markVanillaCacheDirty() {
+    public static synchronized void markVanillaCacheDirty() {
         vanillaCacheDirty.set(true);
         cachedVanillaData = null;
     }
@@ -121,12 +130,15 @@ public final class SyncManager {
         var pending = store.getPendingAdvancements(uuid);
         var server = player.getServer();
 
-        // 将 Gson 序列化卸载到后台线程，避免阻塞主线程
+        // 在后台线程执行 Gson 序列化，避免阻塞主线程
         CompletableFuture.supplyAsync(() -> SyncPayload.fromServer(
                 advancements, dimLocks, completions, progress, customTabs,
                 disabled, enabled, vanillaList, vanillaMeta, vanillaParentMap,
                 tabOrder, pending, playerStats
-        ), SYNC_EXECUTOR).thenAccept(payload -> {
+        ), SYNC_EXECUTOR)
+        // 网络包分发必须在主线程执行：thenAcceptAsync + player.server 确保回调
+        // 在服务端 tick 线程上运行，而非继续复用 SYNC_EXECUTOR 的后台线程
+        .thenAcceptAsync(payload -> {
             String json = payload.data();
             if (json == null || json.isEmpty()) return;
 
@@ -142,7 +154,7 @@ public final class SyncManager {
             } else {
                 PacketDistributor.sendToPlayer(player, payload);
             }
-        }).exceptionally(e -> {
+        }, player.server).exceptionally(e -> {
             LOGGER.error("Failed to serialize sync payload for {}", player.getName().getString(), e);
             return null;
         });
@@ -155,6 +167,16 @@ public final class SyncManager {
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             syncPlayer(p);
         }
+    }
+
+    /**
+     * 关闭同步线程池，立即释放所有线程资源。
+     * <p>
+     * 使用 {@code shutdownNow()} 中断所有等待中的同步任务，
+     * 由 {@link com.dreamer.ao.data.ServerDataStore#shutdown()} 在服务端关闭时调用。
+     */
+    public static void shutdown() {
+        SYNC_EXECUTOR.shutdownNow();
     }
 
     // ═══════════════ 内部数据结构 ═══════════════

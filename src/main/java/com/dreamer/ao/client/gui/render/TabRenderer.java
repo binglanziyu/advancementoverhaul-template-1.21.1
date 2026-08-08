@@ -113,14 +113,11 @@ public class TabRenderer {
             String label = d > 0 ? displayName + " " + store.getTabCompletedCount(tab) + "/" + d : displayName;
             int w = font.width(label) + 12;
 
-            int drawX = x;
-            if (screen.tabDrag.dragIdx == i && screen.tabDrag.dragMoved) drawX = dragVisualX;
-
             boolean selected = tab.equals(screen.curTab);
-            boolean hov = GuiUtils.inRect(mx, my, drawX, 0, w, TAB_H);
-            g.fill(drawX, 0, drawX + w, TAB_H, selected ? BTN_HOV : (hov ? BTN : PANEL));
-            g.renderOutline(drawX, 0, w, TAB_H, selected ? ACCENT : DIVIDER);
-            g.drawString(font, label, drawX + 6, (TAB_H - 8) / 2, selected ? ACCENT : TEXT_DIM, false);
+            boolean hov = GuiUtils.inRect(mx, my, x, 0, w, TAB_H);
+            g.fill(x, 0, x + w, TAB_H, selected ? BTN_HOV : (hov ? BTN : PANEL));
+            g.renderOutline(x, 0, w, TAB_H, selected ? ACCENT : DIVIDER);
+            g.drawString(font, label, x + 6, (TAB_H - 8) / 2, selected ? ACCENT : TEXT_DIM, false);
             x += w + 3;
         }
 
@@ -195,16 +192,21 @@ public class TabRenderer {
         g.fill(0, y, screen.width, screen.height, PANEL);
         g.fill(0, y, screen.width, y + 1, DIVIDER);
 
-        int x = 8;
-        int totalC = store.getAdvancements().size();
-        int doneC = 0;
-        for (String id : store.getAdvancements().keySet()) {
-            if (store.isCompleted(id)) doneC++;
+        // 左下角：当前标签（仅非"全部"时显示）+ 编辑模式提示（浅色，靠左）
+        String leftText;
+        if (screen.curTab == null) {
+            leftText = TranslatedStrings.get(screen.editMode ? LangKeys.UI_HINT_CLOSE_EDIT : LangKeys.UI_HINT_OPEN_EDIT);
+        } else {
+            String tabName = "hidden".equals(screen.curTab)
+                    ? TranslatedStrings.get(LangKeys.UI_TAB_HIDDEN)
+                    : DataStore.getTabDisplayName(screen.curTab);
+            String tabLabel = TranslatedStrings.get(LangKeys.UI_LABEL_TAB) + ": " + tabName;
+            String editHint = TranslatedStrings.get(screen.editMode ? LangKeys.UI_HINT_CLOSE_EDIT : LangKeys.UI_HINT_OPEN_EDIT);
+            leftText = tabLabel + "   " + editHint;
         }
-        String customText = TranslatedStrings.get(LangKeys.STAT_CUSTOM) + ": " + doneC + "/" + totalC;
-        g.drawString(font, customText, x, y + (BOTTOM_H - 8) / 2, TEXT_DIM, false);
-        x += font.width(customText) + 16;
+        g.drawString(font, leftText, 8, y + (BOTTOM_H - 8) / 2, TEXT_DIM, false);
 
+        // 右下角：自定义 / 原版 计数
         int totalV = 0, doneV = 0;
         for (var va : screen.vanillaAdvs) {
             if (store.isVanillaEnabled(va.id())) {
@@ -213,141 +215,112 @@ public class TabRenderer {
             }
         }
         String vanillaText = TranslatedStrings.get(LangKeys.STAT_VANILLA) + ": " + doneV + "/" + totalV;
-        g.drawString(font, vanillaText, x, y + (BOTTOM_H - 8) / 2, TEXT_DIM, false);
 
-        // 帮助按钮（右下角）
-        String helpIcon = "?";
-        int helpW = font.width(helpIcon) + 10;
-        int helpX = screen.width - helpW - 8;
-        boolean helpHov = GuiUtils.inRect(mx, my, helpX, y, helpW, BOTTOM_H);
-        boolean helpActive = screen.showHelp;
-        g.fill(helpX, y, helpX + helpW, y + BOTTOM_H, helpActive ? BTN_HOV : (helpHov ? BTN : PANEL));
-        g.renderOutline(helpX, y, helpW, BOTTOM_H, helpActive ? ACCENT : DIVIDER);
-        g.drawString(font, helpIcon, helpX + 5, y + (BOTTOM_H - 8) / 2, helpActive ? ACCENT : (helpHov ? ACCENT : TEXT_DIM), false);
+        int totalC = store.getAdvancements().size();
+        int doneC = 0;
+        for (String id : store.getAdvancements().keySet()) {
+            if (store.isCompleted(id)) doneC++;
+        }
+        String customText = TranslatedStrings.get(LangKeys.STAT_CUSTOM) + ": " + doneC + "/" + totalC;
+
+        int vW = font.width(vanillaText);
+        int cW = font.width(customText);
+        int gap = 16;
+        int rightX = screen.width - 8 - cW - gap - vW;
+        g.drawString(font, vanillaText, rightX, y + (BOTTOM_H - 8) / 2, TEXT_DIM, false);
+        g.drawString(font, customText, rightX + vW + gap, y + (BOTTOM_H - 8) / 2, TEXT_DIM, false);
     }
 
     // ═══════════════ 按钮 ═══════════════
 
-    public void renderButtons(GuiGraphics g, int mx, int my) {
-        Font font = screen.getFont();
+    /** 工具栏按钮布局条目：坐标、图标、是否高亮、tooltip 文本 key、点击标识。 */
+    public static final class TBtn {
+        public final int x, y, s;
+        public final String icon;
+        public final boolean active;
+        public final String tooltipKey;
+        public final String clickId;
+        public TBtn(int x, int y, int s, String icon, boolean active, String tooltipKey, String clickId) {
+            this.x = x; this.y = y; this.s = s; this.icon = icon;
+            this.active = active; this.tooltipKey = tooltipKey; this.clickId = clickId;
+        }
+    }
+
+    /** 工具栏按钮的点击标识常量（供渲染/命中共用，避免重复坐标）。 */
+    public static final String
+            C_CLOSE = "close", C_STATS = "stats", C_JOURNAL = "journal", C_TABS = "tabs",
+            C_RESET = "reset", C_EXPORT = "export", C_HELP = "help", C_IMPORT = "import",
+            C_DIM = "dim", C_AUTOLAYOUT = "autolayout", C_FTB = "ftb", C_EDIT = "edit";
+
+    /**
+     * 生成右侧工具栏的按钮布局（顶部一列 + 底部一列），
+     * 渲染、tooltip、点击命中均使用同一份布局，确保按钮与文字始终一一对应。
+     */
+    public List<TBtn> buildToolbar() {
         int s = ICON_S, p = ICON_PAD, gap = ICON_GAP;
-
-        int cx = screen.width - p - s, cy = p;
-        GuiUtils.drawIconBtn(g, font, cx, cy, s, "\u2715",
-                GuiUtils.inRect(mx, my, cx, cy, s, s), false);
-        cx -= s + gap;
-        GuiUtils.drawIconBtn(g, font, cx, cy, s, "\u2691",
-                GuiUtils.inRect(mx, my, cx, cy, s, s), false);
-        cx -= s + gap;
-        // 冒险日志按钮
-        GuiUtils.drawIconBtn(g, font, cx, cy, s, "\uD83D\uDCD6",
-                GuiUtils.inRect(mx, my, cx, cy, s, s), screen.overlay.current == OverlayType.JOURNAL);
-        cx -= s + gap;
-        // 标签管理按钮
-        GuiUtils.drawIconBtn(g, font, cx, cy, s, "\u2630",
-                GuiUtils.inRect(mx, my, cx, cy, s, s), false);
-        cx -= s + gap;
-
-        boolean resetHov = GuiUtils.inRect(mx, my, cx, cy, s, s);
-        g.fill(cx, cy, cx + s, cy + s, resetHov ? BTN_HOV : BTN);
-        g.renderOutline(cx, cy, s, s, DIVIDER);
-        g.pose().pushPose();
-        g.pose().translate(cx + s / 2.0, cy + s / 2.0, 0);
-        g.pose().scale(1.6f, 1.6f, 1);
-        String resetIcon = "\u21BB";
-        g.drawString(font, resetIcon, -font.width(resetIcon) / 2, -4, resetHov ? ACCENT : TEXT, false);
-        g.pose().popPose();
-
         boolean canEdit = Minecraft.getInstance().player != null && Minecraft.getInstance().player.hasPermissions(2);
+        List<TBtn> btns = new ArrayList<>();
+
+        // 顶部列（从右上往左排）
+        int cx = screen.width - p - s, cy = p;
+        btns.add(new TBtn(cx, cy, s, "\u2715", false, LangKeys.BTN_TT_CLOSE, C_CLOSE)); cx -= s + gap;
+        btns.add(new TBtn(cx, cy, s, "\u2691", false, LangKeys.BTN_TT_STATS, C_STATS)); cx -= s + gap;
+        btns.add(new TBtn(cx, cy, s, "\uD83D\uDCD6", screen.overlay.current == OverlayType.JOURNAL, LangKeys.JOURNAL_BTN_TT, C_JOURNAL)); cx -= s + gap;
+        btns.add(new TBtn(cx, cy, s, "\u2630", false, LangKeys.BTN_TT_TABS, C_TABS)); cx -= s + gap;
+        btns.add(new TBtn(cx, cy, s, "\u21BB", false, LangKeys.BTN_TT_RESET, C_RESET));
+
+        // 底部列（从右下往上排）
         int by = screen.height - BOTTOM_H - p - s;
         cx = screen.width - p - s;
-
-        GuiUtils.drawIconBtn(g, font, cx, by, s, "\u2B07",
-                GuiUtils.inRect(mx, my, cx, by, s, s), false);
-        by -= s + gap;
-        GuiUtils.drawIconBtn(g, font, cx, by, s, "\u2B06",
-                GuiUtils.inRect(mx, my, cx, by, s, s), false);
-        by -= s + gap;
-        GuiUtils.drawIconBtn(g, font, cx, by, s, "\u2742",
-                GuiUtils.inRect(mx, my, cx, by, s, s), screen.showDim);
-        by -= s + gap;
+        btns.add(new TBtn(cx, by, s, "\u2B07", false, LangKeys.BTN_TT_EXPORT, C_EXPORT)); by -= s + gap;
+        btns.add(new TBtn(cx, by, s, "\u003F", screen.showHelp, LangKeys.BTN_TT_HELP, C_HELP)); by -= s + gap;
+        btns.add(new TBtn(cx, by, s, "\u2B06", false, LangKeys.BTN_TT_IMPORT, C_IMPORT)); by -= s + gap;
+        btns.add(new TBtn(cx, by, s, "\u2742", screen.showDim, LangKeys.BTN_TT_DIMENSION, C_DIM)); by -= s + gap;
         if (canEdit && screen.editMode) {
-            GuiUtils.drawIconBtn(g, font, cx, by, s, "\u2605",
-                    GuiUtils.inRect(mx, my, cx, by, s, s), false);
-            by -= s + gap;
+            btns.add(new TBtn(cx, by, s, "\u2605", false, LangKeys.BTN_TT_AUTOLAYOUT, C_AUTOLAYOUT)); by -= s + gap;
         }
-        // FTB 通知模式切换（仅编辑模式 + FTB Quests 已加载）
         if (canEdit && screen.editMode && com.dreamer.ao.compat.ftb.FtbQuestsBridge.isLoaded()) {
-            String ftbLabel = switch (com.dreamer.ao.client.gui.AdvancementScreen.ftbNotifMode) {
-                case 1 -> "\u2205";   // ⊘ 关闭
-                case 2 -> "\u21C4";   // ⇄ 替换
-                default -> "\u25C9";  // ◎ 默认
+            String ftbIcon = switch (com.dreamer.ao.client.gui.AdvancementScreen.ftbNotifMode) {
+                case 1 -> "\u2205";
+                case 2 -> "\u21C4";
+                default -> "\u25C9";
             };
-            GuiUtils.drawIconBtn(g, font, cx, by, s, ftbLabel,
-                    GuiUtils.inRect(mx, my, cx, by, s, s), com.dreamer.ao.client.gui.AdvancementScreen.ftbNotifMode != 0);
-            by -= s + gap;
+            btns.add(new TBtn(cx, by, s, ftbIcon, com.dreamer.ao.client.gui.AdvancementScreen.ftbNotifMode != 0, LangKeys.BTN_TT_FTB_MODE, C_FTB)); by -= s + gap;
         }
-        if (canEdit)
-            GuiUtils.drawIconBtn(g, font, cx, by, s, "\u270E",
-                    GuiUtils.inRect(mx, my, cx, by, s, s), screen.editMode);
+        if (canEdit) {
+            btns.add(new TBtn(cx, by, s, "\u270E", screen.editMode, LangKeys.BTN_TT_EDITMODE, C_EDIT));
+        }
+        return btns;
+    }
 
+    public void renderButtons(GuiGraphics g, int mx, int my) {
+        Font font = screen.getFont();
+        for (TBtn b : buildToolbar()) {
+            boolean hov = GuiUtils.inRect(mx, my, b.x, b.y, b.s, b.s);
+            GuiUtils.drawIconBtn(g, font, b.x, b.y, b.s, b.icon, hov, b.active);
+        }
+        // 复位按钮图标用缩放绘制（其余均为普通字符）
+        for (TBtn b : buildToolbar()) {
+            if (b.clickId.equals(C_RESET)) {
+                boolean hov = GuiUtils.inRect(mx, my, b.x, b.y, b.s, b.s);
+                g.pose().pushPose();
+                g.pose().translate(b.x + b.s / 2.0, b.y + b.s / 2.0, 0);
+                g.pose().scale(1.6f, 1.6f, 1);
+                g.drawString(font, b.icon, -font.width(b.icon) / 2, -4, hov ? ACCENT : TEXT, false);
+                g.pose().popPose();
+            }
+        }
         renderButtonTooltips(g, mx, my);
     }
 
     private void renderButtonTooltips(GuiGraphics g, int mx, int my) {
         if (screen.hasOv()) return;
         Font font = screen.getFont();
-        int s = ICON_S, p = ICON_PAD, gap = ICON_GAP;
         int sw = screen.width, sh = screen.height;
-
-        int cx = sw - p - s, cy = p;
-        GuiUtils.drawHoverTooltip(g, font, mx, my, cx, cy, s, s,
-                TranslatedStrings.get(LangKeys.BTN_TT_CLOSE), sw, sh);
-        cx -= s + gap;
-        GuiUtils.drawHoverTooltip(g, font, mx, my, cx, cy, s, s,
-                Component.translatable(LangKeys.BTN_TT_STATS).getString(), sw, sh);
-        cx -= s + gap;
-        GuiUtils.drawHoverTooltip(g, font, mx, my, cx, cy, s, s,
-                Component.translatable(LangKeys.JOURNAL_BTN_TT).getString(), sw, sh);
-        cx -= s + gap;
-        // 标签管理 tooltip
-        GuiUtils.drawHoverTooltip(g, font, mx, my, cx, cy, s, s,
-                Component.translatable(LangKeys.BTN_TT_TABS).getString(), sw, sh);
-        cx -= s + gap;
-        GuiUtils.drawHoverTooltip(g, font, mx, my, cx, cy, s, s,
-                Component.translatable(LangKeys.BTN_TT_RESET).getString(), sw, sh);
-
-        boolean canEdit = Minecraft.getInstance().player != null && Minecraft.getInstance().player.hasPermissions(2);
-        int by = sh - BOTTOM_H - p - s;
-        cx = sw - p - s;
-        GuiUtils.drawHoverTooltip(g, font, mx, my, cx, by, s, s,
-                Component.translatable(LangKeys.BTN_TT_EXPORT).getString(), sw, sh);
-        by -= s + gap;
-        GuiUtils.drawHoverTooltip(g, font, mx, my, cx, by, s, s,
-                Component.translatable(LangKeys.BTN_TT_IMPORT).getString(), sw, sh);
-        by -= s + gap;
-        GuiUtils.drawHoverTooltip(g, font, mx, my, cx, by, s, s,
-                Component.translatable(LangKeys.BTN_TT_DIMENSION).getString(), sw, sh);
-        by -= s + gap;
-        if (canEdit && screen.editMode) {
-            GuiUtils.drawHoverTooltip(g, font, mx, my, cx, by, s, s,
-                    Component.translatable(LangKeys.BTN_TT_AUTOLAYOUT).getString(), sw, sh);
-            by -= s + gap;
+        for (TBtn b : buildToolbar()) {
+            GuiUtils.drawHoverTooltip(g, font, mx, my, b.x, b.y, b.s, b.s,
+                    Component.translatable(b.tooltipKey).getString(), sw, sh);
         }
-        // FTB 通知模式 tooltip
-        if (canEdit && screen.editMode && com.dreamer.ao.compat.ftb.FtbQuestsBridge.isLoaded()) {
-            String modeKey = switch (com.dreamer.ao.client.gui.AdvancementScreen.ftbNotifMode) {
-                case 1 -> LangKeys.FTB_MODE_DISABLE;
-                case 2 -> LangKeys.FTB_MODE_REPLACE;
-                default -> LangKeys.FTB_MODE_DEFAULT;
-            };
-            GuiUtils.drawHoverTooltip(g, font, mx, my, cx, by, s, s,
-                    Component.translatable(modeKey).getString(), sw, sh);
-            by -= s + gap;
-        }
-        if (canEdit)
-            GuiUtils.drawHoverTooltip(g, font, mx, my, cx, by, s, s,
-                    Component.translatable(LangKeys.BTN_TT_EDITMODE).getString(), sw, sh);
     }
 
     public void setDragVisualX(int x) { this.dragVisualX = x; }

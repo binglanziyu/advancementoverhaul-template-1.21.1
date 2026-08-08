@@ -5,13 +5,14 @@ import com.dreamer.ao.client.ClientEvents;
 import com.dreamer.ao.command.CommandHandler;
 import com.dreamer.ao.compat.AdvancementRegistry;
 import com.dreamer.ao.data.ServerDataStore;
-import com.dreamer.ao.mixin.AdvancementManagerMixin;
+import com.dreamer.ao.compat.VanillaAdvancementFilter;
 import com.dreamer.ao.narrative.event.MonologueEventHandler;
 import com.dreamer.ao.achievement.event.ServerEventHandler;
 import com.dreamer.ao.event.StatsEventHandler;
 import com.dreamer.ao.milestone.event.TimelineEventHandler;
 import com.dreamer.ao.milestone.bridge.BridgeRegistry;
 import com.dreamer.ao.network.NetworkHandler;
+import com.dreamer.ao.phase.AoAttributes;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
@@ -51,6 +52,21 @@ public class AdvancementOverhaul {
     private static final Logger LOGGER = LoggerFactory.getLogger(AdvancementOverhaul.class);
 
     /**
+     * 客户端初始化降级标记。
+     * <p>
+     * 任一客户端初始化步骤失败时置位。UI 入口应据此提示玩家部分功能不可用，
+     * 而非让玩家在无提示的情况下遭遇缺失的图标或失效的界面。
+     * <p>
+     * 使用 {@code volatile}：写入发生在 mod 构造线程，读取发生在客户端渲染线程。
+     */
+    private static volatile boolean clientInitDegraded = false;
+
+    /** 客户端初始化是否发生过失败（部分功能可能不可用）。 */
+    public static boolean isClientInitDegraded() {
+        return clientInitDegraded;
+    }
+
+    /**
      * 模组构造器，由 NeoForge 框架自动调用。
      *
      * @param modBus    模组事件总线
@@ -69,6 +85,10 @@ public class AdvancementOverhaul {
         // 通用初始化（数据文件夹、图片缓存）
         modBus.addListener(this::onCommonSetup);
 
+        // 注册自定义 Attribute（受到伤害）并给玩家附加
+        AoAttributes.register(modBus);
+        modBus.addListener(AoAttributes::onEntityAttributeModification);
+
         // 注册到 NeoForge 事件总线
         NeoForge.EVENT_BUS.register(ServerEventHandler.class);
         NeoForge.EVENT_BUS.register(StatsEventHandler.class);
@@ -84,13 +104,37 @@ public class AdvancementOverhaul {
 
         // 客户端专用初始化
         if (FMLEnvironment.dist.isClient()) {
-            try {
-                ClientEvents.init(modBus);
-                com.dreamer.ao.client.gui.ImageManager.init(FMLPaths.CONFIGDIR.get());
-                com.dreamer.ao.client.ResourceLoader.init(FMLPaths.CONFIGDIR.get());
-            } catch (Exception e) {
-                LOGGER.error("Failed to initialize client events", e);
-            }
+            initClient(modBus);
+        }
+    }
+
+    /**
+     * 客户端专用初始化。
+     * <p>
+     * 三个初始化步骤<b>各自独立捕获异常</b>，任一失败都不会阻断其余步骤——
+     * 例如图片缓存目录不可写时，UI 事件注册与资源加载仍应正常完成。
+     * <p>
+     * 任一步骤失败都会置位 {@link #clientInitDegraded}，UI 入口可据此向玩家
+     * 显示明确提示，避免功能不完整却静默运行。
+     * <p>
+     * 此处不向上抛出异常终止加载：mod 初始化期抛异常会导致整个游戏加载失败，
+     * 对可选的 UI 增强功能而言代价过高。
+     */
+    private static void initClient(IEventBus modBus) {
+        runClientInitStep("client events", () -> ClientEvents.init(modBus));
+        runClientInitStep("image manager",
+                () -> com.dreamer.ao.client.gui.ImageManager.init(FMLPaths.CONFIGDIR.get()));
+        runClientInitStep("resource loader",
+                () -> com.dreamer.ao.client.ResourceLoader.init(FMLPaths.CONFIGDIR.get()));
+    }
+
+    /** 执行单个客户端初始化步骤，失败时记录日志并置位降级标记。 */
+    private static void runClientInitStep(String stepName, Runnable step) {
+        try {
+            step.run();
+        } catch (Exception e) {
+            clientInitDegraded = true;
+            LOGGER.error("Failed to initialize {} — client features may be incomplete", stepName, e);
         }
     }
 
@@ -124,7 +168,7 @@ public class AdvancementOverhaul {
      */
     private static void onServerStarted(
             net.neoforged.neoforge.event.server.ServerStartedEvent event) {
-        AdvancementManagerMixin.filterDisabledVanillaDelayed(event.getServer());
+        VanillaAdvancementFilter.filterDisabledVanillaDelayed(event.getServer());
     }
 
     /**

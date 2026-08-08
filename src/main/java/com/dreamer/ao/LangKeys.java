@@ -83,6 +83,7 @@ public final class LangKeys {
     public static final String BTN_TT_AUTOLAYOUT= "advancementoverhaul.btn.autolayout";
     public static final String BTN_TT_EDITMODE  = "advancementoverhaul.btn.editmode";
     public static final String BTN_TT_TABS      = "advancementoverhaul.btn.tabs";
+    public static final String BTN_TT_HELP      = "advancementoverhaul.btn.help";
     public static final String BTN_TT_FTB_MODE  = "advancementoverhaul.btn.ftb_mode";
 
     // ── 工具提示 ──
@@ -105,6 +106,8 @@ public final class LangKeys {
     // ── 消息 ──
     public static final String DIM_LOCKED_MSG  = "advancementoverhaul.msg.dim_locked";
     public static final String NEED_ADV_MSG    = "advancementoverhaul.msg.need_adv";
+    /** 客户端初始化降级提示（部分功能不可用） */
+    public static final String CLIENT_INIT_DEGRADED = "advancementoverhaul.msg.client_init_degraded";
 
     // ── 条件名称 ──
     public static final String COND_KILL_ENTITY      = "advancementoverhaul.condition.kill_entity";
@@ -251,9 +254,12 @@ public final class LangKeys {
     public static final String IMAGE_PARSE_FAIL      = "advancementoverhaul.gui.image_parse_fail";
     public static final String UNKNOWN_ERROR         = "advancementoverhaul.gui.unknown_error";
 
-    // ── 编辑模式开关 ──
-    public static final String TOGGLE_EDIT_ON   = "advancementoverhaul.ui.toggle_edit_on";
-    public static final String TOGGLE_EDIT_OFF  = "advancementoverhaul.ui.toggle_edit_off";
+    // ── 底栏提示 ──
+    public static final String UI_LABEL_TAB            = "advancementoverhaul.ui.label_tab";
+    public static final String UI_HINT_OPEN_EDIT       = "advancementoverhaul.ui.hint_open_edit";
+    public static final String UI_HINT_CLOSE_EDIT      = "advancementoverhaul.ui.hint_close_edit";
+    public static final String UI_TAB_ALL              = "advancementoverhaul.ui.tab_all";
+    public static final String UI_TAB_HIDDEN           = "advancementoverhaul.ui.tab_hidden";
 
     // ── 叙事统计（委托至 NarrativeLangKeys）──
     // 源码定义位于 NarrativeLangKeys，此处保留引用以保证向后兼容。
@@ -356,6 +362,85 @@ public final class LangKeys {
     public static final String EFFECT_MOB_ATTACK       = "timeline.advancementoverhaul.effect_mob_attack";
     public static final String EFFECT_MOB_ARMOR        = "timeline.advancementoverhaul.effect_mob_armor";
     public static final String EFFECT_SPAWN_RATE       = "timeline.advancementoverhaul.effect_spawn_rate";
+    public static final String EFFECT_BOSS_DAMAGE       = "timeline.advancementoverhaul.effect_boss_damage";
+    // A 类玩家属性效果名
+    public static final String EFFECT_MAX_HEALTH         = "timeline.advancementoverhaul.effect_max_health";
+    public static final String EFFECT_ARMOR              = "timeline.advancementoverhaul.effect_armor";
+    public static final String EFFECT_ARMOR_TOUGHNESS    = "timeline.advancementoverhaul.effect_armor_toughness";
+    public static final String EFFECT_KNOCKBACK_RESIST   = "timeline.advancementoverhaul.effect_knockback_resist";
+    public static final String EFFECT_MOVE_SPEED         = "timeline.advancementoverhaul.effect_move_speed";
+    public static final String EFFECT_ATTACK_DAMAGE      = "timeline.advancementoverhaul.effect_attack_damage";
+    public static final String EFFECT_ATTACK_SPEED       = "timeline.advancementoverhaul.effect_attack_speed";
+    public static final String EFFECT_LUCK               = "timeline.advancementoverhaul.effect_luck";
+    public static final String EFFECT_SCALE              = "timeline.advancementoverhaul.effect_scale";
+    public static final String EFFECT_DAMAGE_TAKEN      = "timeline.advancementoverhaul.effect_damage_taken";
+    // 阶段面板补充键
+    public static final String PHASE_NONE                = "timeline.advancementoverhaul.phase_none";
+    public static final String PHASE_EFFECT_EQUIPMENT    = "timeline.advancementoverhaul.phase_effect_equipment";
+    public static final String PHASE_EDIT_DEF_HINT       = "timeline.advancementoverhaul.phase_edit_def_hint";
+    public static final String PHASE_NEW_STATE_HINT      = "timeline.advancementoverhaul.phase_new_state_hint";
+    public static final String PHASE_CONFIRM_APPLY_TEMP  = "timeline.advancementoverhaul.phase_confirm_apply_temp";
+    // 阶段定义编辑器（可视化编辑）
+    public static final String PHASE_EDIT_TITLE         = "timeline.advancementoverhaul.phase_edit_title";
+    public static final String PHASE_EDIT_NEW_TITLE     = "timeline.advancementoverhaul.phase_edit_new_title";
+    public static final String PHASE_EDIT_ID            = "timeline.advancementoverhaul.phase_edit_id";
+    public static final String PHASE_EDIT_NAME          = "timeline.advancementoverhaul.phase_edit_name";
+    public static final String PHASE_EDIT_TIER          = "timeline.advancementoverhaul.phase_edit_tier";
+    public static final String PHASE_EDIT_SCOPE         = "timeline.advancementoverhaul.phase_edit_scope";
+    public static final String PHASE_EDIT_DIMENSION     = "timeline.advancementoverhaul.phase_edit_dimension";
+    public static final String PHASE_EDIT_UNLOCK_MS     = "timeline.advancementoverhaul.phase_edit_unlock_ms";
+    public static final String PHASE_EDIT_ATTRS         = "timeline.advancementoverhaul.phase_edit_attrs";
+    public static final String PHASE_EDIT_ATTR_ADD      = "timeline.advancementoverhaul.phase_edit_attr_add";
+    public static final String PHASE_EDIT_MOB_MULTS     = "timeline.advancementoverhaul.phase_edit_mob_mults";
+    public static final String PHASE_EDIT_MOB_EFFECTS   = "timeline.advancementoverhaul.phase_edit_mob_effects";
+    public static final String PHASE_EDIT_EQUIPMENT     = "timeline.advancementoverhaul.phase_edit_equipment";
+    public static final String PHASE_EDIT_PREVIEW       = "timeline.advancementoverhaul.phase_edit_preview";
+    public static final String PHASE_EDIT_SAVE          = "timeline.advancementoverhaul.phase_edit_save";
+    public static final String PHASE_EDIT_DELETE        = "timeline.advancementoverhaul.phase_edit_delete";
+    public static final String PHASE_EDIT_INVALID_ID    = "timeline.advancementoverhaul.phase_edit_invalid_id";
+    public static final String PHASE_EDIT_DELETED       = "timeline.advancementoverhaul.phase_edit_deleted";
+    public static final String PHASE_EDIT_EMPTY         = "timeline.advancementoverhaul.phase_edit_empty";
+    public static final String PHASE_EDIT_TOO_LARGE     = "timeline.advancementoverhaul.phase_edit_too_large";
+    public static final String PHASE_EDIT_INVALID_JSON  = "timeline.advancementoverhaul.phase_edit_invalid_json";
+    public static final String PHASE_EDIT_SAVED         = "timeline.advancementoverhaul.phase_edit_saved";
+    public static final String PHASE_EDIT_FAILED        = "timeline.advancementoverhaul.phase_edit_failed";
+    public static final String PHASE_EDIT_CONFIRM_DELETE = "timeline.advancementoverhaul.phase_edit_confirm_delete";
+    public static final String PHASE_EDIT_ID_RO         = "timeline.advancementoverhaul.phase_edit_id_readonly";
+    public static final String PHASE_OP_FORCE           = "timeline.advancementoverhaul.phase_op_force";
+    public static final String PHASE_OP_TEMP_SECONDS    = "timeline.advancementoverhaul.phase_op_temp_seconds";
+    public static final String PHASE_RELOAD_DONE        = "timeline.advancementoverhaul.phase_reload_done";
+
+    // ── 阶段面板 UI 重构 ──
+    public static final String PHASE_MODE_BROWSE        = "timeline.advancementoverhaul.phase_mode_browse";
+    public static final String PHASE_MODE_EDIT          = "timeline.advancementoverhaul.phase_mode_edit";
+    public static final String PHASE_SCOPE_GLOBAL       = "timeline.advancementoverhaul.phase_scope_global";
+    public static final String PHASE_SCOPE_DIMENSION    = "timeline.advancementoverhaul.phase_scope_dimension";
+    public static final String PHASE_SCOPE_PLAYER       = "timeline.advancementoverhaul.phase_scope_player";
+    public static final String PHASE_ROW_NEW            = "timeline.advancementoverhaul.phase_row_new";
+    public static final String PHASE_ROW_REMOVE         = "timeline.advancementoverhaul.phase_row_remove";
+    public static final String PHASE_SWITCH_TO          = "timeline.advancementoverhaul.phase_switch_to";
+    public static final String PHASE_SWITCH_CONFIRM     = "timeline.advancementoverhaul.phase_switch_confirm";
+    public static final String PHASE_CURRENT_EFFECTS    = "timeline.advancementoverhaul.phase_current_effects";
+    public static final String PHASE_CURRENT_EMPTY      = "timeline.advancementoverhaul.phase_current_empty";
+    public static final String PHASE_EFFECT_ATTR        = "timeline.advancementoverhaul.phase_effect_attr";
+    public static final String PHASE_EFFECT_MOB         = "timeline.advancementoverhaul.phase_effect_mob";
+    public static final String PHASE_EFFECT_POTION      = "timeline.advancementoverhaul.phase_effect_potion";
+    public static final String PHASE_EFFECT_EQUIP       = "timeline.advancementoverhaul.phase_effect_equip";
+    public static final String PHASE_EFFECT_REMOVED      = "timeline.advancementoverhaul.phase_effect_removed";
+    public static final String PHASE_EDIT_NOT_FOUND      = "timeline.advancementoverhaul.phase_edit_not_found";
+    // 阶段属性上下限说明
+    public static final String PHASE_ATTR_LIMIT_HINT     = "timeline.advancementoverhaul.phase_attr_limit_hint";
+    // 里程碑选择式
+    public static final String PHASE_EDIT_SELECT_MS      = "timeline.advancementoverhaul.phase_edit_select_ms";
+    public static final String PHASE_NO_MILESTONE         = "timeline.advancementoverhaul.phase_no_milestone";
+    // 阶段行内切换阶段
+    public static final String PHASE_SWITCH_PHASE         = "timeline.advancementoverhaul.phase_switch_phase";
+    public static final String PHASE_EDIT_EQUIP_ENTITY    = "timeline.advancementoverhaul.phase_edit_equip_entity";
+    public static final String PHASE_EDIT_EQUIP_SLOT      = "timeline.advancementoverhaul.phase_edit_equip_slot";
+    public static final String PHASE_EDIT_EQUIP_ADD_ENTRY = "timeline.advancementoverhaul.phase_edit_equip_add_entry";
+    public static final String PHASE_EDIT_EQUIP_ENCHANT   = "timeline.advancementoverhaul.phase_edit_equip_enchant";
+    public static final String PHASE_SHOW                  = "timeline.advancementoverhaul.phase_show";
+    public static final String PHASE_HIDE                  = "timeline.advancementoverhaul.phase_hide";
 
     // ── 系统消息 ──
     public static final String MSG_DATASTORE_INIT_FAILED = "advancementoverhaul.msg.datastore_init_failed";

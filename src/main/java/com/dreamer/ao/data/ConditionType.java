@@ -43,9 +43,11 @@ public enum ConditionType {
             try {
                 return ConditionType.valueOf(name.toUpperCase());
             } catch (IllegalArgumentException e) {
-                org.slf4j.LoggerFactory.getLogger(ConditionType.class)
-                        .warn("Unknown condition type '{}' in data file, defaulting to KILL_ENTITY", name);
-                return ConditionType.KILL_ENTITY;
+                throw new JsonParseException("Unknown condition type '" + name
+                        + "' in data file. Valid types: "
+                        + java.util.Arrays.stream(ConditionType.values())
+                                .map(ct -> ct.name().toLowerCase())
+                                .collect(java.util.stream.Collectors.joining(", ")));
             }
         }
     }

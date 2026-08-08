@@ -120,6 +120,8 @@ final class MilestoneChecker {
                     def.getNameKey(), def.getDescriptionKey(), def.getIconItem());
         }
         MilestoneChecker.syncTimelineToPlayer(player);
+        // 阶段解锁：完成里程碑后解锁关联阶段
+        com.dreamer.ao.phase.PhaseUnlockService.get().onMilestoneCompleted(player, id);
     }
 
     private static MilestoneTrigger parseCustomTrigger(String triggerName) {

@@ -34,9 +34,9 @@ public class TabManager {
         if (mx < x + w) { screen.curTab = null; screen.tabDrag.overDDOpen = false; screen.tabDrag.overflowScroll = 0; screen.screenState.markDirty(ScreenState.DIRTY_VANILLA_POS); return; }
         x += w + 3;
         for (String tab : screen.tabRenderer.getBarTabs()) {
-            boolean isBuiltin = s.isBuiltinTab(tab);
             int d = s.getTabTotalCount(tab);
-            String label = d > 0 ? tab + " " + s.getTabCompletedCount(tab) + "/" + d : tab;
+            String displayName = DataStore.getTabDisplayName(tab);
+            String label = d > 0 ? displayName + " " + s.getTabCompletedCount(tab) + "/" + d : displayName;
             w = screen.getFont().width(label) + 12;
             if (mx >= x && mx < x + w) {
                 screen.curTab = tab; screen.screenState.markDirty(ScreenState.DIRTY_VANILLA_POS);

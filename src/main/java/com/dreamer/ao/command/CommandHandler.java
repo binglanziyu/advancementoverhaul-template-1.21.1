@@ -15,6 +15,7 @@ import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -289,6 +290,26 @@ public class CommandHandler {
                                 .then(Commands.argument("data", StringArgumentType.greedyString())
                                         .suggests(CommandHandler::suggestVanillaIds)
                                         .executes(VanillaExecutor::vanillaSave))))
+
+                // ── 阶段管理 ──
+                .then(Commands.literal("phase")
+                        .then(Commands.literal("force")
+                                .then(Commands.argument("scope", StringArgumentType.word())
+                                        .suggests((ctx, b) -> {
+                                            b.suggest("world"); b.suggest("dimension"); b.suggest("player");
+                                            return b.buildFuture();
+                                        })
+                                        .then(Commands.argument("phaseId", StringArgumentType.greedyString())
+                                                .executes(CommandHandler::phaseForce))))
+                        .then(Commands.literal("temp")
+                                .then(Commands.argument("phaseId", StringArgumentType.greedyString())
+                                        .executes(CommandHandler::phaseTemp)
+                                        .then(Commands.argument("seconds", com.mojang.brigadier.arguments.IntegerArgumentType.integer(0))
+                                                .executes(CommandHandler::phaseTemp))))
+                        .then(Commands.literal("cleartemp")
+                                .executes(CommandHandler::phaseClearTemp))
+                        .then(Commands.literal("reload")
+                                .executes(CommandHandler::phaseReload)))
         );
     }
 
@@ -334,6 +355,56 @@ public class CommandHandler {
                 () -> Component.translatable(LangKeys.CMD_RELOAD_DONE)
                         .append(Component.literal(" "))
                         .append(Component.translatable(LangKeys.MSG_CONFIG_NEEDS_RELOAD)), false);
+        return 1;
+    }
+
+    // ═══════════════ 阶段命令 ═══════════════
+
+    private static int phaseForce(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = ctx.getSource().getPlayer();
+        if (player == null) {
+            ctx.getSource().sendFailure(Component.literal("只能在玩家上下文中执行"));
+            return 0;
+        }
+        String scope = StringArgumentType.getString(ctx, "scope");
+        String phaseId = StringArgumentType.getString(ctx, "phaseId");
+        com.dreamer.ao.phase.PhaseUnlockService.get().forcePhase(player, scope, phaseId);
+        ctx.getSource().sendSuccess(() -> Component.literal("已强制切换阶段: " + phaseId + " (" + scope + ")"), false);
+        return 1;
+    }
+
+    private static int phaseTemp(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = ctx.getSource().getPlayer();
+        if (player == null) {
+            ctx.getSource().sendFailure(Component.literal("只能在玩家上下文中执行"));
+            return 0;
+        }
+        String phaseId = StringArgumentType.getString(ctx, "phaseId");
+        int parsed = 0;
+        try {
+            parsed = com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "seconds");
+        } catch (Exception ignored) { /* 可选参数 */ }
+        final int seconds = parsed;
+        com.dreamer.ao.phase.PhaseUnlockService.get().applyTemp(player, phaseId, seconds);
+        ctx.getSource().sendSuccess(
+                () -> Component.literal("已施加临时阶段: " + phaseId + (seconds > 0 ? " (" + seconds + "s)" : " (永久)")), false);
+        return 1;
+    }
+
+    private static int phaseClearTemp(CommandContext<CommandSourceStack> ctx) {
+        ServerPlayer player = ctx.getSource().getPlayer();
+        if (player == null) {
+            ctx.getSource().sendFailure(Component.literal("只能在玩家上下文中执行"));
+            return 0;
+        }
+        com.dreamer.ao.phase.PhaseUnlockService.get().clearTemp(player);
+        ctx.getSource().sendSuccess(() -> Component.literal("已清除临时阶段"), false);
+        return 1;
+    }
+
+    private static int phaseReload(CommandContext<CommandSourceStack> ctx) {
+        com.dreamer.ao.phase.PhaseRegistry.get().reload();
+        ctx.getSource().sendSuccess(() -> Component.literal("阶段配置已重载"), false);
         return 1;
     }
 }

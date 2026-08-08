@@ -44,30 +44,15 @@ public class CardRenderer {
     public CardRenderer(AdvancementScreen screen) {
         this.screen = screen;
         this.connectionRenderer = new ConnectionRenderer(screen);
+        this.spatialIndex = new CardSpatialIndex(screen);
     }
 
-    // ═══════════════ PERF-4: 图标缓存 ═══════════════
+    // ═══════════════ PERF-4: 图标缓存（委托 CardIconCache） ═══════════════
 
-    private ItemStack cachedDefaultIcon;
-    private final Map<String, ItemStack> iconCache = new HashMap<>();
-
-    private ItemStack getCachedDefaultIcon() {
-        if (cachedDefaultIcon == null) {
-            var item = BuiltInRegistries.ITEM.get(ResourceLocation.parse("minecraft:nether_star"));
-            cachedDefaultIcon = item != null ? new ItemStack(item) : ItemStack.EMPTY;
-        }
-        return cachedDefaultIcon;
-    }
+    private final CardIconCache iconCache = new CardIconCache();
 
     private ItemStack resolveIcon(String iconStr) {
-        if (iconStr == null || iconStr.isEmpty()) return getCachedDefaultIcon();
-        if (iconStr.startsWith("entity:")) return ItemStack.EMPTY;
-        return iconCache.computeIfAbsent(iconStr, key -> {
-            ResourceLocation rl = ResourceLocation.tryParse(key);
-            if (rl == null) return ItemStack.EMPTY;
-            var item = BuiltInRegistries.ITEM.get(rl);
-            return item != null ? new ItemStack(item) : ItemStack.EMPTY;
-        });
+        return iconCache.resolveIcon(iconStr);
     }
 
     public void clearIconCache() { iconCache.clear(); }
@@ -78,7 +63,7 @@ public class CardRenderer {
     private boolean cachedBoundsFound = false;
     private double cachedMinW, cachedMaxW, cachedMinH, cachedMaxH;
 
-    public void markBoundsDirty() { boundsDirty = true; gridDirty = true; }
+    public void markBoundsDirty() { boundsDirty = true; spatialIndex.markDirty(); }
 
     private void ensureBounds() {
         if (!boundsDirty) return;
@@ -112,57 +97,21 @@ public class CardRenderer {
         ensureGrid();
     }
 
-    // ═══════════════ PERF-18: 空间网格索引（千级卡片视口裁剪） ═══════════════
+    // ═══════════════ PERF-18: 空间网格索引（委托 CardSpatialIndex） ═══════════════
+
+    /** 空间网格协作类实例 */
+    private final CardSpatialIndex spatialIndex;
 
     /** 网格单元的世界坐标大小（约 20 个卡片宽度 = 480 世界单位） */
     private static final int GRID_CELL_SIZE = 480;
 
-    /** 空间网格脏标记 */
-    private boolean gridDirty = true;
+    /** 空间网格：Long(cellX<<32|cellY) → 该单元格内的卡片渲染条目列表（同步自索引） */
+    private Map<Long, List<CardSpatialIndex.CardEntry>> spatialGrid = new HashMap<>();
 
-    /** 空间网格：Long(cellX<<32|cellY) → 该单元格内的卡片渲染条目列表 */
-    private final Map<Long, List<CardEntry>> spatialGrid = new HashMap<>();
-
-    /** 表示一个需要渲染的卡片条目（自定义或原版），避免每帧重复查找 ClientDataStore */
-    private record CardEntry(String id, String name, String icon,
-                             int wx, int wy, boolean done, boolean showId, boolean enabled, boolean hidden) {}
-
-    /** 将世界坐标编码为网格单元格 key */
-    private static long cellKey(int worldX, int worldY) {
-        int cx = Math.floorDiv(worldX, GRID_CELL_SIZE);
-        int cy = Math.floorDiv(worldY, GRID_CELL_SIZE);
-        return ((long) cx << 32) | (cy & 0xFFFFFFFFL);
-    }
-
-    /** 重建空间网格索引 */
+    /** 重建空间网格索引（委托协作类，并同步引用供 renderCards 遍历） */
     private void ensureGrid() {
-        if (!gridDirty) return;
-        gridDirty = false;
-        spatialGrid.clear();
-
-        ClientDataStore cs = ClientDataStore.getInstance();
-
-        // 索引自定义进度
-        for (var a : screen.frameFiltered) {
-            if (!shouldRenderCard(a, cs)) continue;
-            long key = cellKey(a.getX(), a.getY());
-            spatialGrid.computeIfAbsent(key, k -> new ArrayList<>())
-                    .add(new CardEntry(a.getId(), a.getName(), a.getIcon(),
-                            a.getX(), a.getY(), cs.isCompleted(a.getId()), false, true,
-                            a.isHidden() && !cs.isCompleted(a.getId())));
-        }
-
-        // 索引原版进度
-        for (var va : screen.vanillaAdvs) {
-            if (!screen.shouldShowVanilla(va.id())) continue;
-            int[] p = screen.vanillaPos.get(va.id());
-            if (p == null) continue;
-            long key = cellKey(p[0], p[1]);
-            spatialGrid.computeIfAbsent(key, k -> new ArrayList<>())
-                    .add(new CardEntry(va.id(), va.getLocalizedName(), va.icon(),
-                            p[0], p[1], cs.isCompleted(va.id()), false,
-                            cs.isVanillaEnabled(va.id()), false));
-        }
+        spatialIndex.ensureGrid();
+        spatialGrid = spatialIndex.grid();
     }
 
     /**
@@ -178,22 +127,7 @@ public class CardRenderer {
      * @return 覆盖该位置的所有单元格内的卡片 ID 集合（含自定义和原版）
      */
     public java.util.Set<String> queryCardIdsNear(int worldX, int worldY) {
-        ensureGrid();
-        java.util.Set<String> ids = new java.util.LinkedHashSet<>();
-        int cellMinX = Math.floorDiv(worldX - CARD_W, GRID_CELL_SIZE);
-        int cellMaxX = Math.floorDiv(worldX + CARD_W, GRID_CELL_SIZE);
-        int cellMinY = Math.floorDiv(worldY - CARD_H, GRID_CELL_SIZE);
-        int cellMaxY = Math.floorDiv(worldY + CARD_H, GRID_CELL_SIZE);
-        for (int cx = cellMinX; cx <= cellMaxX; cx++) {
-            for (int cy = cellMinY; cy <= cellMaxY; cy++) {
-                List<CardEntry> entries = spatialGrid.get(((long) cx << 32) | (cy & 0xFFFFFFFFL));
-                if (entries == null) continue;
-                for (CardEntry entry : entries) {
-                    ids.add(entry.id());
-                }
-            }
-        }
-        return ids;
+        return spatialIndex.queryCardIdsNear(worldX, worldY);
     }
 
     // ═══════════════ 滚动条缓存 ═══════════════
@@ -265,9 +199,9 @@ public class CardRenderer {
             for (int cx = cellMinX; cx <= cellMaxX; cx++) {
                 for (int cy = cellMinY; cy <= cellMaxY; cy++) {
                     long key = ((long) cx << 32) | (cy & 0xFFFFFFFFL);
-                    List<CardEntry> entries = spatialGrid.get(key);
+                    List<CardSpatialIndex.CardEntry> entries = spatialGrid.get(key);
                     if (entries == null) continue;
-                    for (CardEntry entry : entries) {
+                    for (CardSpatialIndex.CardEntry entry : entries) {
                         renderIconCard(g, mx, my, cv, entry.id(), entry.name(), entry.icon(),
                                 entry.wx(), entry.wy(), entry.done(), entry.showId(), entry.enabled(), entry.hidden());
                     }

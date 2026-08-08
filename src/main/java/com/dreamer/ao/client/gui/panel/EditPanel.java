@@ -10,7 +10,10 @@ package com.dreamer.ao.client.gui.panel;
  */
 import com.dreamer.ao.client.gui.AdvancementScreen;
 import com.dreamer.ao.client.gui.GuiUtils;
+import com.dreamer.ao.client.gui.layout.LayoutMetrics;
 import com.dreamer.ao.client.gui.widget.ScrollBar;
+
+import static com.dreamer.ao.client.gui.Theme.*;
 import com.dreamer.ao.data.ClientDataStore;
 import com.dreamer.ao.data.ConditionType;
 import com.dreamer.ao.data.DataStore;
@@ -26,40 +29,11 @@ import org.slf4j.Logger;
 
 import java.util.*;
 
-import static com.dreamer.ao.client.gui.Theme.*;
-
 public class EditPanel {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    static final int PANEL_W = 380;
-    static final int PANEL_H = 340;
-    static final int COND_ROW_H = 22;
     private static final int MAX_COUNT = 999;
-
-    // ── Row 1 布局 ──
-    static final int NAME_AREA_X = 40;
-    static final int NAME_FIELD_W = 120;
-    static final int DESC_LABEL_X = 168;
-    static final int DESC_AREA_X = 200;
-
-    // ── Row 2 布局 ──
-    static final int BTN_GAP = 6;
-    static final int CAT_BTN_W = 80;
-    static final int HIDDEN_BTN_X = 14 + CAT_BTN_W + BTN_GAP;
-    static final int HIDDEN_BTN_W = 22;
-    static final int ICON_BTN_X = HIDDEN_BTN_X + HIDDEN_BTN_W + BTN_GAP;
-    static final int ICON_BTN_W = 62;
-    static final int PREREQ_BTN_W = 110;
-    // 普通模式下前置按钮的起始 X
-    static final int PREREQ_BTN_X_NORMAL = ICON_BTN_X + ICON_BTN_W + BTN_GAP;
-
-    // ── 条件行布局 ──
-    static final int COND_TYPE_X = 14;
-    static final int COND_TYPE_W = 72;
-    static final int COND_TGT_X = 90;
-    static final int COND_CNT_W = 36;
-    static final int COND_DEL_W = 24;
 
     // ── 状态 ──
     boolean visible;
@@ -79,8 +53,22 @@ public class EditPanel {
 
     final ConditionSelector condSelector = new ConditionSelector();
 
-    int panelX, panelY;
+    int panelX, panelY, panelW, panelH, descFieldW;
     int condListStartY, condListVisibleH;
+
+    /**
+     * 一次性计算面板实际边界并写入字段，渲染与鼠标命中检测同源读取。
+     * 依据 {@link LayoutMetrics#computePanel} 的夹取规则，避免在两侧
+     * 分别重算导致公式漂移、点击错位。
+     */
+    void updateLayout(int screenW, int screenH) {
+        var b = LayoutMetrics.computePanel(screenW, screenH);
+        panelX = b.x();
+        panelY = b.y();
+        panelW = b.w();
+        panelH = b.h();
+        descFieldW = panelW - LayoutMetrics.DESC_AREA_X - 14;
+    }
 
     AdvancementScreen screen;
     EditBox nameBox, descBox, loreBox, condCountBox;
@@ -181,7 +169,7 @@ public class EditPanel {
         descBox.setMaxLength(1024); descBox.setValue(edDesc != null ? edDesc : ""); descBox.setTextColor(TEXT_BR);
         loreBox = new EditBox(font, 0, 0, 200, 20, Component.empty());
         loreBox.setMaxLength(2048); loreBox.setValue(edLore != null ? edLore : ""); loreBox.setTextColor(TEXT_BR);
-        condCountBox = new EditBox(font, 0, 0, COND_CNT_W, 18, Component.empty());
+        condCountBox = new EditBox(font, 0, 0, LayoutMetrics.COND_CNT_W, 18, Component.empty());
         condCountBox.setMaxLength(3); condCountBox.setValue("1"); condCountBox.setTextColor(ACCENT);
         condCountBox.setBordered(false);
         condCountBox.setVisible(false);
@@ -250,11 +238,8 @@ public class EditPanel {
         if (condSelector.isActive()) { condSelector.handleClick(mx, my, font, screenW, screenH); return true; }
         if (inlineEditingCount) commitInlineCountEdit();
         commitNameAndDesc();
-        int pw = Math.min(PANEL_W, screenW - 40);
-        int ph = Math.clamp(screenH - 40, 200, PANEL_H);
-        int px = (screenW - pw) / 2;
-        int py = Math.max(20, (screenH - ph) / 2);
-        int descFieldW = pw - DESC_AREA_X - 14;
+        updateLayout(screenW, screenH);
+        int px = panelX, py = panelY, pw = panelW, ph = panelH;
 
         if (GuiUtils.closeHit(mx, my, px, py, pw)) { close(); return true; }
         if (GuiUtils.outsidePanel(mx, my, px, py, pw, ph)) return false;
@@ -262,24 +247,24 @@ public class EditPanel {
         int ty = py + 28;
 
         // ── Row 1: 名称/描述（vanillaEditMode 下不可编辑） ──
-        if (!vanillaEditMode && GuiUtils.inRect(mx, my, px + NAME_AREA_X, ty, NAME_FIELD_W, 20)) { activateName(); return true; }
-        if (!vanillaEditMode && GuiUtils.inRect(mx, my, px + DESC_AREA_X, ty, descFieldW, 20)) { activateDesc(); return true; }
+        if (!vanillaEditMode && GuiUtils.inRect(mx, my, px + LayoutMetrics.NAME_AREA_X, ty, LayoutMetrics.NAME_FIELD_W, 20)) { activateName(); return true; }
+        if (!vanillaEditMode && GuiUtils.inRect(mx, my, px + LayoutMetrics.DESC_AREA_X, ty, descFieldW, 20)) { activateDesc(); return true; }
         commitNameAndDesc();
         ty += 28;
 
         // ── Row 2 ──
         if (vanillaEditMode) {
-            int tabW = pw - PREREQ_BTN_W - 14 - 4 - 14;
+            int tabW = pw - LayoutMetrics.PREREQ_BTN_W - 14 - LayoutMetrics.BTN_GAP - 14;
             boolean clickedTab = GuiUtils.inRect(mx, my, px + 14, ty, tabW, 20);
             if (clickedTab) { if (screen != null) screen.openTabSel(); return true; }
-            int pBtnX = px + 14 + tabW + 4;
-            boolean clickedPrereq = GuiUtils.inRect(mx, my, pBtnX, ty, PREREQ_BTN_W, 20);
+            int pBtnX = px + 14 + tabW + LayoutMetrics.BTN_GAP;
+            boolean clickedPrereq = GuiUtils.inRect(mx, my, pBtnX, ty, LayoutMetrics.PREREQ_BTN_W, 20);
             if (clickedPrereq) { handlePrereqBtnClick(); return true; }
         } else {
-            if (GuiUtils.inRect(mx, my, px + 14, ty, CAT_BTN_W, 20)) { if (screen != null) screen.openTabSel(); return true; }
-            if (GuiUtils.inRect(mx, my, px + HIDDEN_BTN_X, ty, HIDDEN_BTN_W, 20)) { edHidden = !edHidden; return true; }
-            if (GuiUtils.inRect(mx, my, px + ICON_BTN_X, ty, ICON_BTN_W, 20)) { openIconPicker(); return true; }
-            int pBtnX = px + PREREQ_BTN_X_NORMAL;
+            if (GuiUtils.inRect(mx, my, px + 14, ty, LayoutMetrics.CAT_BTN_W, 20)) { if (screen != null) screen.openTabSel(); return true; }
+            if (GuiUtils.inRect(mx, my, px + LayoutMetrics.HIDDEN_BTN_X, ty, LayoutMetrics.HIDDEN_BTN_W, 20)) { edHidden = !edHidden; return true; }
+            if (GuiUtils.inRect(mx, my, px + LayoutMetrics.ICON_BTN_X, ty, LayoutMetrics.ICON_BTN_W, 20)) { openIconPicker(); return true; }
+            int pBtnX = px + LayoutMetrics.PREREQ_BTN_X_NORMAL;
             int pBtnW = px + pw - pBtnX - 14;
             if (GuiUtils.inRect(mx, my, pBtnX, ty, pBtnW, 20)) { handlePrereqBtnClick(); return true; }
         }
@@ -319,13 +304,13 @@ public class EditPanel {
 
         // ── 条件列表（vanillaEditMode 下禁用数量编辑和删除） ──
         if (mx >= px + 14 && mx < px + pw - 14 && my >= condListStartY && my < condListStartY + condListVisibleH) {
-            int idx = (int) ((my - condListStartY + condScrollBar.getScroll()) / COND_ROW_H);
+            int idx = (int) ((my - condListStartY + condScrollBar.getScroll()) / LayoutMetrics.COND_ROW_H);
             if (idx >= 0 && idx < edConds.size()) {
-                int rowY = condListStartY + idx * COND_ROW_H - condScrollBar.getScroll();
-                int delX = px + pw - COND_DEL_W - 6;
-                int cntX = delX - COND_CNT_W - 4;
-                if (!vanillaEditMode && GuiUtils.inRect(mx, my, cntX, rowY, COND_CNT_W, COND_ROW_H)) { startInlineCountEdit(idx); return true; }
-                if (!vanillaEditMode && GuiUtils.inRect(mx, my, delX, rowY, COND_DEL_W, COND_ROW_H)) { edConds.remove(idx); return true; }
+                int rowY = condListStartY + idx * LayoutMetrics.COND_ROW_H - condScrollBar.getScroll();
+                int delX = px + pw - LayoutMetrics.COND_DEL_W - 6;
+                int cntX = delX - LayoutMetrics.COND_CNT_W - 4;
+                if (!vanillaEditMode && GuiUtils.inRect(mx, my, cntX, rowY, LayoutMetrics.COND_CNT_W, LayoutMetrics.COND_ROW_H)) { startInlineCountEdit(idx); return true; }
+                if (!vanillaEditMode && GuiUtils.inRect(mx, my, delX, rowY, LayoutMetrics.COND_DEL_W, LayoutMetrics.COND_ROW_H)) { edConds.remove(idx); return true; }
             }
             return true;
         }
@@ -401,8 +386,7 @@ public class EditPanel {
 
     public void mouseDragged(double my, int screenW, int screenH) {
         if (!visible) return;
-        int pw = Math.min(PANEL_W, screenW - 40);
-        int px = (screenW - pw) / 2;
+        updateLayout(screenW, screenH);
         condScrollBar.handleDrag(my);
     }
 

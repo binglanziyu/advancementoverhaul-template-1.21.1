@@ -37,6 +37,9 @@ public class Config {
     /** 自动启用的模组命名空间列表（如 ["minecraft", "create"]），该模组的所有进度会自动创建分类并启用 */
     public static final ModConfigSpec.ConfigValue<List<? extends String>> ENABLED_MODS;
 
+    /** 怪物装备 roll 是否覆盖其他 mod（含原版）已套在生物身上的装备。默认 false = 仅补空槽，与其他 mod 共存 */
+    public static final ModConfigSpec.BooleanValue OVERWRITE_OTHERS;
+
     static {
         ModConfigSpec.Builder b = new ModConfigSpec.Builder();
 
@@ -80,6 +83,13 @@ public class Config {
                          "Each mod's advancement tree will be auto-assigned to tabs (one per root category). " +
                          "Example: [\"minecraft\", \"create\"]")
                 .defineList("enabledMods", List::of, () -> "", o -> o instanceof String s && s.matches("[a-z][a-z0-9_]*"));
+        b.pop();
+
+        b.push("equipment");
+        OVERWRITE_OTHERS = b
+                .comment("When true, phase-defined mob equipment overwrites gear equipped by vanilla/other mods. " +
+                         "When false (default), we only fill empty slots, coexisting with other mods.")
+                .define("overwriteOthers", false);
         b.pop();
 
         COMMON_SPEC = b.build();

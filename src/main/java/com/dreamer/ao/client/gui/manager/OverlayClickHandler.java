@@ -157,9 +157,11 @@ class OverlayClickHandler {
         if (GuiUtils.outsidePanel(mx, my, px, py, pw, ph)) { screen.overlay.close(); return; }
 
         int ty = py + 30;
-        for (String tab : customTabs) {
+        for (int i = 0; i < customTabs.size(); i++) {
+            String tab = customTabs.get(i);
             if (ty + 26 > py + ph) break;
 
+            // 删除按钮
             if (GuiUtils.inRect(mx, my, px + pw - 30, ty, 20, 24)) {
                 int advCount = 0;
                 for (var adv : cs.getAdvancements().values())
@@ -180,7 +182,16 @@ class OverlayClickHandler {
                 return;
             }
 
-            if (GuiUtils.inRect(mx, my, px + 10, ty, pw - 40, 24)) return;
+            // 行内点击：记录拖拽起点（松手时若未移动则视为单纯点击，不关闭面板）
+            if (GuiUtils.inRect(mx, my, px + 10, ty, pw - 40, 24)) {
+                if (customTabs.size() > 1) {
+                    screen.tabManageDrag.dragFrom = i;
+                    screen.tabManageDrag.dragStartY = my;
+                    screen.tabManageDrag.dragVisualY = ty;
+                    screen.tabManageDrag.dragging = false;
+                }
+                return;
+            }
             ty += 26;
         }
     }
@@ -207,6 +218,47 @@ class OverlayClickHandler {
 
         if (GuiUtils.outsidePanel(mx, my, px, py, OverlayLayout.CONFIRM_W, OverlayLayout.CONFIRM_H))
             screen.overlay.close();
+    }
+
+    /**
+     * 标签管理界面拖拽换序：把 dragFrom 行移动到 visualY 对应的位置，
+     * 重排自定义标签顺序后发送 {@code adv tab order} 命令（仅重排自定义标签）。
+     */
+    static void commitTabManageReorder(AdvancementScreen screen, double visualY) {
+        ClientDataStore cs = ClientDataStore.getInstance();
+        List<String> custom = new java.util.ArrayList<>(cs.getCustomTabs());
+        int from = screen.tabManageDrag.dragFrom;
+        if (from < 0 || from >= custom.size()) return;
+
+        int pw = 320;
+        int maxH = screen.getScreenHeight() - 80;
+        int contentH = custom.size() * 26 + 50;
+        int ph = Math.clamp(contentH, 120, maxH);
+        int py = screen.midY(ph);
+
+        // 行起始 Y（与第一行顶部对齐）
+        int firstTy = py + 30;
+        int dropIdx = (int) Math.round((visualY - firstTy) / 26.0);
+        dropIdx = Math.max(0, Math.min(custom.size() - 1, dropIdx));
+        if (dropIdx == from) return;
+
+        String moved = custom.remove(from);
+        custom.add(dropIdx, moved);
+
+        // 把新自定义顺序映射回完整标签顺序（仅重排自定义标签的相对位置）
+        List<String> full = new java.util.ArrayList<>(cs.getTabs());
+        List<String> customInFull = new java.util.ArrayList<>();
+        for (String t : full) if (custom.contains(t)) customInFull.add(t);
+        java.util.Map<String, Integer> rank = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < custom.size(); i++) rank.put(custom.get(i), i);
+        customInFull.sort(java.util.Comparator.comparingInt(rank::get));
+
+        List<String> reordered = new java.util.ArrayList<>(full);
+        int bi = 0;
+        for (int i = 0; i < reordered.size(); i++) {
+            if (custom.contains(reordered.get(i))) reordered.set(i, customInFull.get(bi++));
+        }
+        GuiUtils.sendCommand("adv tab order " + String.join(",", reordered));
     }
 
     private static void clickJournal(AdvancementScreen screen, double mx, double my) {

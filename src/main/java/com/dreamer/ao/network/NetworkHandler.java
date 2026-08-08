@@ -3,6 +3,7 @@ package com.dreamer.ao.network;
 import com.dreamer.ao.Config;
 import com.dreamer.ao.LangKeys;
 import com.dreamer.ao.ModInfo;
+import com.dreamer.ao.ServerConstants;
 import com.dreamer.ao.compat.AdvancementRegistry;
 import com.dreamer.ao.data.ServerDataStore;
 import com.dreamer.ao.data.PlayerStats;
@@ -19,7 +20,11 @@ import com.dreamer.ao.network.payload.SyncChunkPayload;
 import com.dreamer.ao.network.payload.SyncPayload;
 import com.dreamer.ao.network.payload.TimelineRequestPayload;
 import com.dreamer.ao.network.payload.TimelineSyncPayload;
+import com.dreamer.ao.network.payload.PhaseRequestPayload;
+import com.dreamer.ao.network.payload.PhaseSyncPayload;
+import com.dreamer.ao.network.payload.PhaseDefEditPayload;
 import com.dreamer.ao.network.handler.TimelineNetworkHandler;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import net.minecraft.network.chat.Component;
@@ -85,26 +90,39 @@ public class NetworkHandler {
     // ═══════════════ 频率限制 ═══════════════
 
     private static final ConcurrentHashMap<UUID, Long> COMMAND_COOLDOWN = new ConcurrentHashMap<>();
-    private static final long COOLDOWN_MS = 100;
-    private static final int COOLDOWN_MAX_SIZE = 1024;
-    private static final long COOLDOWN_EXPIRE_MS = 60_000;
-
     private static final ConcurrentHashMap<UUID, Long> IMPORT_COOLDOWN = new ConcurrentHashMap<>();
-    private static final long IMPORT_COOLDOWN_MS = 2000;
 
-    private static final int CMD_MAX_UTF8_BYTES = 16384;
-    private static final int IMPORT_MAX_CHARS = 1_048_576;
+    /** 携带 JSON 载荷的命令前缀，适用更宽松的体积限额。 */
+    private static final Set<String> JSON_PAYLOAD_PREFIXES = Set.of(
+            "adv createjson ", "adv updatejson "
+    );
+
+    // ═══════════════ 生命周期 ═══════════════
 
     /**
-     * JSON 嵌套深度上限，防止深度嵌套导致栈溢出 / DoS。
+     * 玩家登出时回收其冷却记录。
      * <p>
-     * 正常 JSON 嵌套深度通常在 5-15 层，32 层为防御性上限：<br>
-     * — Guava JsonParser 使用递归解析，无显式深度保护<br>
-     * — 攻击者可能构造 10,000+ 层嵌套的 JSON（Billion Laughs 变体）<br>
-     * — 32 层足以容纳任何合法配置文件且远低于 JVM 默认栈限制<br>
-     * — 如确实需要更深嵌套，建议重构数据结构而非调高此值
+     * 这是最精确的回收时机：使冷却表规模收敛于「在线玩家数」，
+     * 而非「服务器生命周期内累计登录过的 UUID 数」。
+     * 兜底的过期清理仍保留，用于处理崩溃退出等登出事件缺失的异常场景。
      */
-    private static final int JSON_MAX_DEPTH = 32;
+    public static void onPlayerLogout(UUID uuid) {
+        if (uuid == null) return;
+        COMMAND_COOLDOWN.remove(uuid);
+        IMPORT_COOLDOWN.remove(uuid);
+    }
+
+    /**
+     * 按命令类型返回允许的 UTF-8 字节上限。
+     * <p>
+     * 仅 JSON 载荷类命令需要较大限额；其余命令收紧至 1 KB 以收窄攻击面。
+     */
+    private static int maxUtf8BytesFor(String cmd) {
+        for (String prefix : JSON_PAYLOAD_PREFIXES) {
+            if (cmd.startsWith(prefix)) return ServerConstants.CMD_JSON_MAX_UTF8_BYTES;
+        }
+        return ServerConstants.CMD_PLAIN_MAX_UTF8_BYTES;
+    }
 
     // ═══════════════ 注册 ═══════════════
 
@@ -147,6 +165,14 @@ public class NetworkHandler {
                 NetworkHandler::handleTimelineSyncDelegate);
         registrar.playToServer(TimelineRequestPayload.TYPE, TimelineRequestPayload.CODEC,
                 TimelineNetworkHandler::handleTimelineRequest);
+
+        // Phase
+        registrar.playToClient(PhaseSyncPayload.TYPE, PhaseSyncPayload.STREAM_CODEC,
+                NetworkHandler::handlePhaseSyncDelegate);
+        registrar.playToServer(PhaseRequestPayload.TYPE, PhaseRequestPayload.STREAM_CODEC,
+                NetworkHandler::handlePhaseRequest);
+        registrar.playToServer(PhaseDefEditPayload.TYPE, PhaseDefEditPayload.STREAM_CODEC,
+                NetworkHandler::handlePhaseDefEdit);
     }
 
     // ═══════════════ S2C 中间处理方法（仅在客户端被调用） ═══════════════
@@ -175,6 +201,139 @@ public class NetworkHandler {
         NetworkHandlerClient.handleTimelineSync(payload, context);
     }
 
+    private static void handlePhaseSyncDelegate(PhaseSyncPayload payload, IPayloadContext context) {
+        NetworkHandlerClient.handlePhaseSync(payload, context);
+    }
+
+    /** C2S：客户端请求阶段态 → 服务端回推 */
+    private static void handlePhaseRequest(PhaseRequestPayload payload, IPayloadContext context) {
+        context.enqueueWork(() -> {
+            if (!(context.player() instanceof ServerPlayer player)) return;
+            com.dreamer.ao.phase.PhaseUnlockService.get().recomputeAndSync(player);
+        });
+    }
+
+    /**
+     * C2S：可视化编辑器保存/删除阶段定义。
+     * <p>
+     * 校验权限 → 写回 config/phases/*.json → 热重载 PhaseRegistry → 同步所有在线 OP。
+     */
+    private static void handlePhaseDefEdit(PhaseDefEditPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer player)) return;
+        int requiredPerm = Config.EDIT_PERMISSION_LEVEL.get();
+        if (!player.hasPermissions(requiredPerm)) {
+            player.sendSystemMessage(Component.translatable(LangKeys.CMD_PERM_DENIED));
+            return;
+        }
+        String action = payload.action();
+        String id = payload.id();
+        if (id == null || id.isBlank()) {
+            player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_INVALID_ID));
+            return;
+        }
+        if (!id.matches("[a-z0-9_]{1,64}")) {
+            player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_INVALID_ID));
+            return;
+        }
+        context.enqueueWork(() -> {
+            try {
+                var registry = com.dreamer.ao.phase.PhaseRegistry.get();
+                if ("remove_effect".equals(action)) {
+                    String json = payload.json();
+                    if (json == null || json.isBlank()) {
+                        player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_EMPTY));
+                        return;
+                    }
+                    var obj = JsonParser.parseString(json).getAsJsonObject();
+                    var existing = com.dreamer.ao.phase.PhaseRegistry.get().getById(id).orElse(null);
+                    if (existing == null) {
+                        player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_NOT_FOUND, id));
+                        return;
+                    }
+                    var root = existing.toJson();
+                    var effects = root.has("effects") ? root.getAsJsonObject("effects") : new JsonObject();
+                    String cat = obj.has("cat") ? obj.get("cat").getAsString() : "";
+                    removeEffectFrom(effects, cat, obj);
+                    root.add("effects", effects);
+                    var def = com.dreamer.ao.phase.PhaseDefinition.fromJson(root);
+                    com.dreamer.ao.phase.PhaseDefinitionLoader.saveDef(def);
+                    registry.reload();
+                    player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EFFECT_REMOVED, def.getId()));
+                } else if ("delete".equals(action)) {
+                    com.dreamer.ao.phase.PhaseDefinitionLoader.deleteDef(id);
+                    registry.reload();
+                    player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_DELETED, id));
+                } else {
+                    // save：解析 JSON 并写盘
+                    String json = payload.json();
+                    if (json == null || json.isBlank()) {
+                        player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_EMPTY));
+                        return;
+                    }
+                    if (json.length() > 8192) {
+                        player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_TOO_LARGE));
+                        return;
+                    }
+                    if (!checkJsonDepth(json, ServerConstants.JSON_MAX_DEPTH)) {
+                        player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_INVALID_JSON));
+                        return;
+                    }
+                    var obj = JsonParser.parseString(json).getAsJsonObject();
+                    var def = com.dreamer.ao.phase.PhaseDefinition.fromJson(obj);
+                    com.dreamer.ao.phase.PhaseDefinitionLoader.saveDef(def);
+                    registry.reload();
+                    player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_SAVED, def.getId()));
+                }
+                // 热重载后，向所有在线 OP 重算并同步阶段态
+                registry.all(); // 触发索引刷新
+                for (var p : player.server.getPlayerList().getPlayers()) {
+                    if (p.hasPermissions(requiredPerm)) {
+                        com.dreamer.ao.phase.PhaseUnlockService.get().recomputeAndSync(p);
+                    }
+                }
+            } catch (Exception e) {
+                LOGGER.error("阶段定义编辑失败: {}", e.getMessage());
+                player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_FAILED, e.getMessage()));
+            }
+        });
+    }
+
+    /** 从 effects JSON 中移除某条效果（按 tag 标识） */
+    private static void removeEffectFrom(JsonObject effects, String cat, JsonObject tag) {
+        switch (cat) {
+            case "attributes", "mob_mults" -> {
+                if (tag.has("key") && effects.has(cat)) {
+                    effects.getAsJsonObject(cat).remove(tag.get("key").getAsString());
+                }
+            }
+            case "mob_effects" -> {
+                if (tag.has("effectId") && effects.has("mob_effects")) {
+                    JsonArray arr = effects.getAsJsonArray("mob_effects");
+                    String target = tag.get("effectId").getAsString();
+                    JsonArray out = new JsonArray();
+                    for (int i = 0; i < arr.size(); i++) {
+                        if (!arr.get(i).getAsJsonObject().get("id").getAsString().equals(target)) {
+                            out.add(arr.get(i));
+                        }
+                    }
+                    effects.add("mob_effects", out);
+                }
+            }
+            case "equipment" -> {
+                if (tag.has("index") && effects.has("equipment")) {
+                    JsonArray arr = effects.getAsJsonArray("equipment");
+                    int idx = tag.get("index").getAsInt();
+                    JsonArray out = new JsonArray();
+                    for (int i = 0; i < arr.size(); i++) {
+                        if (i != idx) out.add(arr.get(i));
+                    }
+                    effects.add("equipment", out);
+                }
+            }
+            default -> { /* 未知类别：忽略 */ }
+        }
+    }
+
     // ═══════════════ C2S 命令处理 ═══════════════
 
     private static void handleC2SCommand(C2SCommandPayload payload, IPayloadContext context) {
@@ -200,21 +359,25 @@ public class NetworkHandler {
             }
 
             int utf8Len = cmd.getBytes(StandardCharsets.UTF_8).length;
-            if (utf8Len > CMD_MAX_UTF8_BYTES) {
-                LOGGER.warn("Blocked oversized C2S command ({} UTF-8 bytes) from {}",
-                        utf8Len, player.getName().getString());
+            int maxLen = maxUtf8BytesFor(cmd);
+            if (utf8Len > maxLen) {
+                // 不打印命令全文——可能携带大体积 JSON
+                LOGGER.warn("Blocked oversized C2S command ({} UTF-8 bytes, limit {}) from {}",
+                        utf8Len, maxLen, player.getName().getString());
                 return;
             }
 
             long now = System.currentTimeMillis();
             Long last = COMMAND_COOLDOWN.get(player.getUUID());
-            if (last != null && now - last < COOLDOWN_MS) {
+            if (last != null && now - last < ServerConstants.COOLDOWN_MS) {
                 LOGGER.debug("Rate limiting C2S command from {}", player.getName().getString());
                 return;
             }
 
-            if (COMMAND_COOLDOWN.size() > COOLDOWN_MAX_SIZE) {
-                COMMAND_COOLDOWN.entrySet().removeIf(e -> now - e.getValue() > COOLDOWN_EXPIRE_MS);
+            // 兜底清理：正常回收由 onPlayerLogout 完成，此处仅处理登出事件缺失的异常场景
+            if (COMMAND_COOLDOWN.size() > ServerConstants.COOLDOWN_MAX_SIZE) {
+                COMMAND_COOLDOWN.entrySet().removeIf(
+                        e -> now - e.getValue() > ServerConstants.COOLDOWN_EXPIRE_MS);
             }
             COMMAND_COOLDOWN.put(player.getUUID(), now);
 
@@ -258,8 +421,8 @@ public class NetworkHandler {
 
         try {
             // 先用流式检查深度，防止深度嵌套导致栈溢出 / DoS
-            if (!checkJsonDepth(json, JSON_MAX_DEPTH)) {
-                LOGGER.warn("updatejson JSON nesting too deep (max {})", JSON_MAX_DEPTH);
+            if (!checkJsonDepth(json, ServerConstants.JSON_MAX_DEPTH)) {
+                LOGGER.warn("updatejson JSON nesting too deep (max {})", ServerConstants.JSON_MAX_DEPTH);
                 return false;
             }
             JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
@@ -391,25 +554,27 @@ public class NetworkHandler {
 
             long now = System.currentTimeMillis();
             Long lastImport = IMPORT_COOLDOWN.get(player.getUUID());
-            if (lastImport != null && now - lastImport < IMPORT_COOLDOWN_MS) {
+            if (lastImport != null && now - lastImport < ServerConstants.IMPORT_COOLDOWN_MS) {
                 LOGGER.debug("Rate limiting import from {}", player.getName().getString());
                 player.sendSystemMessage(Component.translatable(LangKeys.CMD_RATE_LIMITED));
                 return;
             }
-            if (IMPORT_COOLDOWN.size() > COOLDOWN_MAX_SIZE) {
-                IMPORT_COOLDOWN.entrySet().removeIf(e -> now - e.getValue() > COOLDOWN_EXPIRE_MS);
+            // 兜底清理：正常回收由 onPlayerLogout 完成
+            if (IMPORT_COOLDOWN.size() > ServerConstants.COOLDOWN_MAX_SIZE) {
+                IMPORT_COOLDOWN.entrySet().removeIf(
+                        e -> now - e.getValue() > ServerConstants.COOLDOWN_EXPIRE_MS);
             }
             IMPORT_COOLDOWN.put(player.getUUID(), now);
 
-            if (content.length() > IMPORT_MAX_CHARS) {
+            if (content.length() > ServerConstants.IMPORT_MAX_CHARS) {
                 player.sendSystemMessage(Component.translatable(LangKeys.CMD_IMPORT_TOO_LARGE));
                 return;
             }
 
             try {
                 String raw = content.trim();
-                if (!checkJsonDepth(raw, JSON_MAX_DEPTH)) {
-                    LOGGER.warn("Import JSON nesting too deep (max {})", JSON_MAX_DEPTH);
+                if (!checkJsonDepth(raw, ServerConstants.JSON_MAX_DEPTH)) {
+                    LOGGER.warn("Import JSON nesting too deep (max {})", ServerConstants.JSON_MAX_DEPTH);
                     player.sendSystemMessage(Component.translatable(LangKeys.CMD_IMPORT_FAILED, "JSON nesting too deep"));
                     return;
                 }
@@ -433,5 +598,10 @@ public class NetworkHandler {
                 player.sendSystemMessage(Component.translatable(LangKeys.CMD_IMPORT_FAILED, e.getMessage()));
             }
         });
+    }
+
+    /** 客户端 → 服务端：发送阶段定义编辑请求（保存/删除） */
+    public static void sendPhaseDefEdit(PhaseDefEditPayload payload) {
+        net.neoforged.neoforge.network.PacketDistributor.sendToServer(payload);
     }
 }

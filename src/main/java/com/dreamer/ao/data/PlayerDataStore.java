@@ -62,6 +62,12 @@ final class PlayerDataStore {
     /** UUID → 待释放的 pending 成就集合 */
     private final Map<UUID, Set<String>> pending = new ConcurrentHashMap<>();
 
+    /** UUID → 当前玩家级阶段 id（scope=player） */
+    private final Map<UUID, String> playerPhase = new ConcurrentHashMap<>();
+    /** UUID → 临时阶段 id（OP 施加，带过期时间戳 ms；0 表示不过期） */
+    private final Map<UUID, String> tempPhase = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> tempPhaseExpire = new ConcurrentHashMap<>();
+
     /** 玩家数据脏标记（AtomicBoolean 消除 check-then-act 竞态） */
     private final AtomicBoolean dirty = new AtomicBoolean(false);
 
@@ -173,6 +179,34 @@ final class PlayerDataStore {
         markPlayerDirty(uuid);
     }
 
+    // ═══════════════ 阶段系统（玩家级） ═══════════════
+
+    String getPlayerPhase(UUID uuid) { return playerPhase.get(uuid); }
+    void setPlayerPhase(UUID uuid, String phaseId) {
+        if (phaseId == null) playerPhase.remove(uuid);
+        else playerPhase.put(uuid, phaseId);
+        markPlayerDirty(uuid);
+    }
+
+    String getTempPhase(UUID uuid) { return tempPhase.get(uuid); }
+    long getTempPhaseExpire(UUID uuid) { return tempPhaseExpire.getOrDefault(uuid, 0L); }
+    void setTempPhase(UUID uuid, String phaseId, long expireAt) {
+        if (phaseId == null) {
+            tempPhase.remove(uuid);
+            tempPhaseExpire.remove(uuid);
+        } else {
+            tempPhase.put(uuid, phaseId);
+            tempPhaseExpire.put(uuid, expireAt);
+        }
+        markPlayerDirty(uuid);
+    }
+    boolean hasActiveTempPhase(UUID uuid, long now) {
+        String id = tempPhase.get(uuid);
+        if (id == null) return false;
+        long exp = tempPhaseExpire.getOrDefault(uuid, 0L);
+        return exp == 0 || exp > now;
+    }
+
     // ═══════════════ 脏标记管理 ═══════════════
 
     /** 标记指定玩家数据为脏，同时加入脏集合以支持增量保存 */
@@ -266,6 +300,14 @@ final class PlayerDataStore {
                 playerObj.add("pending", pendArr);
             }
 
+            String pp = playerPhase.get(uuid);
+            if (pp != null) playerObj.addProperty("player_phase", pp);
+            String tp = tempPhase.get(uuid);
+            if (tp != null) {
+                playerObj.addProperty("temp_phase", tp);
+                playerObj.addProperty("temp_phase_expire", tempPhaseExpire.getOrDefault(uuid, 0L));
+            }
+
             try {
                 Path target = dataDir.resolve(uuid.toString() + ".json");
                 Path tmp = dataDir.resolve(uuid.toString() + ".json.tmp");
@@ -290,6 +332,10 @@ final class PlayerDataStore {
         Map<UUID, Map<String, Boolean>> newCompletions = new ConcurrentHashMap<>();
         Map<UUID, Map<String, Map<Integer, Integer>>> newProgress = new ConcurrentHashMap<>();
         Map<UUID, Set<String>> newPending = new ConcurrentHashMap<>();
+        Map<UUID, String> newPlayerPhase = new ConcurrentHashMap<>();
+        Map<UUID, String> newTempPhase = new ConcurrentHashMap<>();
+        Map<UUID, Long> newTempPhaseExpire = new ConcurrentHashMap<>();
+        Map<UUID, Integer> fileVersions = new ConcurrentHashMap<>();
 
         try (var stream = Files.list(dataDir)) {
             stream.filter(f -> f.getFileName().toString().endsWith(".json")).forEach(file -> {
@@ -331,6 +377,20 @@ final class PlayerDataStore {
                         for (JsonElement e : obj.getAsJsonArray("pending")) s.add(e.getAsString());
                         newPending.put(uuid, s);
                     }
+
+                    if (obj.has("player_phase") && obj.get("player_phase").isJsonPrimitive()) {
+                        newPlayerPhase.put(uuid, obj.get("player_phase").getAsString());
+                    }
+                    if (obj.has("temp_phase") && obj.get("temp_phase").isJsonPrimitive()) {
+                        newTempPhase.put(uuid, obj.get("temp_phase").getAsString());
+                        long exp = obj.has("temp_phase_expire") ? obj.get("temp_phase_expire").getAsLong() : 0L;
+                        newTempPhaseExpire.put(uuid, exp);
+                    }
+
+                    // 缓存版本号，避免迁移阶段二次读取文件
+                    if (obj.has("version")) {
+                        fileVersions.put(uuid, obj.get("version").getAsInt());
+                    }
                 } catch (IllegalArgumentException ignored) {
                     // 跳过非 UUID 文件名
                 } catch (Exception e) { LOGGER.warn("Failed to parse player data file: {}", e.getMessage()); }
@@ -347,26 +407,26 @@ final class PlayerDataStore {
         progress.putAll(newProgress);
         pending.clear();
         pending.putAll(newPending);
+        playerPhase.clear();
+        playerPhase.putAll(newPlayerPhase);
+        tempPhase.clear();
+        tempPhase.putAll(newTempPhase);
+        tempPhaseExpire.clear();
+        tempPhaseExpire.putAll(newTempPhaseExpire);
 
         LOGGER.info("Loaded player data: {} players ({} completions, {} progress, {} pending)",
                 Math.max(newCompletions.size(), Math.max(newProgress.size(), newPending.size())),
                 newCompletions.size(), newProgress.size(), newPending.size());
 
-        // 应用数据迁移（如果玩家文件中版本低于 DATA_VERSION）
+        // 应用数据迁移（使用首次加载时缓存的版本号，避免二次文件读取）
         boolean migrationOccurred = false;
-        for (var entry : newCompletions.keySet()) {
-            UUID uuid = entry;
+        for (var entry : fileVersions.entrySet()) {
+            UUID uuid = entry.getKey();
+            int fileVersion = entry.getValue();
             try {
-                Path file = dataDir.resolve(uuid.toString() + ".json");
-                if (Files.exists(file)) {
-                    JsonObject obj = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
-                    if (obj.has("version")) {
-                        int fileVersion = obj.get("version").getAsInt();
-                        if (fileVersion < DATA_VERSION) {
-                            applyMigrations(uuid, fileVersion);
-                            migrationOccurred = true;
-                        }
-                    }
+                if (fileVersion < DATA_VERSION) {
+                    applyMigrations(uuid, fileVersion);
+                    migrationOccurred = true;
                 }
             } catch (Exception e) {
                 LOGGER.warn("Failed to apply migrations for UUID {}: {}", uuid, e.getMessage());

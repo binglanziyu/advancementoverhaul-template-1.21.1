@@ -90,8 +90,14 @@ final class TabStore {
 
     void loadOrder(Path file) {
         if (file == null || !Files.exists(file)) return;
+        // 标签页顺序存储为 JSON 数组而非对象，需使用数组校验器
+        String content = DataStoreIO.readWithFallback(file, DataStoreIO::isValidJsonArray);
+        if (content == null) {
+            LOGGER.warn("Failed to load tab order: no readable file or backup");
+            return;
+        }
         try {
-            List<String> loaded = DataStore.GSON.fromJson(Files.readString(file),
+            List<String> loaded = DataStore.GSON.fromJson(content,
                     new TypeToken<List<String>>() {}.getType());
             synchronized (tabOrder) {
                 tabOrder.clear();
