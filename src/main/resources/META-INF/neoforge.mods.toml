@@ -27,3 +27,18 @@ type = "required"
 versionRange = "${mc_version_range}"
 ordering = "NONE"
 side = "BOTH"
+
+# Optional integration dependencies (not required to run the mod).
+[[dependencies.advancementoverhaul]]
+modId = "kubejs"
+type = "optional"
+versionRange = "[2101.7,)"
+ordering = "AFTER"
+side = "BOTH"
+
+[[dependencies.advancementoverhaul]]
+modId = "ftbquests"
+type = "optional"
+versionRange = "[2101.1,)"
+ordering = "AFTER"
+side = "BOTH"

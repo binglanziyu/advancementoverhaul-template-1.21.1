@@ -133,25 +133,23 @@ public final class FtbQuestListener {
             return;
         }
         try {
-            Map<?, ?> teamDataMapRaw = FtbReflectionHelper.getTeamDataMap(sqf);
-            if (teamDataMapRaw == null || teamDataMapRaw.isEmpty()) {
+            Collection<Object> teamDataList = FtbReflectionHelper.getAllTeamData(sqf);
+            if (teamDataList == null || teamDataList.isEmpty()) {
                 return;
             }
-            Map<?, ?> teamDataMap = teamDataMapRaw;
-            Map<Long, Object> questObjectMap = FtbReflectionHelper.getQuestObjectMap(sqf);
-            if (questObjectMap == null) {
-                return;
-            }
-            for (Object teamData : teamDataMap.values()) {
+            for (Object teamData : teamDataList) {
+                if (teamData == null) continue;
                 Collection<ServerPlayer> onlineMembers = FtbReflectionHelper.getOnlineMembers(teamData);
                 if (onlineMembers.isEmpty()) continue;
-                Map<Long, Long> completed = FtbReflectionHelper.getTeamDataCompleted(teamData);
-                if (completed == null || completed.isEmpty()) continue;
-                for (Long questId : completed.keySet()) {
-                    Object questObj = questObjectMap.get(questId);
+                // FTB quest id 为顺序分配的正整数，使用合理上限遍历并用 getQuest 存在性校验，
+                // 避免读取私有 completed 字段，也不会陷入全 long 范围空转。
+                final long MAX_QUEST_ID = 1L << 20;
+                for (long questId = 1; questId < MAX_QUEST_ID; questId++) {
+                    Object questObj = FtbReflectionHelper.getQuest(sqf, questId);
                     if (questObj == null) continue;
+                    if (!FtbReflectionHelper.isQuestCompleted(teamData, questObj)) continue;
                     Object qid = FtbReflectionHelper.getQuestId(questObj);
-                    String questIdStr = qid != null ? qid.toString() : questId.toString();
+                    String questIdStr = qid != null ? qid.toString() : Long.toString(questId);
                     Component titleComp = FtbReflectionHelper.getQuestTitle(questObj);
                     String displayName = titleComp != null ? titleComp.getString() : questIdStr;
                     for (ServerPlayer player : onlineMembers) {

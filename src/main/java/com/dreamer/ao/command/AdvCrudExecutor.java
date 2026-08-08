@@ -1,6 +1,7 @@
 package com.dreamer.ao.command;
 
 import com.dreamer.ao.LangKeys;
+import com.dreamer.ao.achievement.AdvancementCrudService;
 import com.dreamer.ao.data.ConditionType;
 import com.dreamer.ao.data.DataSource;
 import com.dreamer.ao.data.DataStore;
@@ -327,7 +328,7 @@ final class AdvCrudExecutor {
 
             CustomAdvancement adv = new CustomAdvancement();
             adv.setId(id);
-            applyJsonToAdvancement(adv, data);
+            AdvancementCrudService.applyJsonToAdvancement(adv, data);
             ServerDataStore.getInstance().addAdvancement(adv);
             CommandHelper.syncAll(ctx);
 
@@ -388,9 +389,9 @@ final class AdvCrudExecutor {
             }
 
             // 判断是否包含属性级变更（非位置、非分类）
-            boolean hasAttrChanges = hasAttributeChanges(data);
+            boolean hasAttrChanges = AdvancementCrudService.hasAttributeChanges(data);
 
-            applyJsonToAdvancement(adv, data);
+            AdvancementCrudService.applyJsonToAdvancement(adv, data);
             ServerDataStore.getInstance().addAdvancement(adv, hasAttrChanges);
 
             // 位置/分类变更不同步 FTB Quests，属性变更才同步
@@ -411,90 +412,6 @@ final class AdvCrudExecutor {
     }
 
     // ═══════════════ JSON 辅助方法 ═══════════════
-
-    /**
-     * 判断 JSON 数据中是否包含属性级变更（非位置、非分类）。
-     * <p>
-     * 纯位置（x/y）或分类（tab）变更被视为"非属性变更"，
-     * 不应触发 FTB Quests KnownServerRegistries 同步。
-     *
-     * @param data JSON 解析后的 Map
-     * @return true 如果包含 name, description, hidden, icon, prerequisites
-     *         或 conditions 等属性字段
-     */
-    static boolean hasAttributeChanges(Map<String, Object> data) {
-        if (data.containsKey("name") && data.get("name") instanceof String) return true;
-        if (data.containsKey("description") && data.get("description") instanceof String) return true;
-        if (data.containsKey("hidden") && data.get("hidden") instanceof Boolean) return true;
-        if (data.containsKey("icon") && data.get("icon") instanceof String) return true;
-        if (data.containsKey("prerequisites")) return true;
-        if (data.containsKey("prerequisite")) return true;
-        if (data.containsKey("conditions")) return true;
-        // x, y, tab 是位置/分类变更，不算属性变更
-        return false;
-    }
-
-    /**
-     * 将 JSON 数据字段应用到 CustomAdvancement 对象。
-     * 支持所有字段：name, description, hidden, icon, prerequisites, tab, x, y, conditions。
-     */
-    @SuppressWarnings("unchecked")
-    static void applyJsonToAdvancement(CustomAdvancement adv, Map<String, Object> data) {
-        if (data.get("name") instanceof String name) adv.setName(name);
-        if (data.get("description") instanceof String desc) adv.setDescription(desc);
-        if (data.get("hidden") instanceof Boolean h) adv.setHidden(h);
-        if (data.get("icon") instanceof String icon) adv.setIcon(icon.isEmpty() ? null : icon);
-        if (data.get("tab") instanceof String tab) adv.setTab(tab);
-        if (data.get("x") instanceof Number x) adv.setX(x.intValue());
-        if (data.get("y") instanceof Number y) adv.setY(y.intValue());
-
-        // prerequisites: 支持数组和单字符串两种格式
-        if (data.get("prerequisites") instanceof List<?> prereqs) {
-            adv.setPrerequisites(parsePrereqs(prereqs));
-        } else if (data.get("prerequisite") instanceof String p) {
-            adv.setPrerequisites(p.isEmpty() ? new ArrayList<>()
-                    : new ArrayList<>(List.of(p)));
-        }
-
-        // conditions 解析
-        if (data.get("conditions") instanceof List<?> condRaw) {
-            List<com.dreamer.ao.data.model.AdvancementCondition> newConds = new ArrayList<>();
-            for (Object obj : condRaw) {
-                if (!(obj instanceof Map<?, ?> cmRaw)) continue;
-                try {
-                    Map<String, Object> cm = (Map<String, Object>) cmRaw;
-                    if (!(cm.get("type") instanceof String typeStr)) continue;
-                    ConditionType ct = ConditionType.valueOf(typeStr.toUpperCase());
-                    String targetId = cm.get("targetId") instanceof String tid ? tid : "";
-                    int count = cm.get("count") instanceof Number n ? n.intValue() : 1;
-                    AdvancementCondition cond = new AdvancementCondition(ct, targetId, count);
-                    if (cm.get("nbtMatchMode") instanceof String mode) cond.setNbtMatchMode(mode);
-                    if (cm.get("targetNbt") instanceof String nbt) cond.setTargetNbt(nbt);
-                    newConds.add(cond);
-                } catch (IllegalArgumentException ignored) {
-                    // 非法条件类型，跳过
-                }
-            }
-            adv.setConditions(newConds);
-        }
-    }
-
-    /**
-     * 从 JSON 解析前置条件列表。
-     * 支持 {@code ["id1", "id2"]} 和 {@code "id1"} 两种格式。
-     */
-    @SuppressWarnings("unchecked")
-    static List<String> parsePrereqs(Object raw) {
-        List<String> result = new ArrayList<>();
-        if (raw instanceof List<?> list) {
-            for (Object o : list) {
-                if (o instanceof String s && !s.isEmpty()) result.add(s);
-            }
-        } else if (raw instanceof String s && !s.isEmpty()) {
-            result.add(s);
-        }
-        return result;
-    }
 
     /**
      * 将 Gson 的原始错误消息转换为用户友好的提示。

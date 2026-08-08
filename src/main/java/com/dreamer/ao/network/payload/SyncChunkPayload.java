@@ -8,6 +8,7 @@ import javax.annotation.Nonnull;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import com.dreamer.ao.ModInfo;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,7 +18,7 @@ public record SyncChunkPayload(long transferId, int chunkIndex, int totalChunks,
     private static final Logger LOGGER = LoggerFactory.getLogger(SyncChunkPayload.class);
     public static final int CHUNK_SIZE = 262144;
     public static final long ASSEMBLY_TIMEOUT_MS = 30000L;
-    public static final CustomPacketPayload.Type<SyncChunkPayload> TYPE = new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "sync_chunk"));
+    public static final CustomPacketPayload.Type<SyncChunkPayload> TYPE = new CustomPacketPayload.Type<>(ModInfo.rl("sync_chunk"));
     public static final StreamCodec<FriendlyByteBuf, SyncChunkPayload> CODEC = new StreamCodec<>() {
 
         @Override

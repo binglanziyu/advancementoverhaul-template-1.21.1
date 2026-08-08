@@ -110,22 +110,25 @@ public final class PhaseDefinition {
     /** 解析单个阶段定义 */
     public static PhaseDefinition fromJson(JsonObject obj) {
         PhaseDefinition def = new PhaseDefinition();
-        def.id = obj.get("id").getAsString();
-        def.name = obj.has("name") ? obj.get("name").getAsString() : def.id;
-        def.tier = obj.has("tier") ? obj.get("tier").getAsInt() : 0;
+        def.id = com.dreamer.ao.util.JsonParse.optString(obj, "id", "");
+        def.name = com.dreamer.ao.util.JsonParse.optString(obj, "name", def.id);
+        def.tier = com.dreamer.ao.util.JsonParse.optInt(obj, "tier", 0);
         if (obj.has("scope")) {
-            def.scope = obj.get("scope").getAsString();
+            def.scope = com.dreamer.ao.util.JsonParse.optString(obj, "scope", null);
         }
         if (obj.has("dimension")) {
-            def.dimension = obj.get("dimension").getAsString();
+            def.dimension = com.dreamer.ao.util.JsonParse.optString(obj, "dimension", null);
         }
-        def.effects = PhaseEffectSet.fromJson(obj.has("effects") ? obj.getAsJsonObject("effects") : null);
+        def.effects = PhaseEffectSet.fromJson(obj.has("effects") && obj.get("effects").isJsonObject()
+                ? obj.getAsJsonObject("effects") : null);
         if (obj.has("unlockMilestone")) {
-            def.unlockMilestone = obj.get("unlockMilestone").getAsString();
+            def.unlockMilestone = com.dreamer.ao.util.JsonParse.optString(obj, "unlockMilestone", null);
         }
-        if (obj.has("transitions")) {
+        if (obj.has("transitions") && obj.get("transitions").isJsonArray()) {
             for (JsonElement e : obj.getAsJsonArray("transitions")) {
-                def.transitions.add(Transition.fromJson(e.getAsJsonObject()));
+                if (e.isJsonObject()) {
+                    def.transitions.add(Transition.fromJson(e.getAsJsonObject()));
+                }
             }
         }
         def.state = new PhaseState(def.id);
@@ -136,8 +139,8 @@ public final class PhaseDefinition {
     public record Transition(String to, String condition) {
         public static Transition fromJson(JsonObject obj) {
             return new Transition(
-                    obj.has("to") ? obj.get("to").getAsString() : null,
-                    obj.has("condition") ? obj.get("condition").getAsString() : null
+                    com.dreamer.ao.util.JsonParse.optString(obj, "to", null),
+                    com.dreamer.ao.util.JsonParse.optString(obj, "condition", null)
             );
         }
     }

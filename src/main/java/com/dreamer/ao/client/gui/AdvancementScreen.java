@@ -77,6 +77,9 @@ public class AdvancementScreen extends Screen {
     public static int ftbNotifMode = 1;
 
     // ── Vanilla advancement data ──
+    // 这些集合是本 screen 与其同模块子包（render / manager）协作的 UI 数据源，
+    // 由同包的 VanillaLayoutEngine 负责写入，子包仅做只读遍历/查询，
+    // 因此保持 public final，访问约束交由包内协作约定。
 
     public final List<VanillaAdv> vanillaAdvs = new ArrayList<>();
     public final Map<String, int[]> vanillaPos = new HashMap<>();

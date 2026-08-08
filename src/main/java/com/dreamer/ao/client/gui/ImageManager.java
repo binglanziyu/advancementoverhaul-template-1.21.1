@@ -8,6 +8,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.network.chat.Component;
+import com.dreamer.ao.ModInfo;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,7 +69,7 @@ public final class ImageManager {
         lastError = null;
         String cacheKey = elementId;
         if (textureCache.containsKey(cacheKey) && textureCache.get(cacheKey) != null) {
-            return ResourceLocation.fromNamespaceAndPath("advancementoverhaul",
+            return ModInfo.rl(
                     "img_" + elementId.replace(":", "_").replace("/", "_"));
         }
         Path dir = getImagesDir();
@@ -87,7 +88,7 @@ public final class ImageManager {
         try (InputStream is = Files.newInputStream(filePath)) {
             NativeImage nativeImage = NativeImage.read(is);
             DynamicTexture texture = new DynamicTexture(nativeImage);
-            ResourceLocation texId = ResourceLocation.fromNamespaceAndPath("advancementoverhaul",
+            ResourceLocation texId = ModInfo.rl(
                     "img_" + elementId.replace(":", "_").replace("/", "_"));
             Minecraft.getInstance().getTextureManager().register(texId, texture);
             textureCache.put(cacheKey, texture);

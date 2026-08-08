@@ -107,7 +107,7 @@ public class ClientDataStore {
     /** 玩家叙事统计数据（来自服务端同步） */
     private volatile PlayerStats playerStats = new PlayerStats();
     /** PlayerStats 版本计数器（每次 setPlayerStats 递增，供 UI 检测刷新） */
-    private volatile int statsVersion = 0;
+    private final AtomicInteger statsVersion = new AtomicInteger(0);
 
     // ═══════════════ 标签页缓存（脏标记 + 延迟重建） ═══════════════
 
@@ -159,13 +159,13 @@ public class ClientDataStore {
         this.advancements = result;
         markTabsDirty();
     }
-    public Map<String, CustomAdvancement> getAdvancements() { return advancements; }
+    public Map<String, CustomAdvancement> getAdvancements() { return Collections.unmodifiableMap(advancements); }
     public CustomAdvancement getAdvancement(String id) { return advancements.get(id); }
 
     // ═══════════════ 维度锁 ═══════════════
 
     public void setDimensionLocks(Map<String, DimensionLock> map) { this.dimensionLocks = map; }
-    public Map<String, DimensionLock> getDimensionLocks() { return dimensionLocks; }
+    public Map<String, DimensionLock> getDimensionLocks() { return Collections.unmodifiableMap(dimensionLocks); }
 
     // ═══════════════ 阶段系统 ═══════════════
 
@@ -177,7 +177,7 @@ public class ClientDataStore {
     private volatile List<String> phaseUnlocked = new ArrayList<>();
     private volatile List<String> phaseDefBriefs = new ArrayList<>();
     /** 阶段数据版本（每次 setPhaseData 递增，供面板检测刷新） */
-    private volatile int phaseVersion = 0;
+    private final AtomicInteger phaseVersion = new AtomicInteger(0);
 
     public void setPhaseData(PhaseSyncPayload payload) {
         this.phaseWorldPhase = payload.worldPhase();
@@ -189,15 +189,15 @@ public class ClientDataStore {
                 ? new ArrayList<>(payload.unlockedPhases()) : new ArrayList<>();
         this.phaseDefBriefs = payload.defBriefs() != null
                 ? new ArrayList<>(payload.defBriefs()) : new ArrayList<>();
-        this.phaseVersion++;
+        this.phaseVersion.incrementAndGet();
     }
-    public int getPhaseVersion() { return phaseVersion; }
+    public int getPhaseVersion() { return phaseVersion.get(); }
     public String getPhaseWorldPhase() { return phaseWorldPhase; }
-    public Map<String, String> getPhaseDimensionPhases() { return phaseDimensionPhases; }
+    public Map<String, String> getPhaseDimensionPhases() { return Collections.unmodifiableMap(phaseDimensionPhases); }
     public String getPhasePlayerPhase() { return phasePlayerPhase; }
     public String getPhaseTempPhase() { return phaseTempPhase; }
-    public List<String> getPhaseUnlocked() { return phaseUnlocked; }
-    public List<String> getPhaseDefBriefs() { return phaseDefBriefs; }
+    public List<String> getPhaseUnlocked() { return Collections.unmodifiableList(phaseUnlocked); }
+    public List<String> getPhaseDefBriefs() { return Collections.unmodifiableList(phaseDefBriefs); }
     public boolean isPhaseUnlocked(String id) { return phaseUnlocked.contains(id); }
 
     // ═══════════════ 完成状态 ═══════════════
@@ -245,7 +245,7 @@ public class ClientDataStore {
         this.customTabs = tabs != null ? tabs : new ArrayList<>();
         markTabsDirty();
     }
-    public List<String> getCustomTabs() { return customTabs; }
+    public List<String> getCustomTabs() { return Collections.unmodifiableList(customTabs); }
 
     // ═══════════════ 标签页顺序 ═══════════════
 
@@ -253,7 +253,7 @@ public class ClientDataStore {
         this.tabOrder = order != null ? order : new ArrayList<>();
         markTabsDirty();
     }
-    public List<String> getTabOrder() { return tabOrder; }
+    public List<String> getTabOrder() { return Collections.unmodifiableList(tabOrder); }
 
     // ═══════════════ 原版进度启用/禁用 ═══════════════
 
@@ -273,18 +273,18 @@ public class ClientDataStore {
     public void setDisabledVanilla(Set<String> set) {
         this.disabledVanillaAdvancements = set != null ? set : new HashSet<>();
     }
-    public Set<String> getDisabledVanilla() { return disabledVanillaAdvancements; }
+    public Set<String> getDisabledVanilla() { return Collections.unmodifiableSet(disabledVanillaAdvancements); }
     public void setEnabledVanilla(Set<String> set) {
         this.enabledVanillaAdvancements = set != null ? set : new HashSet<>();
     }
-    public Set<String> getEnabledVanilla() { return enabledVanillaAdvancements; }
+    public Set<String> getEnabledVanilla() { return Collections.unmodifiableSet(enabledVanillaAdvancements); }
 
     // ═══════════════ Pending ═══════════════
 
     public void setPendingAdvancements(Set<String> set) {
         this.pendingAdvancements = set != null ? new HashSet<>(set) : new HashSet<>();
     }
-    public Set<String> getPendingAdvancements() { return pendingAdvancements; }
+    public Set<String> getPendingAdvancements() { return Collections.unmodifiableSet(pendingAdvancements); }
     public boolean isPending(String advId) { return pendingAdvancements.contains(advId); }
     public void updatePending(String advId, boolean pending) {
         if (pending) pendingAdvancements.add(advId);
@@ -301,7 +301,7 @@ public class ClientDataStore {
         vanillaAdvEntryMap = newMap;
         markTabsDirty();
     }
-    public List<VanillaAdvEntry> getVanillaAdvancements() { return vanillaAdvancements; }
+    public List<VanillaAdvEntry> getVanillaAdvancements() { return Collections.unmodifiableList(vanillaAdvancements); }
     public VanillaAdvEntry getVanillaAdvEntry(String id) { return vanillaAdvEntryMap.get(id); }
 
     // ═══════════════ 原版元数据 ═══════════════
@@ -309,23 +309,23 @@ public class ClientDataStore {
     public void setVanillaMeta(Map<String, VanillaAdvMeta> meta) {
         this.vanillaMeta = meta != null ? meta : new HashMap<>();
     }
-    public Map<String, VanillaAdvMeta> getVanillaMeta() { return vanillaMeta; }
+    public Map<String, VanillaAdvMeta> getVanillaMeta() { return Collections.unmodifiableMap(vanillaMeta); }
     public VanillaAdvMeta getVanillaMeta(String id) { return vanillaMeta.get(id); }
 
     public void setVanillaParentMap(Map<String, String> map) {
         this.vanillaParentMap = map != null ? map : new HashMap<>();
     }
-    public Map<String, String> getVanillaParentMap() { return vanillaParentMap; }
+    public Map<String, String> getVanillaParentMap() { return Collections.unmodifiableMap(vanillaParentMap); }
 
     // ═══════════════ 玩家叙事统计 ═══════════════
 
     /** 设置玩家叙事统计数据（来自服务端全量同步） */
     public void setPlayerStats(PlayerStats stats) {
         this.playerStats = stats != null ? stats : new PlayerStats();
-        this.statsVersion++;
+        this.statsVersion.incrementAndGet();
     }
     public PlayerStats getPlayerStats() { return playerStats; }
-    public int getStatsVersion() { return statsVersion; }
+    public int getStatsVersion() { return statsVersion.get(); }
 
     // ═══════════════ Timeline 数据 ═══════════════
 

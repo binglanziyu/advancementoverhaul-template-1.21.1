@@ -276,7 +276,7 @@ public class PlayerStatsStore {
         s.setHighestY(obj.has("highestY") ? obj.get("highestY").getAsInt() : Integer.MIN_VALUE);
         if (obj.has("biomeTimes") && obj.get("biomeTimes").isJsonObject()) {
             for (Map.Entry<String, JsonElement> e : obj.getAsJsonObject("biomeTimes").entrySet()) {
-                s.getBiomeTimes().put(e.getKey(), e.getValue().getAsLong());
+                s.putBiomeTime(e.getKey(), e.getValue().getAsLong());
             }
         }
         return s;

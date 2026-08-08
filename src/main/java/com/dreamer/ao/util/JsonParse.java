@@ -70,4 +70,78 @@ public final class JsonParse {
             return Collections.emptySet();
         }
     }
+
+    // ═══════════════ 类型安全标量取值 ═══════════════
+    // 关键：Gson 的 JsonObject.getAsString()/getAsInt() 等会对非 primitive 元素
+    // 抛出 UnsupportedOperationException("JsonObject")。以下方法在元素非预期类型时
+    // 返回默认值，避免解析异常导致崩溃（如网络推送的 phase brief 结构不符时）。
+
+    public static String optString(JsonElement elem, String def) {
+        if (elem == null || elem.isJsonNull()) return def;
+        if (elem.isJsonPrimitive()) return elem.getAsString();
+        return def;
+    }
+
+    public static int optInt(JsonElement elem, int def) {
+        if (elem == null || elem.isJsonNull()) return def;
+        if (elem.isJsonPrimitive()) {
+            try {
+                return elem.getAsInt();
+            } catch (NumberFormatException e) {
+                return def;
+            }
+        }
+        return def;
+    }
+
+    public static long optLong(JsonElement elem, long def) {
+        if (elem == null || elem.isJsonNull()) return def;
+        if (elem.isJsonPrimitive()) {
+            try {
+                return elem.getAsLong();
+            } catch (NumberFormatException e) {
+                return def;
+            }
+        }
+        return def;
+    }
+
+    public static double optDouble(JsonElement elem, double def) {
+        if (elem == null || elem.isJsonNull()) return def;
+        if (elem.isJsonPrimitive()) {
+            try {
+                return elem.getAsDouble();
+            } catch (NumberFormatException e) {
+                return def;
+            }
+        }
+        return def;
+    }
+
+    public static boolean optBoolean(JsonElement elem, boolean def) {
+        if (elem == null || elem.isJsonNull()) return def;
+        if (elem.isJsonPrimitive()) return elem.getAsBoolean();
+        return def;
+    }
+
+    /** 从 JsonObject 中按 key 取值（字段缺失或非预期类型时返回默认值） */
+    public static String optString(JsonObject obj, String key, String def) {
+        return obj != null && obj.has(key) ? optString(obj.get(key), def) : def;
+    }
+
+    public static int optInt(JsonObject obj, String key, int def) {
+        return obj != null && obj.has(key) ? optInt(obj.get(key), def) : def;
+    }
+
+    public static long optLong(JsonObject obj, String key, long def) {
+        return obj != null && obj.has(key) ? optLong(obj.get(key), def) : def;
+    }
+
+    public static double optDouble(JsonObject obj, String key, double def) {
+        return obj != null && obj.has(key) ? optDouble(obj.get(key), def) : def;
+    }
+
+    public static boolean optBoolean(JsonObject obj, String key, boolean def) {
+        return obj != null && obj.has(key) ? optBoolean(obj.get(key), def) : def;
+    }
 }

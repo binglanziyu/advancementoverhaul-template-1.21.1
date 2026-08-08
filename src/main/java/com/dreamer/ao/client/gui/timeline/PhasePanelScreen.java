@@ -8,6 +8,7 @@ import com.dreamer.ao.network.NetworkHandler;
 import com.dreamer.ao.network.payload.PhaseDefEditPayload;
 import com.dreamer.ao.network.payload.PhaseSyncPayload;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -709,22 +710,22 @@ public class PhasePanelScreen extends Screen {
         if (eff.has("attributes")) {
             for (var e : eff.getAsJsonObject("attributes").entrySet()) {
                 rows.add(EffectRow.num(localized(attributeName(e.getKey())),
-                        e.getValue().getAsDouble(), true).withTag("attributes:" + e.getKey()));
+                        jsonToDouble(e.getValue(), 0.0), true).withTag("attributes:" + e.getKey()));
             }
         }
         if (eff.has("mob_mults")) {
             for (var e : eff.getAsJsonObject("mob_mults").entrySet()) {
                 rows.add(EffectRow.num(localized(multName(e.getKey())),
-                        e.getValue().getAsDouble(), true).withTag("mob_mults:" + e.getKey()));
+                        jsonToDouble(e.getValue(), 0.0), true).withTag("mob_mults:" + e.getKey()));
             }
         }
         if (eff.has("mob_effects")) {
             for (var el : eff.getAsJsonArray("mob_effects")) {
                 JsonObject o = el.getAsJsonObject();
-                String id = o.get("id").getAsString();
+                String id = o.has("id") ? jsonToPlainString(o.get("id")) : "";
                 rows.add(EffectRow.text(effectDisplayName(id,
-                        o.has("level") ? o.get("level").getAsInt() : 0,
-                        o.has("seconds") ? o.get("seconds").getAsInt() : 0))
+                        o.has("level") ? (int) jsonToDouble(o.get("level"), 0) : 0,
+                        o.has("seconds") ? (int) jsonToDouble(o.get("seconds"), 0) : 0))
                         .withTag("mob_effects:" + id));
             }
         }
@@ -732,13 +733,13 @@ public class PhasePanelScreen extends Screen {
             int idx = 0;
             for (var el : eff.getAsJsonArray("equipment")) {
                 JsonObject o = el.getAsJsonObject();
-                String chance = o.has("chance") ? o.get("chance").getAsString() : "1.0";
-                String ent = o.has("entity") ? o.get("entity").getAsString() : "?";
+                String chance = o.has("chance") ? jsonToPlainString(o.get("chance")) : "1.0";
+                String ent = o.has("entity") ? jsonToPlainString(o.get("entity")) : "?";
                 StringBuilder sb = new StringBuilder(localized(LangKeys.PHASE_EFFECT_EQUIP) + " [")
                         .append(chance).append("] ").append(ent);
                 if (o.has("slots")) {
                     for (var s : o.getAsJsonObject("slots").entrySet()) {
-                        sb.append("  ").append(s.getKey()).append("=").append(s.getValue().getAsString());
+                        sb.append("  ").append(s.getKey()).append("=").append(jsonToPlainString(s.getValue()));
                     }
                 }
                 rows.add(EffectRow.text(sb.toString()).withTag("equipment:" + idx));
@@ -746,6 +747,26 @@ public class PhasePanelScreen extends Screen {
             }
         }
         return rows;
+    }
+
+    private static String jsonToPlainString(JsonElement el) {
+        if (el == null) return "";
+        if (el.isJsonObject() || el.isJsonArray()) return el.toString();
+        if (el.isJsonPrimitive()) {
+            var p = el.getAsJsonPrimitive();
+            if (p.isString()) return p.getAsString();
+            return p.getAsString();
+        }
+        return el.toString();
+    }
+
+    private static double jsonToDouble(JsonElement el, double fallback) {
+        if (el == null || !el.isJsonPrimitive()) return fallback;
+        try {
+            return el.getAsJsonPrimitive().getAsDouble();
+        } catch (NumberFormatException | UnsupportedOperationException e) {
+            return fallback;
+        }
     }
 
     private String localized(String keyOrText) {

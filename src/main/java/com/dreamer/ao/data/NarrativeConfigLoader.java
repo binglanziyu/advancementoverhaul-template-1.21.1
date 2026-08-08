@@ -17,6 +17,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Stream;
+import com.dreamer.ao.ModInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,7 +49,7 @@ public final class NarrativeConfigLoader {
             return;
         }
         this.initialized = true;
-        Path base = configDir.resolve("advancementoverhaul").resolve(NARRATIVES_DIR);
+        Path base = configDir.resolve(ModInfo.MOD_ID).resolve(NARRATIVES_DIR);
         this.ensureDir(base);
         this.ensureDir(base.resolve(MONOLOGUES_DIR));
         this.ensureDir(base.resolve(ECHOES_DIR));
@@ -59,7 +60,7 @@ public final class NarrativeConfigLoader {
     }
 
     public void reload(Path configDir) {
-        Path base = configDir.resolve("advancementoverhaul").resolve(NARRATIVES_DIR);
+        Path base = configDir.resolve(ModInfo.MOD_ID).resolve(NARRATIVES_DIR);
         this.doReload(base);
     }
 

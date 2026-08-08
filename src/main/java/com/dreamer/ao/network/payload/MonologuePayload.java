@@ -8,12 +8,13 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import com.dreamer.ao.ModInfo;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 public record MonologuePayload(String category) implements CustomPacketPayload {
 
-    public static final CustomPacketPayload.Type<MonologuePayload> TYPE = new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "monologue"));
+    public static final CustomPacketPayload.Type<MonologuePayload> TYPE = new CustomPacketPayload.Type<>(ModInfo.rl("monologue"));
     public static final StreamCodec<FriendlyByteBuf, MonologuePayload> STREAM_CODEC = StreamCodec.composite(ByteBufCodecs.STRING_UTF8, MonologuePayload::category, MonologuePayload::new);
 
     @Override

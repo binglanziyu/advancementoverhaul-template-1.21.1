@@ -18,6 +18,7 @@ import javax.annotation.Nonnull;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import com.dreamer.ao.ModInfo;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,7 +28,7 @@ public record SyncPayload(int protocolVersion, String data) implements CustomPac
     private static final Logger LOGGER = LoggerFactory.getLogger(SyncPayload.class);
     public static final int PROTOCOL_VERSION = 1;
     private static final int COMPRESSION_THRESHOLD = 1024;
-    public static final CustomPacketPayload.Type<SyncPayload> TYPE = new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "sync"));
+    public static final CustomPacketPayload.Type<SyncPayload> TYPE = new CustomPacketPayload.Type<>(ModInfo.rl("sync"));
     public static final StreamCodec<FriendlyByteBuf, SyncPayload> CODEC = new StreamCodec<>() {
 
         @Override

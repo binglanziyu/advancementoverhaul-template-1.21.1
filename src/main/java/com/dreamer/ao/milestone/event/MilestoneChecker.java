@@ -43,7 +43,17 @@ final class MilestoneChecker {
         TimelineStore store = TimelineStore.getInstance();
         TimelineDefinitionLoader loader = TimelineDefinitionLoader.getInstance();
         for (MilestoneDefinition def : loader.getAllMilestones()) {
-            if (def.getTrigger() != MilestoneTrigger.COUNTER_REACH && def.getTrigger() != MilestoneTrigger.DISTANCE_REACH || store.isUnlocked(uuid, def.getId()) || !statKey.equals(def.getTriggerParam()) || currentValue < def.getTriggerThreshold() || def.getRequiredAdvancement() != null && !def.getRequiredAdvancement().isEmpty() && !BridgeRegistry.getAchievementBridge().isAdvancementCompleted(uuid, def.getRequiredAdvancement())) continue;
+            // 以下任一条件不满足则跳过（原单行复合条件，拆解为显式早退以提升可维护性）
+            boolean triggerMatches = def.getTrigger() == MilestoneTrigger.COUNTER_REACH
+                    || def.getTrigger() == MilestoneTrigger.DISTANCE_REACH;
+            if (!triggerMatches) continue;
+            if (store.isUnlocked(uuid, def.getId())) continue;
+            if (!statKey.equals(def.getTriggerParam())) continue;
+            if (currentValue < def.getTriggerThreshold()) continue;
+            String requiredAdv = def.getRequiredAdvancement();
+            boolean hasUnmetRequirement = requiredAdv != null && !requiredAdv.isEmpty()
+                    && !BridgeRegistry.getAchievementBridge().isAdvancementCompleted(uuid, requiredAdv);
+            if (hasUnmetRequirement) continue;
             MilestoneChecker.tryUnlockCounter(player, uuid, gameDay, gameTick, def.getId(), def.getLinkedAdvancement(), def.isAutoAdvancement(), def, currentValue);
         }
         for (TimeMilestone ct : loader.getCustomMilestones()) {

@@ -5,7 +5,6 @@ import com.dreamer.ao.LangKeys;
 import com.dreamer.ao.data.ConditionType;
 import com.dreamer.ao.data.model.CustomAdvancement;
 import com.dreamer.ao.data.model.VanillaAdvMeta;
-import com.dreamer.ao.network.SyncManager;
 import com.dreamer.ao.phase.PhaseDefinition;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -120,10 +119,16 @@ public class ServerDataStore implements ImportContext {
         }
     }
 
+    /**
+     * 服务端停止时的数据层清理：保存脏玩家数据并关闭 IO 异步线程。
+     * <p>
+     * 注意：网络层 {@code SyncManager} 的关闭不再由此处负责，
+     * 而是统一在 {@code AdvancementOverhaul.onServerStopping} 显式调用，
+     * 以避免 data 层对 network 层的反向依赖（包级循环）。
+     */
     public void shutdown() {
         savePlayerDataIfDirty();
         io.shutdown();
-        SyncManager.shutdown();
     }
 
     // Getters
@@ -232,9 +237,18 @@ public class ServerDataStore implements ImportContext {
     // [区域 4] 维度锁
     // ══════════════════════════════════════════════════════════
 
-    public Map<String, DimensionLock> getDimensionLocks() { return dimensionLocks; }
+    public Map<String, DimensionLock> getDimensionLocks() { return Collections.unmodifiableMap(dimensionLocks); }
     public DimensionLock getDimensionLock(String dim) { return dimensionLocks.get(dim); }
-    public void setDimensionLock(String dim, DimensionLock dl) { dimensionLocks.put(dim, dl); }
+    public void setDimensionLock(String dim, DimensionLock dl) {
+        dimensionLocks.put(dim, dl);
+        saveDimensionLocks();
+    }
+
+    /** 落盘维度锁（与 savePhaseState/saveTabOrder 同风格） */
+    private void saveDimensionLocks() {
+        String json = dimensionLocks.isEmpty() ? "{}" : DataStore.GSON.toJson(dimensionLocks);
+        io.saveDimensionLocks(json);
+    }
 
     // ══════════════════════════════════════════════════════════
     // [区域 5] 原版进度状态
@@ -260,22 +274,20 @@ public class ServerDataStore implements ImportContext {
     }
 
     public void autoAssignVanillaTabs() {
-        Map<String, String> parentMap = vanillaStore.getParentMap();
         Map<String, VanillaAdvMeta> metaMap = vanillaStore.getMetaMap();
         Set<String> enabled = vanillaStore.getEnabled();
-        Map<String, JsonElement> rawCache = vanillaStore.getRawCache();
         if (enabled.isEmpty()) return;
 
         Map<String, List<String>> rootChildren = new LinkedHashMap<>();
         for (String id : enabled) {
-            String root = findRoot(id, parentMap, enabled);
+            String root = vanillaStore.findRoot(id);
             rootChildren.computeIfAbsent(root, k -> new ArrayList<>()).add(id);
         }
 
         int assigned = 0;
         for (var entry : rootChildren.entrySet()) {
             String rootId = entry.getKey();
-            String tabName = getAdvDisplayName(rootId, rawCache);
+            String tabName = vanillaStore.getDisplayName(rootId);
             if (tabName == null || tabName.isEmpty()) tabName = rootId.replace(':', '_');
 
             boolean hasNew = false;
@@ -296,42 +308,6 @@ public class ServerDataStore implements ImportContext {
             saveTabOrder();
             LOGGER.info("Auto-assigned {} vanilla advancements to {} tabs", assigned, rootChildren.size());
         }
-    }
-
-    private static String findRoot(String id, Map<String, String> parentMap, Set<String> enabled) {
-        String current = id;
-        String root = id;
-        Set<String> visited = new HashSet<>();
-        while (true) {
-            String parent = parentMap.get(current);
-            if (parent == null || !enabled.contains(parent)) break;
-            if (!visited.add(current)) break;
-            current = parent;
-            root = current;
-        }
-        return root;
-    }
-
-    private static String getAdvDisplayName(String id, Map<String, JsonElement> rawCache) {
-        if (rawCache == null) return null;
-        JsonElement elem = rawCache.get(id);
-        if (elem == null || !elem.isJsonObject()) return null;
-        JsonObject obj = elem.getAsJsonObject();
-        if (!obj.has("display") || !obj.get("display").isJsonObject()) return null;
-        JsonObject display = obj.getAsJsonObject("display");
-        if (!display.has("title")) return null;
-        JsonElement title = display.get("title");
-        if (title.isJsonObject()) {
-            JsonObject titleObj = title.getAsJsonObject();
-            if (titleObj.has("translate")) {
-                String key = titleObj.get("translate").getAsString();
-                String[] parts = key.split("\\.");
-                return parts[parts.length - 1];
-            }
-            if (titleObj.has("text")) return titleObj.get("text").getAsString();
-        }
-        if (title.isJsonPrimitive()) return title.getAsString();
-        return null;
     }
 
     public void processEnabledMods() {
@@ -521,7 +497,7 @@ public class ServerDataStore implements ImportContext {
     /** 全局当前阶段 id（scope=world） */
     private volatile String worldPhase;
 
-    public Set<String> getUnlockedPhases() { return unlockedPhases; }
+    public Set<String> getUnlockedPhases() { return Collections.unmodifiableSet(unlockedPhases); }
     public boolean isPhaseUnlocked(String id) { return unlockedPhases.contains(id); }
 
     public void unlockPhase(String id) {

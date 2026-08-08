@@ -28,11 +28,10 @@ public final class FtbQuestsBridge {
     public static boolean isLoaded() {
         if (loaded == null) {
             try {
-                Class.forName("dev.ftb.mods.ftbquests.FTBQuests");
+                Class<?> ftbClass = Class.forName("dev.ftb.mods.ftbquests.FTBQuests");
                 loaded = true;
                 try {
-                    Class<?> cls = Class.forName("dev.ftb.mods.ftbquests.FTBQuests");
-                    ftbVersion = cls.getPackage().getImplementationVersion();
+                    ftbVersion = ftbClass.getPackage().getImplementationVersion();
                     if (ftbVersion == null) {
                         ftbVersion = "unknown";
                     }
@@ -72,6 +71,26 @@ public final class FtbQuestsBridge {
             failCount++;
             LOGGER.warn("FTB Quests API incompatibility: ServerQuestFile class not found");
         }
+        try {
+            Class.forName("dev.ftb.mods.ftbquests.quest.BaseQuestFile")
+                    .getMethod("getAllTeamData");
+        } catch (NoSuchMethodException e) {
+            failCount++;
+            LOGGER.warn("FTB Quests API incompatibility: BaseQuestFile.getAllTeamData() not found");
+        } catch (ClassNotFoundException e) {
+            failCount++;
+            LOGGER.warn("FTB Quests API incompatibility: BaseQuestFile class not found");
+        }
+        try {
+            Class.forName("dev.ftb.mods.ftbquests.quest.TeamData")
+                    .getMethod("isCompleted", Object.class);
+        } catch (NoSuchMethodException e) {
+            failCount++;
+            LOGGER.warn("FTB Quests API incompatibility: TeamData.isCompleted() not found");
+        } catch (ClassNotFoundException e) {
+            failCount++;
+            LOGGER.warn("FTB Quests API incompatibility: TeamData class not found");
+        }
         if (failCount > 0) {
             LOGGER.warn("FTB Quests API compatibility check failed on {} class(es). Integration may be limited.", failCount);
         }
@@ -104,13 +123,6 @@ public final class FtbQuestsBridge {
     }
 
     public static void notifyAttributeChange(MinecraftServer server) {
-        if (!isLoaded()) {
-            return;
-        }
-        markDirty();
-    }
-
-    public static void notifyPositionOrCategory(MinecraftServer server) {
         if (!isLoaded()) {
             return;
         }
@@ -158,6 +170,11 @@ public final class FtbQuestsBridge {
     }
 
     private static Optional<DisplayInfo> getClientDisplayInfo(ResourceLocation id) {
+        // 客户端专属：Minecraft.getInstance() 仅能在 Dist.CLIENT 执行，
+        // 服务端调用时直接跳过，避免加载 client 类触发 NoClassDefFoundError。
+        if (net.neoforged.fml.loading.FMLEnvironment.dist != net.neoforged.api.distmarker.Dist.CLIENT) {
+            return Optional.empty();
+        }
         try {
             Minecraft mc = Minecraft.getInstance();
             if (mc.player == null || mc.player.connection == null) {

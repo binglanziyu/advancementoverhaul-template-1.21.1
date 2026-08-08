@@ -108,6 +108,51 @@ final class VanillaStateStore {
     Map<String, String> getParentMap() { return parentMap; }
 
     /**
+     * 沿 parentMap 向上查找某进度的根节点（仅沿已启用的祖先）。
+     * 原位于 {@code ServerDataStore.autoAssignVanillaTabs} 的内联逻辑，
+     * 下沉至此以保持原版状态相关工具方法的内聚。
+     */
+    String findRoot(String id) {
+        String current = id;
+        String root = id;
+        Set<String> visited = new HashSet<>();
+        while (true) {
+            String parent = parentMap.get(current);
+            if (parent == null || !enabled.contains(parent)) break;
+            if (!visited.add(current)) break;
+            current = parent;
+            root = current;
+        }
+        return root;
+    }
+
+    /**
+     * 从原始 JSON 缓存中提取某进度的展示名（用于自动标签页命名）。
+     * 原位于 {@code ServerDataStore} 的内联逻辑，下沉至此。
+     */
+    String getDisplayName(String id) {
+        if (rawCache == null) return null;
+        JsonElement elem = rawCache.get(id);
+        if (elem == null || !elem.isJsonObject()) return null;
+        JsonObject obj = elem.getAsJsonObject();
+        if (!obj.has("display") || !obj.get("display").isJsonObject()) return null;
+        JsonObject display = obj.getAsJsonObject("display");
+        if (!display.has("title")) return null;
+        JsonElement title = display.get("title");
+        if (title.isJsonObject()) {
+            JsonObject titleObj = title.getAsJsonObject();
+            if (titleObj.has("translate")) {
+                String key = titleObj.get("translate").getAsString();
+                String[] parts = key.split("\\.");
+                return parts[parts.length - 1];
+            }
+            if (titleObj.has("text")) return titleObj.get("text").getAsString();
+        }
+        if (title.isJsonPrimitive()) return title.getAsString();
+        return null;
+    }
+
+    /**
      * 从服务端 AdvancementManager 缓存所有非自定义进度的原始 JSON。
      * 排除本模组自己的进度（以 MOD_ID 为命名空间前缀）。
      */

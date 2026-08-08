@@ -5,6 +5,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.texture.DynamicTexture;
+import com.dreamer.ao.ModInfo;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,7 +36,7 @@ public final class RoundedRectCache {
         try {
             NativeImage filled = createImage();
 
-            filledId = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "rounded_rect_filled");
+            filledId = ModInfo.rl("rounded_rect_filled");
 
             Minecraft mc = Minecraft.getInstance();
             DynamicTexture filledTex = new DynamicTexture(filled);

@@ -173,6 +173,11 @@ public final class FtbKsrSyncer {
     }
 
     private static Set<String> getCustomAdvancementIdsFromVanillaTree() {
+        // 客户端专属：Minecraft.getInstance() 仅能在 Dist.CLIENT 执行，
+        // 服务端调用时由 FMLEnvironment 守卫直接跳过，避免加载 client 类触发 NoClassDefFoundError。
+        if (net.neoforged.fml.loading.FMLEnvironment.dist != net.neoforged.api.distmarker.Dist.CLIENT) {
+            return new LinkedHashSet<>();
+        }
         LinkedHashSet<String> ids = new LinkedHashSet<>();
         try {
             Minecraft mc = Minecraft.getInstance();
@@ -304,6 +309,11 @@ public final class FtbKsrSyncer {
     }
 
     private static Map<ResourceLocation, DisplayInfo> collectClientDisplayMap() {
+        // 客户端专属：Minecraft.getInstance() 仅能在 Dist.CLIENT 执行，
+        // 服务端调用时由 FMLEnvironment 守卫直接跳过，避免加载 client 类触发 NoClassDefFoundError。
+        if (net.neoforged.fml.loading.FMLEnvironment.dist != net.neoforged.api.distmarker.Dist.CLIENT) {
+            return new HashMap<>();
+        }
         HashMap<ResourceLocation, DisplayInfo> map = new HashMap<>();
         try {
             Minecraft mc = Minecraft.getInstance();

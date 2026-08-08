@@ -73,36 +73,40 @@ public final class PhaseEffectSet {
         if (effects == null) {
             return set;
         }
-        if (effects.has("attributes")) {
+        if (effects.has("attributes") && effects.get("attributes").isJsonObject()) {
             JsonObject attrs = effects.getAsJsonObject("attributes");
             for (String key : PLAYER_ATTR_KEYS) {
                 if (attrs.has(key)) {
-                    set.attributes.put(key, attrs.get(key).getAsDouble());
+                    set.attributes.put(key, com.dreamer.ao.util.JsonParse.optDouble(attrs.get(key), 0.0));
                 }
             }
         }
-        if (effects.has("mob_mults")) {
+        if (effects.has("mob_mults") && effects.get("mob_mults").isJsonObject()) {
             JsonObject mults = effects.getAsJsonObject("mob_mults");
             for (String key : MOB_MULT_KEYS) {
                 if (mults.has(key)) {
-                    set.mobMults.put(key, mults.get(key).getAsDouble());
+                    set.mobMults.put(key, com.dreamer.ao.util.JsonParse.optDouble(mults.get(key), 0.0));
                 }
             }
         }
-        if (effects.has("mob_effects")) {
+        if (effects.has("mob_effects") && effects.get("mob_effects").isJsonArray()) {
             JsonArray arr = effects.getAsJsonArray("mob_effects");
             for (JsonElement elem : arr) {
+                if (!elem.isJsonObject()) continue;
                 JsonObject obj = elem.getAsJsonObject();
-                String id = obj.get("id").getAsString();
-                int level = obj.has("level") ? obj.get("level").getAsInt() : 0;
-                int seconds = obj.has("seconds") ? obj.get("seconds").getAsInt() : 30;
+                String id = com.dreamer.ao.util.JsonParse.optString(obj, "id", null);
+                if (id == null) continue;
+                int level = com.dreamer.ao.util.JsonParse.optInt(obj, "level", 0);
+                int seconds = com.dreamer.ao.util.JsonParse.optInt(obj, "seconds", 30);
                 set.mobEffects.put(id, new MobEffectSpec(id, level, seconds));
             }
         }
-        if (effects.has("equipment")) {
+        if (effects.has("equipment") && effects.get("equipment").isJsonArray()) {
             JsonArray arr = effects.getAsJsonArray("equipment");
             for (JsonElement elem : arr) {
-                set.equipmentRules.add(MobEquipmentRule.fromJson(elem.getAsJsonObject()));
+                if (elem.isJsonObject()) {
+                    set.equipmentRules.add(MobEquipmentRule.fromJson(elem.getAsJsonObject()));
+                }
             }
         }
         return set;
@@ -190,24 +194,23 @@ public final class PhaseEffectSet {
 
         public static MobEquipmentRule fromJson(JsonObject obj) {
             MobEquipmentRule rule = new MobEquipmentRule();
-            if (obj.has("chance")) {
-                rule.chance = obj.get("chance").getAsDouble();
-            }
+            rule.chance = com.dreamer.ao.util.JsonParse.optDouble(obj, "chance", 1.0);
             if (obj.has("entity")) {
-                rule.entityFilter = obj.get("entity").getAsString();
+                rule.entityFilter = com.dreamer.ao.util.JsonParse.optString(obj, "entity", null);
             } else if (obj.has("entityFilter")) {
-                rule.entityFilter = obj.get("entityFilter").getAsString();
+                rule.entityFilter = com.dreamer.ao.util.JsonParse.optString(obj, "entityFilter", null);
             }
-            if (obj.has("slots")) {
+            if (obj.has("slots") && obj.get("slots").isJsonObject()) {
                 JsonObject s = obj.getAsJsonObject("slots");
                 for (Map.Entry<String, JsonElement> e : s.entrySet()) {
                     List<EquipmentEntry> list = new ArrayList<>();
-                    if (e.getValue().isJsonArray()) {
-                        for (JsonElement it : e.getValue().getAsJsonArray()) {
-                            list.add(EquipmentEntry.fromJson(it));
+                    JsonElement v = e.getValue();
+                    if (v != null && v.isJsonArray()) {
+                        for (JsonElement it : v.getAsJsonArray()) {
+                            if (it != null) list.add(EquipmentEntry.fromJson(it));
                         }
-                    } else {
-                        list.add(EquipmentEntry.fromJson(e.getValue()));
+                    } else if (v != null) {
+                        list.add(EquipmentEntry.fromJson(v));
                     }
                     rule.slots.put(e.getKey(), list);
                 }
@@ -262,17 +265,20 @@ public final class PhaseEffectSet {
 
         /** 兼容旧结构（字符串或仅含 item 的对象） */
         public static EquipmentEntry fromJson(JsonElement el) {
+            if (el == null || el.isJsonNull()) {
+                return new EquipmentEntry("", 1.0, new LinkedHashMap<>());
+            }
             if (el.isJsonPrimitive()) {
                 return new EquipmentEntry(el.getAsString(), 1.0, new LinkedHashMap<>());
             }
             JsonObject o = el.getAsJsonObject();
-            String item = o.has("item") ? o.get("item").getAsString() : "";
-            double chance = o.has("chance") ? o.get("chance").getAsDouble() : 1.0;
+            String item = com.dreamer.ao.util.JsonParse.optString(o, "item", "");
+            double chance = com.dreamer.ao.util.JsonParse.optDouble(o, "chance", 1.0);
             Map<String, Integer> enchants = new LinkedHashMap<>();
-            if (o.has("enchants")) {
+            if (o.has("enchants") && o.get("enchants").isJsonObject()) {
                 JsonObject eo = o.getAsJsonObject("enchants");
                 for (Map.Entry<String, JsonElement> e : eo.entrySet()) {
-                    enchants.put(e.getKey(), e.getValue().getAsInt());
+                    enchants.put(e.getKey(), com.dreamer.ao.util.JsonParse.optInt(e.getValue(), 0));
                 }
             }
             return new EquipmentEntry(item, chance, enchants);

@@ -4,6 +4,7 @@ import com.dreamer.ao.client.gui.CompletionPlaque;
 import com.dreamer.ao.client.gui.TranslatedStrings;
 import com.dreamer.ao.compat.ftb.FtbQuestsBridge;
 import net.minecraft.client.Minecraft;
+import com.dreamer.ao.ModInfo;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -36,7 +37,7 @@ public class ClientEvents {
 
     /** 牌匾 GUI Layer ID */
     private static final ResourceLocation PLAQUE_LAYER =
-            ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "completion_plaque");
+            ModInfo.rl("completion_plaque");
 
     /**
      * 初始化客户端事件。

@@ -22,6 +22,7 @@ import com.dreamer.ao.network.payload.TimelineRequestPayload;
 import com.dreamer.ao.network.payload.TimelineSyncPayload;
 import com.dreamer.ao.network.payload.PhaseRequestPayload;
 import com.dreamer.ao.network.payload.PhaseSyncPayload;
+import com.dreamer.ao.network.handler.PhaseNetworkHandler;
 import com.dreamer.ao.network.payload.PhaseDefEditPayload;
 import com.dreamer.ao.network.handler.TimelineNetworkHandler;
 import com.google.gson.JsonArray;
@@ -216,122 +217,11 @@ public class NetworkHandler {
     /**
      * C2S：可视化编辑器保存/删除阶段定义。
      * <p>
-     * 校验权限 → 写回 config/phases/*.json → 热重载 PhaseRegistry → 同步所有在线 OP。
+     * 业务逻辑委托给 {@link PhaseNetworkHandler}，对齐 Timeline 的委托模式，
+     * 使本类保持为「Payload 注册 + 转发桩」。
      */
     private static void handlePhaseDefEdit(PhaseDefEditPayload payload, IPayloadContext context) {
-        if (!(context.player() instanceof ServerPlayer player)) return;
-        int requiredPerm = Config.EDIT_PERMISSION_LEVEL.get();
-        if (!player.hasPermissions(requiredPerm)) {
-            player.sendSystemMessage(Component.translatable(LangKeys.CMD_PERM_DENIED));
-            return;
-        }
-        String action = payload.action();
-        String id = payload.id();
-        if (id == null || id.isBlank()) {
-            player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_INVALID_ID));
-            return;
-        }
-        if (!id.matches("[a-z0-9_]{1,64}")) {
-            player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_INVALID_ID));
-            return;
-        }
-        context.enqueueWork(() -> {
-            try {
-                var registry = com.dreamer.ao.phase.PhaseRegistry.get();
-                if ("remove_effect".equals(action)) {
-                    String json = payload.json();
-                    if (json == null || json.isBlank()) {
-                        player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_EMPTY));
-                        return;
-                    }
-                    var obj = JsonParser.parseString(json).getAsJsonObject();
-                    var existing = com.dreamer.ao.phase.PhaseRegistry.get().getById(id).orElse(null);
-                    if (existing == null) {
-                        player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_NOT_FOUND, id));
-                        return;
-                    }
-                    var root = existing.toJson();
-                    var effects = root.has("effects") ? root.getAsJsonObject("effects") : new JsonObject();
-                    String cat = obj.has("cat") ? obj.get("cat").getAsString() : "";
-                    removeEffectFrom(effects, cat, obj);
-                    root.add("effects", effects);
-                    var def = com.dreamer.ao.phase.PhaseDefinition.fromJson(root);
-                    com.dreamer.ao.phase.PhaseDefinitionLoader.saveDef(def);
-                    registry.reload();
-                    player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EFFECT_REMOVED, def.getId()));
-                } else if ("delete".equals(action)) {
-                    com.dreamer.ao.phase.PhaseDefinitionLoader.deleteDef(id);
-                    registry.reload();
-                    player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_DELETED, id));
-                } else {
-                    // save：解析 JSON 并写盘
-                    String json = payload.json();
-                    if (json == null || json.isBlank()) {
-                        player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_EMPTY));
-                        return;
-                    }
-                    if (json.length() > 8192) {
-                        player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_TOO_LARGE));
-                        return;
-                    }
-                    if (!checkJsonDepth(json, ServerConstants.JSON_MAX_DEPTH)) {
-                        player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_INVALID_JSON));
-                        return;
-                    }
-                    var obj = JsonParser.parseString(json).getAsJsonObject();
-                    var def = com.dreamer.ao.phase.PhaseDefinition.fromJson(obj);
-                    com.dreamer.ao.phase.PhaseDefinitionLoader.saveDef(def);
-                    registry.reload();
-                    player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_SAVED, def.getId()));
-                }
-                // 热重载后，向所有在线 OP 重算并同步阶段态
-                registry.all(); // 触发索引刷新
-                for (var p : player.server.getPlayerList().getPlayers()) {
-                    if (p.hasPermissions(requiredPerm)) {
-                        com.dreamer.ao.phase.PhaseUnlockService.get().recomputeAndSync(p);
-                    }
-                }
-            } catch (Exception e) {
-                LOGGER.error("阶段定义编辑失败: {}", e.getMessage());
-                player.sendSystemMessage(Component.translatable(LangKeys.PHASE_EDIT_FAILED, e.getMessage()));
-            }
-        });
-    }
-
-    /** 从 effects JSON 中移除某条效果（按 tag 标识） */
-    private static void removeEffectFrom(JsonObject effects, String cat, JsonObject tag) {
-        switch (cat) {
-            case "attributes", "mob_mults" -> {
-                if (tag.has("key") && effects.has(cat)) {
-                    effects.getAsJsonObject(cat).remove(tag.get("key").getAsString());
-                }
-            }
-            case "mob_effects" -> {
-                if (tag.has("effectId") && effects.has("mob_effects")) {
-                    JsonArray arr = effects.getAsJsonArray("mob_effects");
-                    String target = tag.get("effectId").getAsString();
-                    JsonArray out = new JsonArray();
-                    for (int i = 0; i < arr.size(); i++) {
-                        if (!arr.get(i).getAsJsonObject().get("id").getAsString().equals(target)) {
-                            out.add(arr.get(i));
-                        }
-                    }
-                    effects.add("mob_effects", out);
-                }
-            }
-            case "equipment" -> {
-                if (tag.has("index") && effects.has("equipment")) {
-                    JsonArray arr = effects.getAsJsonArray("equipment");
-                    int idx = tag.get("index").getAsInt();
-                    JsonArray out = new JsonArray();
-                    for (int i = 0; i < arr.size(); i++) {
-                        if (i != idx) out.add(arr.get(i));
-                    }
-                    effects.add("equipment", out);
-                }
-            }
-            default -> { /* 未知类别：忽略 */ }
-        }
+        PhaseNetworkHandler.handlePhaseDefEdit(payload, context);
     }
 
     // ═══════════════ C2S 命令处理 ═══════════════

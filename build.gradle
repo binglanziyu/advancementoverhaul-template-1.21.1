@@ -76,6 +76,27 @@ base {
 
 repositories {
     mavenCentral()
+    // KubeJS (optional dependency, NeoForge 1.21.1 line) and its transitive dependencies.
+    // dev.latvian.apps:tiny-java-server is published on the Latvian Maven, so include that group
+    // in the exclusive filter.
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = 'LatvianMods'
+                url = 'https://maven.latvian.dev/releases/'
+            }
+        }
+        filter {
+            includeGroup 'dev.latvian.mods'
+            includeGroup 'dev.latvian.apps'
+        }
+    }
+    // com.github.rtyley:animated-gif-lib-for-java (KubeJS optional transitive dep for GIF support)
+    // is published on JitPack, not the Latvian Maven. Declared as a plain (non-exclusive) repo.
+    maven {
+        name = 'JitPack'
+        url = 'https://jitpack.io/'
+    }
 }
 
 dependencies {
@@ -83,6 +104,13 @@ dependencies {
     // All JARs in libs/ are compileOnly — the mod has zero required dependencies.
     // Do NOT commit JAR files to the repository.
     compileOnly fileTree(dir: 'libs', include: '*.jar')
+
+    // KubeJS: optional dependency. The KubeJS compat layer (compat/kubejs) directly
+    // implements dev.latvian.mods.kubejs.* APIs, so it must be on the compile classpath.
+    // compileOnly keeps it out of the final mod jar (users supply KubeJS themselves).
+    // runtimeOnly lets `gradlew runClient` debug with KubeJS present.
+    compileOnly 'dev.latvian.mods:kubejs-neoforge:2101.7.2-build.372'
+    runtimeOnly 'dev.latvian.mods:kubejs-neoforge:2101.7.2-build.372'
 }
 
 

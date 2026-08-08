@@ -5,6 +5,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.texture.DynamicTexture;
+import com.dreamer.ao.ModInfo;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,8 +36,8 @@ public final class CircleCache {
             NativeImage filled = createImage(true);
             NativeImage outline = createImage(false);
 
-            filledId = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "circle_filled");
-            outlineId = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "circle_outline");
+            filledId = ModInfo.rl("circle_filled");
+            outlineId = ModInfo.rl("circle_outline");
 
             Minecraft mc = Minecraft.getInstance();
             DynamicTexture filledTex = new DynamicTexture(filled);

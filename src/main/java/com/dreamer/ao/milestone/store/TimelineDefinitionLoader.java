@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
+import com.dreamer.ao.ModInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,7 +46,7 @@ public class TimelineDefinitionLoader {
     }
 
     public void init(Path configDir) {
-        Path baseDir = configDir.resolve("advancementoverhaul").resolve("timeline");
+        Path baseDir = configDir.resolve(ModInfo.MOD_ID).resolve("timeline");
         this.milestonesDir = baseDir.resolve("milestones");
         this.customMilestonesFile = baseDir.resolve("custom_milestones.json");
         try {

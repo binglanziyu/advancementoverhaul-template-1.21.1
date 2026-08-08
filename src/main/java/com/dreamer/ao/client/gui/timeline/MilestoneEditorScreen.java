@@ -16,6 +16,7 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import com.dreamer.ao.ModInfo;
 import net.minecraft.resources.ResourceLocation;
 
 public class MilestoneEditorScreen
@@ -44,9 +45,9 @@ extends Screen {
     private int triggerPopupScroll;
     private boolean confirmDelete;
     private static final int ROW_H = 28;
-    private static final ResourceLocation TEX_BTN_HOVER = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/button_hover.png");
-    private static final ResourceLocation TEX_BTN_NORMAL = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/button_normal.png");
-    private static final ResourceLocation TEX_BTN_PRESSED = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/button_pressed.png");
+    private static final ResourceLocation TEX_BTN_HOVER = ModInfo.rl("textures/gui/timeline/button_hover.png");
+    private static final ResourceLocation TEX_BTN_NORMAL = ModInfo.rl("textures/gui/timeline/button_normal.png");
+    private static final ResourceLocation TEX_BTN_PRESSED = ModInfo.rl("textures/gui/timeline/button_pressed.png");
     private static final int BTN_TEX_W = 160;
     private static final int BTN_TEX_H = 60;
 

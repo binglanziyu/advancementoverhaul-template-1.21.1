@@ -167,20 +167,13 @@ public class StatsEventHandler {
                 ResourceLocation biomeKey = level.getBiome(pos).unwrapKey().map(ResourceKey::location).orElse(null);
                 if (biomeKey != null) {
                     String biomeId = biomeKey.toString();
-                    stats.getBiomeTimes().merge(biomeId, (long) DIST_CHECK_INTERVAL, Long::sum);
+                    stats.addBiomeTime(biomeId, (long) DIST_CHECK_INTERVAL);
                 }
-                if (gameTime % 24000L < DIST_CHECK_INTERVAL && gameTime % 24000L >= 0 && !stats.getBiomeTimes().isEmpty()) {
-                    String topBiome = null;
-                    long topTime = 0L;
-                    for (Map.Entry<String, Long> e : stats.getBiomeTimes().entrySet()) {
-                        if (e.getValue() <= topTime) continue;
-                        topTime = e.getValue();
-                        topBiome = e.getKey();
-                    }
+                if (gameTime % 24000L < DIST_CHECK_INTERVAL && gameTime % 24000L >= 0 && !stats.isBiomeTimesEmpty()) {
+                    String topBiome = stats.pollTopBiome();
                     if (topBiome != null) {
                         stats.setMostFrequentBiome(topBiome);
                     }
-                    stats.getBiomeTimes().clear();
                     store.markDirty(uuid);
                 }
                 BlockPos spawn = level.getSharedSpawnPos();

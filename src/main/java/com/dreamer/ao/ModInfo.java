@@ -1,5 +1,7 @@
 package com.dreamer.ao;
 
+import net.minecraft.resources.ResourceLocation;
+
 /**
  * 模组元信息常量。
  * <p>
@@ -20,4 +22,12 @@ public final class ModInfo {
     public static final String NETWORK_PROTOCOL = "7";
 
     private ModInfo() {}
+
+    /**
+     * 以本模组命名空间构造 {@link ResourceLocation}。
+     * 用于收敛散落的 {@code new ResourceLocation("advancementoverhaul", path)} 字面量。
+     */
+    public static ResourceLocation rl(String path) {
+        return ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
+    }
 }

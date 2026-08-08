@@ -38,10 +38,11 @@ public final class FtbReflectionHelper {
         Class<?> serverQuestFileClass;
         VarHandle serverQuestFileInstance;
         Class<?> baseQuestFileClass;
-        Field baseQuestFileTeamDataMapField;
-        Field baseQuestFileQuestObjectMapField;
+        MethodHandle baseQuestFileGetAllTeamData;
+        MethodHandle baseQuestFileGetQuest;
         Class<?> teamDataClass;
-        Field teamDataCompletedField;
+        MethodHandle teamDataIsCompleted;
+        MethodHandle teamDataGetCompletedTime;
         MethodHandle eventRegisterMethod;
     }
 
@@ -127,16 +128,19 @@ public final class FtbReflectionHelper {
         Field instF = h.serverQuestFileClass.getField("INSTANCE");
         h.serverQuestFileInstance = lookup.unreflectVarHandle(instF);
         h.baseQuestFileClass = Class.forName("dev.ftb.mods.ftbquests.quest.BaseQuestFile");
-        Field tdmF = h.baseQuestFileClass.getDeclaredField("teamDataMap");
-        tdmF.setAccessible(true);
-        h.baseQuestFileTeamDataMapField = tdmF;
-        Field qomF = h.baseQuestFileClass.getDeclaredField("questObjectMap");
-        qomF.setAccessible(true);
-        h.baseQuestFileQuestObjectMapField = qomF;
+        // 改为调用 FTB 已公开的 API，避免 setAccessible 强取私有字段（JDK16+ 强封装风险）。
+        h.baseQuestFileGetAllTeamData = lookup.findVirtual(
+                h.baseQuestFileClass, "getAllTeamData", MethodType.methodType(Collection.class));
+        // getQuest(long) 返回 QuestObjectBase/QuestObject，参数 long。
+        h.baseQuestFileGetQuest = lookup.findVirtual(
+                h.baseQuestFileClass, "getQuest", MethodType.methodType(Object.class, Long.TYPE));
         h.teamDataClass = Class.forName("dev.ftb.mods.ftbquests.quest.TeamData");
-        Field compF = h.teamDataClass.getDeclaredField("completed");
-        compF.setAccessible(true);
-        h.teamDataCompletedField = compF;
+        // TeamData.isCompleted(QuestObject) 公开方法，参数 Object（实际为 QuestObjectBase）。
+        h.teamDataIsCompleted = lookup.findVirtual(
+                h.teamDataClass, "isCompleted", MethodType.methodType(Boolean.TYPE, Object.class));
+        // TeamData.getCompletedTime(long) 公开方法，返回 Optional<Date>，参数 long。
+        h.teamDataGetCompletedTime = lookup.findVirtual(
+                h.teamDataClass, "getCompletedTime", MethodType.methodType(Object.class, Long.TYPE));
     }
 
     public static Object getKsrClient() {
@@ -181,28 +185,41 @@ public final class FtbReflectionHelper {
     }
 
     @SuppressWarnings("unchecked")
-    public static Map<?, ?> getTeamDataMap(Object sqf) {
+    public static Collection<Object> getAllTeamData(Object sqf) {
         try {
-            return h != null ? (Map<?, ?>) h.baseQuestFileTeamDataMapField.get(sqf) : null;
-        } catch (Exception e) {
+            return h != null ? (Collection<Object>) h.baseQuestFileGetAllTeamData.invoke(sqf) : null;
+        } catch (Throwable e) {
             return null;
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public static Map<Long, Object> getQuestObjectMap(Object sqf) {
+    public static Object getQuest(Object sqf, long questId) {
         try {
-            return h != null ? (Map<Long, Object>) h.baseQuestFileQuestObjectMapField.get(sqf) : null;
-        } catch (Exception e) {
+            return h != null ? h.baseQuestFileGetQuest.invoke(sqf, questId) : null;
+        } catch (Throwable e) {
             return null;
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public static Map<Long, Long> getTeamDataCompleted(Object teamData) {
+    public static boolean isQuestCompleted(Object teamData, Object quest) {
+        if (h == null || h.teamDataIsCompleted == null) {
+            return false;
+        }
         try {
-            return h != null ? (Map<Long, Long>) h.teamDataCompletedField.get(teamData) : null;
-        } catch (Exception e) {
+            return (boolean) h.teamDataIsCompleted.invoke(teamData, quest);
+        } catch (Throwable e) {
+            return false;
+        }
+    }
+
+    /** 返回 TeamData 中某 quest 的完成时间戳（Optional<Date>），未完成时返回 null。 */
+    public static Object getCompletedTime(Object teamData, long questId) {
+        if (h == null || h.teamDataGetCompletedTime == null) {
+            return null;
+        }
+        try {
+            return h.teamDataGetCompletedTime.invoke(teamData, questId);
+        } catch (Throwable e) {
             return null;
         }
     }

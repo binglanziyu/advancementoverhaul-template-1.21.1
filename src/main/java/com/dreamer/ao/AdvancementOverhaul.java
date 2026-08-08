@@ -12,6 +12,7 @@ import com.dreamer.ao.event.StatsEventHandler;
 import com.dreamer.ao.milestone.event.TimelineEventHandler;
 import com.dreamer.ao.milestone.bridge.BridgeRegistry;
 import com.dreamer.ao.network.NetworkHandler;
+import com.dreamer.ao.network.SyncManager;
 import com.dreamer.ao.phase.AoAttributes;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -177,7 +178,10 @@ public class AdvancementOverhaul {
      */
     private static void onServerStopping(
             net.neoforged.neoforge.event.server.ServerStoppingEvent event) {
+        // 由生命周期 owner 分别关闭数据层与网络层，打破 data↔network 包级循环：
+        // ServerDataStore 不再反向依赖 SyncManager。
         ServerDataStore.getInstance().shutdown();
+        SyncManager.shutdown();
         LOGGER.info("Advancement Overhaul data flushed");
     }
 }

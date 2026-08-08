@@ -6,6 +6,7 @@ import com.dreamer.ao.phase.PhaseEffectSet;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.ArrayList;
 import java.util.List;
@@ -81,15 +82,29 @@ public record PhaseSyncPayload(String worldPhase,
         return GSON.toJson(o);
     }
 
-    /** 把 brief JSON 解析回（用于面板） */
+    /** 把 brief JSON 解析回（用于面板）。非法 JSON 或空串返回空对象，绝不抛 UnsupportedOperationException。 */
     public static JsonObject briefToJson(String brief) {
-        return GSON.fromJson(brief, JsonObject.class);
+        if (brief == null || brief.isBlank()) {
+            return new JsonObject();
+        }
+        try {
+            JsonElement elem = GSON.fromJson(brief, JsonElement.class);
+            if (elem != null && elem.isJsonObject()) {
+                return elem.getAsJsonObject();
+            }
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(PhaseSyncPayload.class)
+                    .warn("Failed to parse phase brief JSON, ignoring: {}", e.getMessage());
+        }
+        return new JsonObject();
     }
 
     public static List<JsonObject> briefsToJson(List<String> briefs) {
         List<JsonObject> out = new ArrayList<>();
-        for (String b : briefs) {
-            out.add(briefToJson(b));
+        if (briefs != null) {
+            for (String b : briefs) {
+                out.add(briefToJson(b));
+            }
         }
         return out;
     }

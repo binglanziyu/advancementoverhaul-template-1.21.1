@@ -1,5 +1,6 @@
 package com.dreamer.ao.data;
 
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -241,5 +242,35 @@ public class PlayerStats {
     public void setLowestY(int v) { this.lowestY = v; }
     public int getHighestY() { return highestY; }
     public void setHighestY(int v) { this.highestY = v; }
-    public Map<String, Long> getBiomeTimes() { return biomeTimes; }
+    public Map<String, Long> getBiomeTimes() { return Collections.unmodifiableMap(biomeTimes); }
+
+    /** 累加某群系的停留 tick 数（替代外部直接对 getBiomeTimes() 做 merge） */
+    public void addBiomeTime(String biomeId, long ticks) {
+        if (biomeId == null) return;
+        biomeTimes.merge(biomeId, ticks, Long::sum);
+    }
+
+    /** 反序列化载入用（替代外部直接对 getBiomeTimes() 做 put） */
+    public void putBiomeTime(String biomeId, long ticks) {
+        if (biomeId != null) biomeTimes.put(biomeId, ticks);
+    }
+
+    /** 清空群系停留统计（替代外部直接对 getBiomeTimes() 做 clear） */
+    public void clearBiomeTimes() { biomeTimes.clear(); }
+
+    /** 选出停留时长最长的群系并清空统计，返回该群系 id（null 表示无数据） */
+    public String pollTopBiome() {
+        String top = null;
+        long best = 0L;
+        for (Map.Entry<String, Long> e : biomeTimes.entrySet()) {
+            if (e.getValue() > best) {
+                best = e.getValue();
+                top = e.getKey();
+            }
+        }
+        biomeTimes.clear();
+        return top;
+    }
+
+    public boolean isBiomeTimesEmpty() { return biomeTimes.isEmpty(); }
 }

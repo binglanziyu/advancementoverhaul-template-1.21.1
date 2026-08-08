@@ -1,5 +1,6 @@
 package com.dreamer.ao.phase;
 
+import com.dreamer.ao.ModInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.google.gson.Gson;
@@ -25,7 +26,7 @@ public final class PhaseDefinitionLoader {
     private static final Logger LOGGER = LoggerFactory.getLogger(PhaseDefinitionLoader.class);
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Path PHASE_DIR = FMLPaths.CONFIGDIR.get()
-            .resolve("advancementoverhaul").resolve("phases");
+            .resolve(ModInfo.MOD_ID).resolve("phases");
 
     /** 阶段定义目录（供可视化编辑器写回 / 热重载使用） */
     public static Path getPhaseDir() {

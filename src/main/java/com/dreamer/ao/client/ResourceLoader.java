@@ -11,13 +11,14 @@ import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
+import com.dreamer.ao.ModInfo;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class ResourceLoader {
     private static final Logger LOGGER = LoggerFactory.getLogger(ResourceLoader.class);
-    private static final ResourceLocation PLAQUE_TEX = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "custom_plaque");
+    private static final ResourceLocation PLAQUE_TEX = ModInfo.rl("custom_plaque");
     private static boolean initialized = false;
     private static boolean plaqueAvailable = false;
     private static Path chimePath;

@@ -6,6 +6,7 @@ import java.util.Random;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.TextureManager;
+import com.dreamer.ao.ModInfo;
 import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 
@@ -102,7 +103,7 @@ public final class TimelineTextures {
             }
         }
         DynamicTexture dyn = new DynamicTexture(img);
-        ResourceLocation loc = ResourceLocation.fromNamespaceAndPath("advancementoverhaul", "textures/gui/timeline/" + name);
+        ResourceLocation loc = ModInfo.rl("textures/gui/timeline/" + name);
         Minecraft.getInstance().getTextureManager().register(loc, dyn);
         return loc;
     }
