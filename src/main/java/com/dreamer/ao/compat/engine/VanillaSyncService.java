@@ -1,7 +1,7 @@
 package com.dreamer.ao.compat.engine;
 
 import com.dreamer.ao.compat.AdvancementMapHolder;
-import com.dreamer.ao.compat.ftb.FtbQuestsBridge;
+import com.dreamer.ao.compat.ftb.FtbCompatProvider;
 import com.dreamer.ao.data.ServerDataStore;
 import com.dreamer.ao.data.model.CustomAdvancement;
 import com.google.gson.JsonElement;
@@ -125,7 +125,7 @@ public final class VanillaSyncService {
             map.put(vanillaId, newHolder);
             LOGGER.debug("Incrementally updated advancement in runtime: {}", customId);
             sendAdvancementUpdateToAll(server, vanillaId, newHolder);
-            FtbQuestsBridge.notifyAttributeChange(server);
+            FtbCompatProvider.get().notifyAttributeChange(server);
         }
     }
 
@@ -151,7 +151,7 @@ public final class VanillaSyncService {
                 }
             }
 
-            FtbQuestsBridge.notifyAttributeChange(server);
+            FtbCompatProvider.get().notifyAttributeChange(server);
         }
     }
 
@@ -277,9 +277,9 @@ public final class VanillaSyncService {
 
         // 通知 FTB Quests
         if (notifyFtb) {
-            FtbQuestsBridge.notifyAttributeChange(server);
+            FtbCompatProvider.get().notifyAttributeChange(server);
         }
-        FtbQuestsBridge.syncToKnownServerRegistries(server);
+        FtbCompatProvider.get().syncToKnownServerRegistries(server);
     }
 
     /**

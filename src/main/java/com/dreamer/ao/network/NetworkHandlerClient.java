@@ -5,7 +5,7 @@ import com.dreamer.ao.client.gui.CompletionChime;
 import com.dreamer.ao.client.gui.CompletionPlaque;
 import com.dreamer.ao.client.gui.state.ScreenState;
 import com.dreamer.ao.client.gui.timeline.TimelineScreen;
-import com.dreamer.ao.compat.ftb.FtbQuestsBridge;
+import com.dreamer.ao.compat.ftb.FtbCompatProvider;
 import com.dreamer.ao.data.ClientDataStore;
 import com.dreamer.ao.data.DataStore;
 import com.dreamer.ao.data.DimensionLock;
@@ -111,7 +111,7 @@ public final class NetworkHandlerClient {
                     LOGGER.warn("Sync payload partial failure: {}/{} fields failed to parse: [{}]", failedFields, 12, failedNames.substring(0, failedNames.length() - 1));
                 }
                 store.markTabsDirty();
-                FtbQuestsBridge.syncClientKnownServerRegistries(store.getAdvancements().keySet());
+                FtbCompatProvider.get().syncClientKnownServerRegistries(store.getAdvancements().keySet());
                 Minecraft mc = Minecraft.getInstance();
                 Screen currentScreen = mc.screen;
                 if (currentScreen instanceof AdvancementScreen screen) {
@@ -218,12 +218,12 @@ public final class NetworkHandlerClient {
             }
             if (payload.totalChunks() == 1) {
                 String fullJson = new String(payload.data(), StandardCharsets.UTF_8);
-                SyncPayload full = new SyncPayload(1, fullJson);
-                NetworkHandlerClient.handleSync(full, context);
+                dispatchAssembled(transferId, fullJson, payload.payloadKind(), context);
                 return;
             }
-            ChunkAssembly assembly = CHUNK_ASSEMBLIES.computeIfAbsent(transferId, id -> new ChunkAssembly(transferId, payload.totalChunks()));
-            if (!assembly.addChunk(payload.chunkIndex(), payload.data())) {
+            ChunkAssembly assembly = CHUNK_ASSEMBLIES.computeIfAbsent(transferId,
+                    id -> new ChunkAssembly(transferId, payload.totalChunks(), payload.payloadKind()));
+            if (!assembly.addChunk(payload.chunkIndex(), payload.data(), payload.payloadKind())) {
                 LOGGER.debug("Duplicate or out-of-range chunk ignored: transferId={}, index={}/{}", transferId, payload.chunkIndex(), payload.totalChunks());
                 return;
             }
@@ -233,14 +233,28 @@ public final class NetworkHandlerClient {
                 try {
                     String fullJson = assembly.assemble();
                     LOGGER.info("Chunk assembly complete: transferId={}, totalKB={}", transferId, fullJson.length() / 1024);
-                    SyncPayload full = new SyncPayload(1, fullJson);
-                    NetworkHandlerClient.handleSync(full, context);
+                    dispatchAssembled(transferId, fullJson, assembly.kind, context);
                 }
                 catch (Exception e2) {
                     LOGGER.error("Failed to assemble chunked sync payload: transferId={}", transferId, e2);
                 }
             }
         });
+    }
+
+    /**
+     * 分块重组完成后，依据载荷类型分发到对应处理器。
+     *
+     * @param kind {@link SyncChunkPayload#KIND_SYNC} 走成就全量同步，
+     *             {@link SyncChunkPayload#KIND_TIMELINE} 走时间线同步
+     */
+    private static void dispatchAssembled(long transferId, String fullJson, byte kind, IPayloadContext context) {
+        if (kind == SyncChunkPayload.KIND_TIMELINE) {
+            NetworkHandlerClient.handleTimelineSync(new TimelineSyncPayload(fullJson), context);
+        } else {
+            SyncPayload full = new SyncPayload(1, fullJson);
+            NetworkHandlerClient.handleSync(full, context);
+        }
     }
 
     private static boolean parseAdvancements(Gson gson, ClientDataStore store, JsonObject root) {
@@ -385,17 +399,19 @@ public final class NetworkHandlerClient {
         final int totalChunks;
         final byte[][] chunks;
         final long createdAt;
+        final byte kind;
         int receivedChunks;
 
-        ChunkAssembly(long transferId, int totalChunks) {
+        ChunkAssembly(long transferId, int totalChunks, byte kind) {
             this.transferId = transferId;
             this.totalChunks = totalChunks;
             this.chunks = new byte[totalChunks][];
             this.createdAt = System.currentTimeMillis();
+            this.kind = kind;
             this.receivedChunks = 0;
         }
 
-        boolean addChunk(int index, byte[] data) {
+        boolean addChunk(int index, byte[] data, byte kind) {
             if (index < 0 || index >= this.totalChunks || this.chunks[index] != null) {
                 return false;
             }

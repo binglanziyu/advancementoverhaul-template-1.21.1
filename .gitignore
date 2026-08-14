@@ -47,3 +47,25 @@ libs/*.jar
 dev/
 temp_classes/
 tmp_ftb/
+
+### Local AI workspace data (CodeBuddy) ###
+.codebuddy/
+
+### Build / debug logs & scratch files (do not upload) ###
+branches.txt
+fetch.txt
+lsremote.txt
+me.txt
+orig_bridge.txt
+orig_ksr.txt
+orig_net.txt
+output.txt
+build_log*.txt
+HexConv.class
+JarCheck.class
+
+### Project template license (keep) ###
+!TEMPLATE_LICENSE.txt
+
+### Markdown project files are kept; only scratch txt above ignored ###
+

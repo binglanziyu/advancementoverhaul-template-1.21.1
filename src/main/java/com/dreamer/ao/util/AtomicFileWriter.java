@@ -1,8 +1,7 @@
 package com.dreamer.ao.util;
 
-import net.neoforged.neoforge.common.NeoForge;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import com.mojang.logging.LogUtils;
+import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -32,7 +31,7 @@ import java.util.List;
  */
 public final class AtomicFileWriter {
 
-    private static final Logger LOGGER = LogManager.getLogger(AtomicFileWriter.class);
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     private AtomicFileWriter() {
     }

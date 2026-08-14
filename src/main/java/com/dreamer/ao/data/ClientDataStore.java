@@ -286,9 +286,17 @@ public class ClientDataStore {
     }
     public Set<String> getPendingAdvancements() { return Collections.unmodifiableSet(pendingAdvancements); }
     public boolean isPending(String advId) { return pendingAdvancements.contains(advId); }
+    /**
+     * 增量更新 pending 集合（网络主线程调用）。
+     * <p>采用"复制-修改-整体替换引用"语义，与 {@link #setPendingAdvancements} 风格一致：
+     * 避免对 volatile HashSet 做逐项 add/remove 导致渲染线程看到撕裂读或
+     * {@code ConcurrentModificationException}。getter 返回的 unmodifiable 视图也只看到完整快照。</p>
+     */
     public void updatePending(String advId, boolean pending) {
-        if (pending) pendingAdvancements.add(advId);
-        else pendingAdvancements.remove(advId);
+        Set<String> copy = new HashSet<>(pendingAdvancements);
+        if (pending) copy.add(advId);
+        else copy.remove(advId);
+        this.pendingAdvancements = copy;
     }
 
     // ═══════════════ 原版进度 ═══════════════

@@ -430,6 +430,8 @@ public final class LangKeys {
     public static final String PHASE_EDIT_NOT_FOUND      = "timeline.advancementoverhaul.phase_edit_not_found";
     // 阶段属性上下限说明
     public static final String PHASE_ATTR_LIMIT_HINT     = "timeline.advancementoverhaul.phase_attr_limit_hint";
+    // 预览区范围说明标题
+    public static final String PHASE_LIMIT_TITLE         = "timeline.advancementoverhaul.phase_limit_title";
     // 里程碑选择式
     public static final String PHASE_EDIT_SELECT_MS      = "timeline.advancementoverhaul.phase_edit_select_ms";
     public static final String PHASE_NO_MILESTONE         = "timeline.advancementoverhaul.phase_no_milestone";
@@ -441,6 +443,17 @@ public final class LangKeys {
     public static final String PHASE_EDIT_EQUIP_ENCHANT   = "timeline.advancementoverhaul.phase_edit_equip_enchant";
     public static final String PHASE_SHOW                  = "timeline.advancementoverhaul.phase_show";
     public static final String PHASE_HIDE                  = "timeline.advancementoverhaul.phase_hide";
+    // 装备规则独立编辑屏
+    public static final String PHASE_EQUIP_SCREEN_TITLE    = "timeline.advancementoverhaul.phase_equip_screen_title";
+    public static final String PHASE_EQUIP_OPEN            = "timeline.advancementoverhaul.phase_equip_open";
+    public static final String PHASE_EQUIP_APPLY           = "timeline.advancementoverhaul.phase_equip_apply";
+    public static final String PHASE_EQUIP_CANCEL          = "timeline.advancementoverhaul.phase_equip_cancel";
+    public static final String PHASE_EQUIP_COUNT           = "timeline.advancementoverhaul.phase_equip_count";
+    public static final String PHASE_EQUIP_CHANCE          = "timeline.advancementoverhaul.phase_equip_chance";
+    public static final String PHASE_EQUIP_REMOVE          = "timeline.advancementoverhaul.phase_equip_remove";
+    // 越界与重复校验
+    public static final String PHASE_VALUE_OUT_OF_RANGE    = "timeline.advancementoverhaul.phase_value_out_of_range";
+    public static final String PHASE_TIER_DUPLICATE        = "timeline.advancementoverhaul.phase_tier_duplicate";
 
     // ── 系统消息 ──
     public static final String MSG_DATASTORE_INIT_FAILED = "advancementoverhaul.msg.datastore_init_failed";

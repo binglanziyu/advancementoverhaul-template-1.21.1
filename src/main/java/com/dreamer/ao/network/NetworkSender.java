@@ -5,8 +5,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import com.mojang.logging.LogUtils;
+import org.slf4j.Logger;
 
 /**
  * 统一的网络数据包发送封装。
@@ -19,7 +19,7 @@ import org.apache.logging.log4j.Logger;
  */
 public final class NetworkSender {
 
-    private static final Logger LOGGER = LogManager.getLogger(NetworkSender.class);
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     private NetworkSender() {
     }

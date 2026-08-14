@@ -13,7 +13,11 @@ import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public record SyncChunkPayload(long transferId, int chunkIndex, int totalChunks, byte[] data, byte[] dataHash) implements CustomPacketPayload {
+public record SyncChunkPayload(long transferId, int chunkIndex, int totalChunks, byte[] data, byte[] dataHash, byte payloadKind) implements CustomPacketPayload {
+
+    /** 分块载荷类型：0 = SyncPayload（成就全量同步），1 = TimelineSyncPayload（时间线同步） */
+    public static final byte KIND_SYNC = 0;
+    public static final byte KIND_TIMELINE = 1;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SyncChunkPayload.class);
     public static final int CHUNK_SIZE = 262144;
@@ -32,7 +36,8 @@ public record SyncChunkPayload(long transferId, int chunkIndex, int totalChunks,
             int hashLen = buf.readVarInt();
             byte[] dataHash = new byte[hashLen];
             buf.readBytes(dataHash);
-            return new SyncChunkPayload(transferId, chunkIndex, totalChunks, data, dataHash);
+            byte payloadKind = buf.readByte();
+            return new SyncChunkPayload(transferId, chunkIndex, totalChunks, data, dataHash, payloadKind);
         }
 
         @Override
@@ -44,6 +49,7 @@ public record SyncChunkPayload(long transferId, int chunkIndex, int totalChunks,
             buf.writeBytes(payload.data());
             buf.writeVarInt(payload.dataHash().length);
             buf.writeBytes(payload.dataHash());
+            buf.writeByte(payload.payloadKind());
         }
     };
 
@@ -57,7 +63,7 @@ public record SyncChunkPayload(long transferId, int chunkIndex, int totalChunks,
         return computed != null && Arrays.equals(computed, dataHash);
     }
 
-    public static SyncChunkPayload[] split(long transferId, String fullJson) {
+    public static SyncChunkPayload[] split(long transferId, String fullJson, byte payloadKind) {
         byte[] allBytes = fullJson.getBytes(StandardCharsets.UTF_8);
         int totalChunks = (int) Math.ceil(allBytes.length / 262144.0);
         totalChunks = Math.max(totalChunks, 1);
@@ -68,7 +74,7 @@ public record SyncChunkPayload(long transferId, int chunkIndex, int totalChunks,
             byte[] chunkData = new byte[end - start];
             System.arraycopy(allBytes, start, chunkData, 0, end - start);
             byte[] hash = sha256(chunkData);
-            chunks[i] = new SyncChunkPayload(transferId, i, totalChunks, chunkData, hash);
+            chunks[i] = new SyncChunkPayload(transferId, i, totalChunks, chunkData, hash, payloadKind);
         }
         return chunks;
     }

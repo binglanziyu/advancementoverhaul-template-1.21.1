@@ -13,9 +13,9 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import net.minecraft.network.chat.Component;
+import com.dreamer.ao.network.NetworkSender;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.network.PacketDistributor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,7 +49,7 @@ public final class FtbQuestListener {
     }
 
     public static void onServerTick(MinecraftServer server) {
-        if (!FtbQuestsBridge.isLoaded()) {
+        if (!FtbQuestsBridge.isLoadedStatic()) {
             return;
         }
         if (++tickCounter % POLL_INTERVAL != 0) {
@@ -66,7 +66,7 @@ public final class FtbQuestListener {
     }
 
     public static void tryRegisterEventListener(MinecraftServer server) {
-        if (!FtbQuestsBridge.isLoaded()) {
+        if (!FtbQuestsBridge.isLoadedStatic()) {
             return;
         }
         if (eventListenerRegistered || questEventConfirmedMissing) {
@@ -87,7 +87,7 @@ public final class FtbQuestListener {
         } catch (Exception e) {
             questEventConfirmedMissing = true;
             LOGGER.warn("QuestCompletedEvent registration failed (FTB version: {}): {} \u2014 relying on tick polling",
-                    FtbQuestsBridge.getFtbVersion(), e.getMessage());
+                    FtbQuestsBridge.getFtbVersionStatic(), e.getMessage());
             return false;
         }
     }
@@ -116,7 +116,7 @@ public final class FtbQuestListener {
                     Set<String> completed = questCompletionCache.computeIfAbsent(uuid, k -> new HashSet<>());
                     if (completed.contains(questIdStr)) continue;
                     completed.add(questIdStr);
-                    PacketDistributor.sendToPlayer(player, new FtbQuestCompletedPayload(questDisplayName));
+                    NetworkSender.toPlayer(player, new FtbQuestCompletedPayload(questDisplayName));
                     ConditionEvaluator.checkInstant(player, ConditionType.FTB_QUEST_COMPLETE, questIdStr);
                     ConditionEvaluator.releasePendingDependents(player);
                     LOGGER.debug("FTB Quest completed (event): {} by player {}", questIdStr, uuid);
@@ -157,7 +157,7 @@ public final class FtbQuestListener {
                         Set<String> cached = questCompletionCache.computeIfAbsent(uuid, k -> new HashSet<>());
                         if (cached.contains(questIdStr)) continue;
                         cached.add(questIdStr);
-                        PacketDistributor.sendToPlayer(player, new FtbQuestCompletedPayload(displayName));
+                        NetworkSender.toPlayer(player, new FtbQuestCompletedPayload(displayName));
                         ConditionEvaluator.checkInstant(player, ConditionType.FTB_QUEST_COMPLETE, questIdStr);
                         ConditionEvaluator.releasePendingDependents(player);
                         LOGGER.debug("FTB Quest completed (poll): {} by player {}", questIdStr, uuid);

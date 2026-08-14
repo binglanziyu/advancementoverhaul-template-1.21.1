@@ -324,7 +324,7 @@ public class CommandHandler {
             if (dims != null) dimLockCount = dims.size();
         } catch (Exception ignored) { /* ignore */ }
         int onlineCount = ctx.getSource().getServer().getPlayerList().getPlayerCount();
-        boolean ftbLoaded = com.dreamer.ao.compat.ftb.FtbQuestsBridge.isLoaded();
+        boolean ftbLoaded = com.dreamer.ao.compat.ftb.FtbCompatProvider.get().isLoaded();
 
         StringBuilder sb = new StringBuilder();
         sb.append("§6=== AdvancementOverhaul Status ===\n");

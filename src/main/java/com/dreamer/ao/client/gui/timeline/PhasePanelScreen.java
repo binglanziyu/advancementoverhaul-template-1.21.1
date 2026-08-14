@@ -38,8 +38,8 @@ import net.minecraft.resources.ResourceLocation;
 public class PhasePanelScreen extends Screen {
 
     // ── 布局常量 ──
-    private static final int PANEL_W      = 520;
-    private static final int PANEL_H      = 380;
+    private static final int PANEL_W      = 480;
+    private static final int PANEL_H      = 340;
     private static final int MIN_PANEL_W  = 360;
     private static final int MIN_PANEL_H  = 260;
     private static final int HEADER_H     = 26;
@@ -86,6 +86,10 @@ public class PhasePanelScreen extends Screen {
     /** 展开阶段下拉的列，-1 表示未展开 */
     private int openTitleDropdown = -1;
     private int titleDropdownScroll = 0;
+
+    /** 展开维度/玩家选择下拉：0=无，SCOPE_DIM=维度，SCOPE_PLAYER=玩家 */
+    private int openPicker = 0;
+    private int pickerScroll = 0;
 
     private final int[] effectScroll = new int[3];
     private final int[] effectContentH = new int[3];
@@ -190,6 +194,64 @@ public class PhasePanelScreen extends Screen {
         if (openTitleDropdown >= 0) {
             renderTitleDropdown(g, openTitleDropdown, mouseX, mouseY);
         }
+        if (openPicker > 0) {
+            renderPickerDropdown(g, openPicker, mouseX, mouseY);
+        }
+    }
+
+    /** 维度/玩家选择下拉：列出所有可切换对象，点击即切换并关闭 */
+    private void renderPickerDropdown(GuiGraphics g, int pickerId, int mouseX, int mouseY) {
+        int ci = pickerId == SCOPE_DIM ? SCOPE_DIM : SCOPE_PLAYER;
+        int x = colX(ci);
+        int y = colTop + TITLE_H + 16; // picker 行下方
+        int rowH = 14;
+
+        List<String> labels;
+        List<Runnable> actions;
+        if (pickerId == SCOPE_DIM) {
+            labels = new ArrayList<>();
+            actions = new ArrayList<>();
+            for (String dim : availableDims) {
+                final String d = dim;
+                labels.add(DisplayNameResolver.friendlyDimension(dim));
+                actions.add(() -> {
+                    selectedDimKey = d;
+                    openPicker = 0;
+                    refreshDimColumn();
+                    recomputeCurrentEffects();
+                });
+            }
+        } else {
+            labels = new ArrayList<>();
+            actions = new ArrayList<>();
+            for (UUID p : availablePlayers) {
+                final UUID pu = p;
+                labels.add(getPlayerDisplayName(p));
+                actions.add(() -> {
+                    selectedPlayer = pu;
+                    openPicker = 0;
+                    refreshPlayerColumn();
+                    recomputeCurrentEffects();
+                });
+            }
+        }
+
+        int maxVis = Math.min(8, Math.max(1, (colBottom - y) / rowH));
+        int vis = Math.min(maxVis, labels.size());
+        int h = vis * rowH + 4;
+        GuiUtils.fillRoundedCard(g, x, y, colW, h, BG_DROPDOWN);
+
+        for (int i = 0; i < vis; i++) {
+            int idx = i + pickerScroll;
+            if (idx >= labels.size()) break;
+            int ry = y + 2 + i * rowH;
+            boolean hh = inRect(mouseX, mouseY, x + 2, ry, colW - 4, rowH);
+            if (hh) g.fill(x + 2, ry, x + colW - 2, ry + rowH, 0x30FFFFFF);
+            g.drawString(font, Component.literal(trunc(labels.get(idx), colW - 10)),
+                    x + 5, ry + 3, hh ? TEXT_PRIMARY : TEXT_SECONDARY, false);
+            final int actIdx = idx;
+            hotspots.add(new Hotspot(x + 2, ry, colW - 4, rowH, actions.get(actIdx)));
+        }
     }
 
     private void renderHeader(GuiGraphics g, int mouseX, int mouseY) {
@@ -259,13 +321,13 @@ public class PhasePanelScreen extends Screen {
 
         int cy = colTop + TITLE_H + 3;
 
-        // ── 维度 / 玩家 选择器 ──
+        // ── 维度 / 玩家 选择器（点击展开下拉列表） ──
         if (ci == SCOPE_DIM) {
             cy = renderPicker(g, x, cy, mouseX, mouseY,
-                    DisplayNameResolver.friendlyDimension(selectedDimKey), () -> cycleDimension());
+                    DisplayNameResolver.friendlyDimension(selectedDimKey), SCOPE_DIM);
         } else if (ci == SCOPE_PLAYER) {
             cy = renderPicker(g, x, cy, mouseX, mouseY,
-                    getPlayerDisplayName(selectedPlayer), () -> cyclePlayer());
+                    getPlayerDisplayName(selectedPlayer), SCOPE_PLAYER);
         }
 
         // ── 当前阶段名（点击展开阶段切换下拉） ──
@@ -344,13 +406,16 @@ public class PhasePanelScreen extends Screen {
     }
 
     private int renderPicker(GuiGraphics g, int x, int y, int mouseX, int mouseY,
-                             String label, Runnable onClick) {
+                             String label, int pickerId) {
         boolean hov = inRect(mouseX, mouseY, x, y, colW, 13);
-        g.fill(x, y, x + colW, y + 13, hov ? 0x50FFFFFF : 0x28FFFFFF);
-        g.drawString(font, Component.literal(trunc(label, colW - 16)), x + 4, y + 2,
+        boolean open = openPicker == pickerId;
+        g.fill(x, y, x + colW, y + 13, open ? 0x55FFFFFF : (hov ? 0x50FFFFFF : 0x28FFFFFF));
+        g.drawString(font, Component.literal(trunc(label, colW - 18)), x + 4, y + 2,
                 TEXT_PRIMARY, false);
-        g.drawString(font, Component.literal("\u21BB"), x + colW - 10, y + 2, TEXT_DIM, false);
-        hotspots.add(new Hotspot(x, y, colW, 13, onClick));
+        g.drawString(font, Component.literal(open ? "\u25BE" : "\u25B8"), x + colW - 11, y + 2,
+                TEXT_DIM, false);
+        final int pid = pickerId;
+        hotspots.add(new Hotspot(x, y, colW, 13, () -> openPicker = (openPicker == pid ? 0 : pid)));
         return y + 16;
     }
 
@@ -472,6 +537,10 @@ public class PhasePanelScreen extends Screen {
             openTitleDropdown = -1;
             return true;
         }
+        if (openPicker > 0) {
+            openPicker = 0;
+            return true;
+        }
         return super.mouseClicked(mouseX, mouseY, button);
     }
 
@@ -484,6 +553,12 @@ public class PhasePanelScreen extends Screen {
             List<JsonObject> defs = defsForScope(scopeOf(openTitleDropdown));
             int max = Math.max(0, defs.size() - 8);
             titleDropdownScroll = Math.clamp(titleDropdownScroll - (int) Math.signum(scrollY), 0, max);
+            return true;
+        }
+        if (openPicker > 0) {
+            List<?> list = openPicker == SCOPE_DIM ? availableDims : availablePlayers;
+            int max = Math.max(0, list.size() - 8);
+            pickerScroll = Math.clamp(pickerScroll - (int) Math.signum(scrollY), 0, max);
             return true;
         }
         // 底部当前效果区

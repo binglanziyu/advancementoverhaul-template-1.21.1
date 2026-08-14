@@ -4,10 +4,13 @@ import com.dreamer.ao.LangKeys;
 import com.dreamer.ao.ModInfo;
 import com.dreamer.ao.ServerConstants;
 import com.dreamer.ao.compat.AdvancementRegistry;
-import com.dreamer.ao.compat.ftb.FtbQuestsBridge;
+import com.dreamer.ao.compat.ftb.FtbCompatProvider;
+import com.dreamer.ao.compat.ftb.FtbCompatService;
 import com.dreamer.ao.data.*;
 import com.dreamer.ao.data.ConditionType;
+import com.dreamer.ao.event.StatsEventHandler;
 import com.dreamer.ao.logic.ConditionEvaluator;
+import com.dreamer.ao.milestone.event.TimelineEventHandler;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -102,39 +105,73 @@ public class ServerEventHandler {
     private static int ksrRetryCooldown = 0;
 
     /**
-     * 服务端 Tick 事件（替代 PlayerTick）。
-     * 每 game tick 调用一次而非每玩家一次，避免 N 倍冗余。
+     * 服务端 Tick 的<b>唯一</b> {@link ServerTickEvent.Post} 入口。
+     *
+     * <h2>为什么要合并</h2>
+     * 此前 {@code ServerEventHandler}、{@code StatsEventHandler}、
+     * {@code TimelineEventHandler} 各自订阅 {@code ServerTickEvent.Post}，
+     * 事件总线每 tick 需完成 3 次监听器分发，且三者各自独立地
+     * 「取 server 引用 → 判空 → 遍历在线玩家列表」，玩家列表被重复遍历 3 遍。
+     * <p>
+     * 现由本方法统一取一次 server、做一次判空，再按固定顺序派发给各子系统，
+     * 把每 tick 的固定开销压到一份。子系统内部的分层节流（如天气 20 tick、
+     * 距离 100 tick）保持不变，仅调用入口收敛。
+     *
+     * <h2>派发顺序的约束</h2>
+     * 成就数据（{@code ServerDataStore}）必须先于统计与时间线推进，
+     * 因为后两者的里程碑判定会读取成就完成状态；顺序调整可能导致
+     * 同一 tick 内读到上一 tick 的旧值。
      */
     @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
         ServerDataStore store = ServerDataStore.getInstance();
         store.tick();
-        // FTB Quests 任务完成轮询/事件监听
+
         var server = store.getServer();
-        if (server != null) {
-            FtbQuestsBridge.onServerTick(server);
-            // 如果 KSR 之前未同步成功（ServerStartedEvent 时 KSR 尚未初始化），
-            // 带指数退避重试，防止 AdvancementReward.fillConfigGroup NPE
-            if (!FtbQuestsBridge.isKsrSynced() && --ksrRetryCooldown <= 0) {
-                FtbQuestsBridge.syncToKnownServerRegistries(server);
-                // 指数退避：20 → 60 → 140 → ... → 最多 1200 tick（60秒）
-                ksrRetryCooldown = Math.min(
-                        Math.max(ksrRetryCooldown * 2 + ServerConstants.KSR_RETRY_BACKOFF_BASE_TICKS,
-                                ServerConstants.KSR_RETRY_BACKOFF_BASE_TICKS),
-                        ServerConstants.KSR_RETRY_BACKOFF_MAX_TICKS);
-            }
+        if (server == null) {
+            return;
+        }
 
-            long tickCount = server.getTickCount();
+        tickFtbCompat(server);
 
-            // 周期性维护：合并到单个取模分支，避免每 tick 多次取模判断
-            if (tickCount % ServerConstants.MAINTENANCE_INTERVAL_TICKS == 0) {
-                runPeriodicMaintenance(tickCount);
-            }
+        long tickCount = server.getTickCount();
 
-            // 重试因数据未就绪而延迟的登录同步（hasPending 短路，绝大多数 tick 零开销）
-            if (LoginSyncHandler.hasPending() && store.getDataFolder() != null) {
-                LoginSyncHandler.retryPending(server);
-            }
+        // 周期性维护：合并到单个取模分支，避免每 tick 多次取模判断
+        if (tickCount % ServerConstants.MAINTENANCE_INTERVAL_TICKS == 0) {
+            runPeriodicMaintenance(tickCount);
+        }
+
+        // 重试因数据未就绪而延迟的登录同步（hasPending 短路，绝大多数 tick 零开销）
+        if (LoginSyncHandler.hasPending() && store.getDataFolder() != null) {
+            LoginSyncHandler.retryPending(server);
+        }
+
+        // 派发给其余子系统：它们不再各自订阅事件总线，改由此处驱动。
+        StatsEventHandler.onServerTickDispatch(server);
+        TimelineEventHandler.onServerTickDispatch(server);
+    }
+
+    /**
+     * FTB 兼容层的每 tick 驱动与 KSR 补偿重试。
+     * <p>
+     * 经 {@link FtbCompatService} 接口调用：FTB 未安装时拿到的是空实现，
+     * 各方法均为无副作用的空操作，且 {@code isKsrSynced()} 恒为 {@code true}，
+     * 因此重试分支不会空转。
+     *
+     * @param server 服务端实例，调用方保证非 {@code null}
+     */
+    private static void tickFtbCompat(net.minecraft.server.MinecraftServer server) {
+        FtbCompatService ftb = FtbCompatProvider.get();
+        ftb.onServerTick(server);
+        // 如果 KSR 之前未同步成功（ServerStartedEvent 时 KSR 尚未初始化），
+        // 带指数退避重试，防止 AdvancementReward.fillConfigGroup NPE
+        if (!ftb.isKsrSynced() && --ksrRetryCooldown <= 0) {
+            ftb.syncToKnownServerRegistries(server);
+            // 指数退避：20 → 60 → 140 → ... → 最多 1200 tick（60秒）
+            ksrRetryCooldown = Math.min(
+                    Math.max(ksrRetryCooldown * 2 + ServerConstants.KSR_RETRY_BACKOFF_BASE_TICKS,
+                            ServerConstants.KSR_RETRY_BACKOFF_BASE_TICKS),
+                    ServerConstants.KSR_RETRY_BACKOFF_MAX_TICKS);
         }
     }
 

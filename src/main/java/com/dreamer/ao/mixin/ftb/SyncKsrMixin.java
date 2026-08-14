@@ -24,9 +24,9 @@ public class SyncKsrMixin {
     private static Runnable advancementoverhaul$injectAfterKsrSync(Runnable original) {
         return () -> {
             original.run();
-            if (FtbQuestsBridge.isLoaded()) {
+            if (FtbQuestsBridge.isLoadedStatic()) {
                 LOGGER.debug("KSR synced, injecting custom advancement registries");
-                FtbQuestsBridge.syncClientKnownServerRegistries(null);
+                FtbQuestsBridge.syncClientKnownServerRegistriesStatic(null);
             }
         };
     }

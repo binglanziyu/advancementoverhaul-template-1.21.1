@@ -1,5 +1,6 @@
 package com.dreamer.ao.compat.ftb;
 
+import com.mojang.logging.LogUtils;
 import dev.ftb.mods.ftblibrary.util.KnownServerRegistries;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -14,11 +15,12 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.fml.ModList;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public final class FtbReflectionHelper {
-    private static final Logger LOGGER = LoggerFactory.getLogger(FtbReflectionHelper.class);
+    private static final Logger LOGGER = LogUtils.getLogger();
+    private static final String FTB_MOD_ID = "ftbquests";
     private static volatile boolean initialized = false;
 
     /** 反射句柄集中存储，支持生命周期管理。 */
@@ -51,8 +53,17 @@ public final class FtbReflectionHelper {
     private FtbReflectionHelper() {
     }
 
+    /** 弱依赖闸门：FTB Quests 未加载时，整个反射层不可用，避免 NoClassDefFoundError。 */
+    public static boolean isFtbAvailable() {
+        return ModList.get().isLoaded(FTB_MOD_ID);
+    }
+
     public static synchronized void init() {
         if (initialized) {
+            return;
+        }
+        if (!isFtbAvailable()) {
+            LOGGER.debug("FTB Quests ('{}') not loaded — skipping reflection init", FTB_MOD_ID);
             return;
         }
         try {

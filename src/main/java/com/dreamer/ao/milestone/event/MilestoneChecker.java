@@ -6,15 +6,14 @@ import com.dreamer.ao.milestone.model.MilestoneTrigger;
 import com.dreamer.ao.milestone.model.TimeMilestone;
 import com.dreamer.ao.milestone.store.TimelineDefinitionLoader;
 import com.dreamer.ao.milestone.store.TimelineStore;
-import com.dreamer.ao.network.payload.TimelineSyncPayload;
+import com.dreamer.ao.network.NetworkSender;
+import com.dreamer.ao.network.SyncManager;
 import com.google.gson.JsonArray;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.network.PacketDistributor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -153,7 +152,7 @@ final class MilestoneChecker {
     static void syncTimelineToPlayer(ServerPlayer player) {
         UUID uuid = player.getUUID();
         JsonArray data = TimelineStore.getInstance().toSyncJson(uuid);
-        PacketDistributor.sendToPlayer(player, new TimelineSyncPayload(data.toString()));
+        SyncManager.syncTimelineChunked(player, data.toString());
     }
 
     static void syncTimelineToAll(List<ServerPlayer> players) {

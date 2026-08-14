@@ -7,12 +7,12 @@ import com.dreamer.ao.data.model.AdvancementCondition;
 import com.dreamer.ao.data.model.CustomAdvancement;
 import com.dreamer.ao.achievement.event.AdvResetEvent;
 import com.dreamer.ao.logic.ConditionEvaluator;
+import com.dreamer.ao.network.NetworkSender;
 import com.dreamer.ao.network.SyncManager;
 import com.dreamer.ao.network.payload.ProgressSyncPayload;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -141,7 +141,7 @@ public final class AdvancementAPI {
         store.setPending(player.getUUID(), advId, false);
         store.savePlayerDataIfDirty();
 
-        PacketDistributor.sendToPlayer(player, new ProgressSyncPayload(advId, false, 0));
+        NetworkSender.toPlayer(player, new ProgressSyncPayload(advId, false, 0));
         AdvancementRegistry.revokeAdvancement(player, advId);
         NeoForge.EVENT_BUS.post(new AdvResetEvent(player, advId));
     }

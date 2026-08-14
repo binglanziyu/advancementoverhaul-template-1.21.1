@@ -1,6 +1,7 @@
 package com.dreamer.ao.compat.ftb;
 
 import com.dreamer.ao.data.ClientDataStore;
+import com.mojang.logging.LogUtils;
 import dev.ftb.mods.ftblibrary.util.KnownServerRegistries;
 import java.lang.reflect.Method;
 import java.util.Collection;
@@ -14,20 +15,56 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.fml.ModList;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-public final class FtbQuestsBridge {
-    private static final Logger LOGGER = LoggerFactory.getLogger(FtbQuestsBridge.class);
+/**
+ * FTB Quests 兼容层的真实实现。
+ *
+ * <h2>可见性说明</h2>
+ * 本类<b>仅</b>允许被两类代码引用：
+ * <ol>
+ *   <li>{@link FtbCompatProvider}——且只通过反射，不产生编译期符号引用；</li>
+ *   <li>{@code com.dreamer.ao.mixin.ftb} 下的 Mixin——它们本身只在 FTB 存在时织入，
+ *       且需要 {@link KnownServerRegistries.AdvancementInfo} 这类 FTB 原生类型。</li>
+ * </ol>
+ * 主逻辑（网络、命令、事件）一律改走 {@link FtbCompatService} 接口。
+ *
+ * <h2>为何同时保留静态方法与实例方法</h2>
+ * 静态方法服务于 Mixin（Mixin 中注入点无法方便地持有服务实例）；
+ * 实例方法用于满足 {@link FtbCompatService} 契约，内部直接委托给对应静态方法，
+ * 二者共享同一份状态，不存在双份缓存不一致的风险。
+ */
+public final class FtbQuestsBridge implements FtbCompatService {
+    private static final Logger LOGGER = LogUtils.getLogger();
     private static volatile Boolean loaded = null;
     private static volatile String ftbVersion = null;
 
-    private FtbQuestsBridge() {
+    /**
+     * 供 {@link FtbCompatProvider} 反射实例化。
+     * <p>
+     * 保持 public 是因为反射调用 {@code getDeclaredConstructor().newInstance()}
+     * 时若为私有构造器需额外 {@code setAccessible}，在模块化环境下易被拒绝。
+     */
+    public FtbQuestsBridge() {
     }
 
-    public static boolean isLoaded() {
+    /**
+     * 静态入口：供 Mixin 与本类内部使用。
+     * <p>
+     * 与实例方法 {@link #isLoaded()} 共享同一份 {@code loaded} 缓存。
+     *
+     * @return FTB Quests 是否可用
+     */
+    public static boolean isLoadedStatic() {
         if (loaded == null) {
             try {
+                // 优先使用 ModList 做确定性弱依赖检查；未加载时直接短路，避免无谓反射探测。
+                if (!ModList.get().isLoaded("ftbquests")) {
+                    loaded = false;
+                    LOGGER.info("FTB Quests not detected via ModList");
+                    return loaded;
+                }
                 Class<?> ftbClass = Class.forName("dev.ftb.mods.ftbquests.FTBQuests");
                 loaded = true;
                 try {
@@ -96,34 +133,43 @@ public final class FtbQuestsBridge {
         }
     }
 
-    public static String getFtbVersion() {
-        isLoaded();
+    /**
+     * 静态入口：供 Mixin 与本类内部使用。
+     *
+     * @return FTB Quests 版本号，未知时为 {@code "unknown"}
+     */
+    public static String getFtbVersionStatic() {
+        isLoadedStatic();
         return ftbVersion;
     }
 
-    public static boolean isKsrSynced() {
-        return FtbKsrSyncer.isKsrSynced();
-    }
-
-    public static void syncToKnownServerRegistries(MinecraftServer server) {
+    /**
+     * 静态入口：注入服务端 KSR 并挂载任务监听器。
+     *
+     * @param server 服务端实例
+     */
+    public static void syncToKnownServerRegistriesStatic(MinecraftServer server) {
         FtbKsrSyncer.syncToKnownServerRegistries(server);
         FtbQuestListener.tryRegisterEventListener(server);
     }
 
-    public static boolean syncClientKnownServerRegistries(Collection<String> advancementIds) {
+    /**
+     * 静态入口：注入客户端 KSR。供 {@code SyncKsrMixin} 使用。
+     *
+     * @param advancementIds 待注入的进度 ID，{@code null} 表示自动扫描
+     * @return 是否成功
+     */
+    public static boolean syncClientKnownServerRegistriesStatic(Collection<String> advancementIds) {
         return FtbKsrSyncer.syncClientKnownServerRegistries(advancementIds);
     }
 
-    public static void onServerTick(MinecraftServer server) {
-        FtbQuestListener.onServerTick(server);
-    }
-
-    public static void onPlayerLogout(UUID uuid) {
-        FtbQuestListener.onPlayerLogout(uuid);
-    }
-
-    public static void notifyAttributeChange(MinecraftServer server) {
-        if (!isLoaded()) {
+    /**
+     * 静态入口：通知 FTB 侧属性变更并标脏。
+     *
+     * @param server 服务端实例
+     */
+    public static void notifyAttributeChangeStatic(MinecraftServer server) {
+        if (!isLoadedStatic()) {
             return;
         }
         markDirty();
@@ -205,5 +251,49 @@ public final class FtbQuestsBridge {
             LOGGER.debug("Failed to get client display for {}: {}", id, e.getMessage());
         }
         return Optional.empty();
+    }
+
+    // ------------------------------------------------------------------
+    // FtbCompatService 实现：统一委托给上方静态方法，保证状态单一来源。
+    // ------------------------------------------------------------------
+
+    @Override
+    public boolean isLoaded() {
+        return isLoadedStatic();
+    }
+
+    @Override
+    public String getFtbVersion() {
+        return getFtbVersionStatic();
+    }
+
+    @Override
+    public boolean isKsrSynced() {
+        return FtbKsrSyncer.isKsrSynced();
+    }
+
+    @Override
+    public void syncToKnownServerRegistries(MinecraftServer server) {
+        syncToKnownServerRegistriesStatic(server);
+    }
+
+    @Override
+    public boolean syncClientKnownServerRegistries(Collection<String> advancementIds) {
+        return syncClientKnownServerRegistriesStatic(advancementIds);
+    }
+
+    @Override
+    public void onServerTick(MinecraftServer server) {
+        FtbQuestListener.onServerTick(server);
+    }
+
+    @Override
+    public void onPlayerLogout(UUID uuid) {
+        FtbQuestListener.onPlayerLogout(uuid);
+    }
+
+    @Override
+    public void notifyAttributeChange(MinecraftServer server) {
+        notifyAttributeChangeStatic(server);
     }
 }

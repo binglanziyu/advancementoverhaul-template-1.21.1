@@ -1,7 +1,7 @@
 package com.dreamer.ao.achievement.event;
 
 import com.dreamer.ao.compat.AdvancementRegistry;
-import com.dreamer.ao.compat.ftb.FtbQuestsBridge;
+import com.dreamer.ao.compat.ftb.FtbCompatProvider;
 import com.dreamer.ao.data.ServerDataStore;
 import com.dreamer.ao.network.NetworkHandler;
 import com.dreamer.ao.network.SyncManager;
@@ -62,7 +62,7 @@ final class LoginSyncHandler {
         pendingLoginSyncPlayers.remove(uuid);
         DimensionLockHandler.onPlayerLogout(uuid);
         // 清理 FTB Quests 任务完成缓存，防止内存泄漏
-        FtbQuestsBridge.onPlayerLogout(uuid);
+        FtbCompatProvider.get().onPlayerLogout(uuid);
         // 回收 C2S 命令 / 导入冷却记录
         NetworkHandler.onPlayerLogout(uuid);
     }
@@ -92,7 +92,7 @@ final class LoginSyncHandler {
         SyncManager.syncPlayer(player);
         // 玩家登录时 FTB Library 的 SyncKnownServerRegistriesPacket 会替换
         // 整个 KSR.client，需要重新注入自定义进度以防止 NPE 崩溃
-        FtbQuestsBridge.syncToKnownServerRegistries(player.server);
+        FtbCompatProvider.get().syncToKnownServerRegistries(player.server);
     }
 
     /**

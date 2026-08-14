@@ -4,6 +4,7 @@ import com.dreamer.ao.data.NarrativeConfigLoader;
 import com.dreamer.ao.data.PlayerStats;
 import com.dreamer.ao.data.PlayerStatsStore;
 import com.dreamer.ao.data.model.EchoEntry;
+import com.dreamer.ao.network.NetworkSender;
 import com.dreamer.ao.network.payload.MonologuePayload;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -14,12 +15,10 @@ import java.util.Set;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.biome.Biome;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 public class EchoEventHandler {
     private static final Map<String, Map<UUID, Long>> cooldowns = new HashMap<String, Map<UUID, Long>>();
@@ -43,7 +42,7 @@ public class EchoEventHandler {
             for (EchoEntry echo : echoes.values()) {
                 String text;
                 if (!EchoEventHandler.checkCondition(player, uuid, pos, echo, now) || !EchoEventHandler.checkCooldown(uuid, echo, now) || (text = EchoEventHandler.selectText(echo)) == null) continue;
-                PacketDistributor.sendToPlayer(player, new MonologuePayload("echo:" + echo.getId()));
+                NetworkSender.toPlayer(player, new MonologuePayload("echo:" + echo.getId()));
                 cooldowns.computeIfAbsent(echo.getId(), k -> new HashMap()).put(uuid, now);
                 if (!echo.isOnceOnly()) continue;
                 onceOnlyTriggered.computeIfAbsent(echo.getId(), k -> new HashSet()).add(uuid);

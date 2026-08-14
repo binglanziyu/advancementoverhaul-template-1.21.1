@@ -38,7 +38,7 @@ public final class FtbKsrSyncer {
     }
 
     public static void syncToKnownServerRegistries(MinecraftServer server) {
-        if (!FtbQuestsBridge.isLoaded()) {
+        if (!FtbQuestsBridge.isLoadedStatic()) {
             return;
         }
         try {
@@ -99,12 +99,12 @@ public final class FtbKsrSyncer {
                 LOGGER.info("Synced {} advancements to KSR (custom + enabled vanilla)", added);
             }
         } catch (Exception e) {
-            LOGGER.warn("Failed to sync KnownServerRegistries (FTB version: {}): {}", FtbQuestsBridge.getFtbVersion(), e.getMessage());
+            LOGGER.warn("Failed to sync KnownServerRegistries (FTB version: {}): {}", FtbQuestsBridge.getFtbVersionStatic(), e.getMessage());
         }
     }
 
     public static boolean syncClientKnownServerRegistries(Collection<String> advancementIds) {
-        if (!FtbQuestsBridge.isLoaded()) {
+        if (!FtbQuestsBridge.isLoadedStatic()) {
             return true;
         }
         boolean customIdsFound = true;

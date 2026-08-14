@@ -5,7 +5,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -35,7 +34,6 @@ import net.minecraft.world.item.enchantment.Enchantment;
 public final class MobEquipmentRoller {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(MobEquipmentRoller.class);
-    private static final Random RNG = new Random();
 
     private MobEquipmentRoller() {
     }
@@ -71,7 +69,7 @@ public final class MobEquipmentRoller {
                     continue;
                 }
             }
-            if (RNG.nextDouble() > rule.getChance()) {
+            if (entity.getRandom().nextDouble() > rule.getChance()) {
                 continue;
             }
             // 命中：先标记（确保整个并集只做一次），再 roll 该规则各部位
@@ -99,7 +97,7 @@ public final class MobEquipmentRoller {
             if (entry.getChance() <= 0) {
                 continue;
             }
-            if (RNG.nextDouble() > entry.getChance()) {
+            if (entity.getRandom().nextDouble() > entry.getChance()) {
                 continue;
             }
             ItemStack stack = resolveItem(entry.getItem());

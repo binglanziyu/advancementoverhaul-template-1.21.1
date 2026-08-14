@@ -52,7 +52,6 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
-import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -92,13 +91,25 @@ public class StatsEventHandler {
         PlayerStatsStore.getInstance().shutdown();
     }
 
-    @SubscribeEvent
-    public static void onServerTick(ServerTickEvent.Post event) {
+    /**
+     * 统计子系统的每 tick 驱动入口。
+     *
+     * <h2>调用来源</h2>
+     * 本方法<b>不再</b>直接订阅 {@code ServerTickEvent.Post}，而是由
+     * {@code ServerEventHandler.onServerTick} 统一派发，避免多个订阅者
+     * 重复获取 server、重复遍历在线玩家列表。
+     *
+     * <h2>空闲快速退出</h2>
+     * 原实现即便本 tick 没有任何分层检查到期，仍会完整遍历一遍玩家列表。
+     * 现在先判定本 tick 是否真有工作要做（日出/日落窗口、天气、距离、
+     * 背包扫描、同步任一到期），全部未到期时直接跳过玩家遍历。
+     * 睡眠状态与交易追踪需要逐 tick 捕捉边沿，故它们的到期条件恒为真，
+     * 通过 {@code needSleepAndTrade} 表达，语义保持与原实现一致。
+     *
+     * @param server 服务端实例，调用方保证非 {@code null}
+     */
+    public static void onServerTickDispatch(MinecraftServer server) {
         boolean doSync = ++syncTickCounter >= SYNC_INTERVAL_TICKS;
-        MinecraftServer server = ServerDataStore.getInstance().getServer();
-        if (server == null) {
-            return;
-        }
         PlayerStatsStore store = PlayerStatsStore.getInstance();
         store.tick();
 

@@ -8,6 +8,7 @@ import com.dreamer.ao.data.model.VanillaAdvMeta;
 import com.dreamer.ao.data.ServerDataStore;
 import com.dreamer.ao.network.payload.SyncChunkPayload;
 import com.dreamer.ao.network.payload.SyncPayload;
+import com.dreamer.ao.network.payload.TimelineSyncPayload;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.advancements.DisplayInfo;
@@ -144,7 +145,7 @@ public final class SyncManager {
             int byteSize = json.getBytes(StandardCharsets.UTF_8).length;
             if (byteSize > CHUNK_THRESHOLD) {
                 long transferId = ThreadLocalRandom.current().nextLong();
-                SyncChunkPayload[] chunks = SyncChunkPayload.split(transferId, json);
+                SyncChunkPayload[] chunks = SyncChunkPayload.split(transferId, json, SyncChunkPayload.KIND_SYNC);
                 LOGGER.info("Sending chunked sync to {}: {} chunks, total {} KB",
                         player.getName().getString(), chunks.length, byteSize / 1024);
                 for (SyncChunkPayload chunk : chunks) {
@@ -176,6 +177,33 @@ public final class SyncManager {
      */
     public static void shutdown() {
         SYNC_EXECUTOR.shutdownNow();
+    }
+
+    /**
+     * 将玩家时间线数据以分块方式同步给该玩家。
+     * <p>
+     * 复用 {@link SyncChunkPayload} 的分块重组框架（256KB/块 + SHA-256 校验），
+     * 规避 {@code TimelineSyncPayload} 自身 64KB 字符串编解码上限导致的超大数据截断风险。
+     * 客户端依据 {@link SyncChunkPayload#KIND_TIMELINE} 重组后回调时间线处理函数。
+     * </p>
+     *
+     * @param player    目标玩家（必须在服务端主线程调用网络分发）
+     * @param json      时间线 JSON 字符串
+     */
+    public static void syncTimelineChunked(ServerPlayer player, String json) {
+        if (json == null || json.isEmpty()) return;
+        int byteSize = json.getBytes(StandardCharsets.UTF_8).length;
+        if (byteSize > CHUNK_THRESHOLD) {
+            long transferId = ThreadLocalRandom.current().nextLong();
+            SyncChunkPayload[] chunks = SyncChunkPayload.split(transferId, json, SyncChunkPayload.KIND_TIMELINE);
+            LOGGER.info("Sending chunked timeline sync to {}: {} chunks, total {} KB",
+                    player.getName().getString(), chunks.length, byteSize / 1024);
+            for (SyncChunkPayload chunk : chunks) {
+                NetworkSender.toPlayer(player, chunk);
+            }
+        } else {
+            NetworkSender.toPlayer(player, new TimelineSyncPayload(json));
+        }
     }
 
     // ═══════════════ 内部数据结构 ═══════════════

@@ -2,7 +2,7 @@ package com.dreamer.ao.client;
 
 import com.dreamer.ao.client.gui.CompletionPlaque;
 import com.dreamer.ao.client.gui.TranslatedStrings;
-import com.dreamer.ao.compat.ftb.FtbQuestsBridge;
+import com.dreamer.ao.compat.ftb.FtbCompatProvider;
 import net.minecraft.client.Minecraft;
 import com.dreamer.ao.ModInfo;
 import net.minecraft.resources.ResourceLocation;
@@ -87,7 +87,7 @@ public class ClientEvents {
         // 不依赖 ClientDataStore 是否已同步。
         ftbKsrRetryTick++;
         if (ftbKsrRetryTick % 200 == 0) {
-            if (FtbQuestsBridge.syncClientKnownServerRegistries(null)) {
+            if (FtbCompatProvider.get().syncClientKnownServerRegistries(null)) {
                 ftbKsrEverSucceeded = true;
                 ftbKsrFailCount = 0;
             } else {

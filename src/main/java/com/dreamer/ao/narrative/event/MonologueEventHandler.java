@@ -2,18 +2,17 @@ package com.dreamer.ao.narrative.event;
 
 import com.dreamer.ao.data.PlayerStats;
 import com.dreamer.ao.data.PlayerStatsStore;
+import com.dreamer.ao.network.NetworkSender;
 import com.dreamer.ao.network.payload.MonologuePayload;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
-import net.neoforged.neoforge.network.PacketDistributor;
 
 public class MonologueEventHandler {
     private static final Map<UUID, Double> lastDistances = new ConcurrentHashMap<UUID, Double>();
@@ -96,6 +95,6 @@ public class MonologueEventHandler {
     }
 
     private static void sendMonologue(ServerPlayer player, String category) {
-        PacketDistributor.sendToPlayer((ServerPlayer)player, (CustomPacketPayload)new MonologuePayload(category), (CustomPacketPayload[])new CustomPacketPayload[0]);
+        NetworkSender.toPlayer(player, new MonologuePayload(category));
     }
 }

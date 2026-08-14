@@ -20,10 +20,10 @@ import net.minecraft.nbt.TagParser;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
+import com.dreamer.ao.network.NetworkSender;
+import com.mojang.logging.LogUtils;
 import net.neoforged.neoforge.common.NeoForge;
-import net.neoforged.neoforge.network.PacketDistributor;
 import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -64,7 +64,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class ConditionEvaluator {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(ConditionEvaluator.class);
+    private static final Logger LOGGER = LogUtils.getLogger();
 
     /**
      * 级联深度上限。详见 {@link ServerConstants#MAX_CASCADE_DEPTH}。
@@ -177,6 +177,30 @@ public final class ConditionEvaluator {
     // ═══════════════ 统一评估核心 ═══════════════
 
     /**
+     * 条件匹配策略函数式接口。
+     * <p>
+     * 将「事件目标 / 物品堆」与条件本身的匹配判定收敛为单一策略点，
+     * 消除 {@code evaluate} 与 {@code evaluateWithIndex} 中重复的
+     * {@code if (stack != null) ... else ...} 分支。
+     * 新增条件类型时，若匹配语义超出「普通目标相等」与「物品堆组件匹配」，
+     * 只需在此扩展一个匹配策略，而非改动两个评估路径。
+     */
+    @FunctionalInterface
+    private interface ConditionMatcher {
+        boolean match(AdvancementCondition cond, String eventTargetId, ItemStack stack,
+                      HolderLookup.Provider registryAccess);
+    }
+
+    /**
+     * 标准匹配策略：stack 非空时走物品感知匹配，否则走普通目标相等匹配。
+     * 两处评估路径（索引 / 全量）统一复用此策略，避免分支逻辑重复。
+     */
+    private static final ConditionMatcher STANDARD_MATCHER = (cond, eventTargetId, stack, registryAccess) ->
+            stack != null
+                    ? matchesSingleItem(cond, eventTargetId, stack, registryAccess)
+                    : matchesTarget(cond.getTargetId(), eventTargetId);
+
+    /**
      * 统一评估核心，支持条件级别索引直接跳转。
      * <p>
      * 优先使用 {@link AdvIdCondIndex} 条件级别索引（在 rebuildConditionIndex 时预计算）
@@ -214,13 +238,7 @@ public final class ConditionEvaluator {
             for (int i = 0; i < conditions.size(); i++) {
                 AdvancementCondition cond = conditions.get(i);
                 if (cond.getType() != type) continue;
-                boolean matched;
-                if (stack != null) {
-                    matched = matchesSingleItem(cond, targetId, stack, player.registryAccess());
-                } else {
-                    matched = matchesTarget(cond.getTargetId(), targetId);
-                }
-                if (!matched) continue;
+                if (!STANDARD_MATCHER.match(cond, targetId, stack, player.registryAccess())) continue;
                 processMatchedCondition(player, store, uuid, advId, adv, cond, i, amount, updater);
             }
         }
@@ -246,13 +264,7 @@ public final class ConditionEvaluator {
             if (ci >= conditions.size()) continue;
             AdvancementCondition cond = conditions.get(ci);
             if (cond.getType() != type) continue;
-            boolean matched;
-            if (stack != null) {
-                matched = matchesSingleItem(cond, targetId, stack, player.registryAccess());
-            } else {
-                matched = matchesTarget(cond.getTargetId(), targetId);
-            }
-            if (!matched) continue;
+            if (!STANDARD_MATCHER.match(cond, targetId, stack, player.registryAccess())) continue;
             processMatchedCondition(player, store, uuid, advId, adv, cond, ci, amount, updater);
         }
     }
@@ -324,7 +336,7 @@ public final class ConditionEvaluator {
                 store.setPending(uuid, advId, true);
                 store.savePlayerDataIfDirty();
                 int progress = store.getProgress(uuid, advId);
-                PacketDistributor.sendToPlayer(player,
+                NetworkSender.toPlayer(player,
                         new ProgressSyncPayload(advId, false, progress, true));
                 return;
             }
@@ -344,7 +356,7 @@ public final class ConditionEvaluator {
         store.savePlayerDataIfDirty();
 
         int progress = store.getProgress(uuid, advId);
-        PacketDistributor.sendToPlayer(player,
+        NetworkSender.toPlayer(player,
                 new ProgressSyncPayload(advId, true, progress));
 
         AdvancementRegistry.grantAdvancement(player, advId);

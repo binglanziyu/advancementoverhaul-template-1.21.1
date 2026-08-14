@@ -11,9 +11,13 @@ import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
+import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.entity.player.Player;
+import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,8 +55,10 @@ public final class PhaseEffectApplier {
     );
 
     private static PhaseEffectApplier INSTANCE;
-    /** 维度 id -> 该维度生效的怪物倍率 + 装备规则（由解锁阶段计算填充） */
-    private volatile PhaseEffectCalculator.ComputedEffects dimensionEffects = empty();
+    /** 维度 id -> 该维度生效的怪物倍率 + 装备规则（由解锁阶段计算填充，按维度分表避免串味） */
+    private final Map<ResourceLocation, PhaseEffectCalculator.ComputedEffects> dimensionEffects = new java.util.concurrent.ConcurrentHashMap<>();
+    /** 玩家 uuid -> 该玩家三层合并效果（供受伤事件动态乘算玩家作用域怪物伤害倍率） */
+    private final Map<java.util.UUID, PhaseEffectCalculator.ComputedEffects> playerEffectsMap = new java.util.concurrent.ConcurrentHashMap<>();
 
     private PhaseEffectApplier() {
     }
@@ -70,16 +76,24 @@ public final class PhaseEffectApplier {
                 Map.of(), Map.of(), Map.of(), List.of());
     }
 
-    /** 由阶段系统更新维度级怪物效果（全局+维度两层合并） */
-    public void setDimensionEffects(PhaseEffectCalculator.ComputedEffects effects) {
-        this.dimensionEffects = effects != null ? effects : empty();
+    /** 由阶段系统更新指定维度的怪物效果（全局+维度两层合并） */
+    public void setDimensionEffects(ResourceLocation dim, PhaseEffectCalculator.ComputedEffects effects) {
+        if (dim == null) {
+            return;
+        }
+        if (effects == null) {
+            dimensionEffects.remove(dim);
+        } else {
+            dimensionEffects.put(dim, effects);
+        }
     }
 
-    /** 应用到玩家（属性 + 状态效果） */
+    /** 应用到玩家（属性 + 状态效果），并缓存该玩家的三层合并效果供受伤事件动态乘算 */
     public void applyToPlayer(Player player, PhaseEffectCalculator.ComputedEffects effects) {
         if (player == null || effects == null) {
             return;
         }
+        playerEffectsMap.put(player.getUUID(), effects);
         // A 类属性
         for (Map.Entry<String, Holder<Attribute>> entry : ATTR_MAP.entrySet()) {
             AttributeInstance inst = player.getAttribute(entry.getValue());
@@ -100,6 +114,61 @@ public final class PhaseEffectApplier {
         for (var spec : effects.mobEffects().values()) {
             applyMobEffect(player, spec);
         }
+    }
+
+    /**
+     * 玩家受伤事件：按受击玩家自身阶段实时乘算怪物对其造成的伤害。
+     * 这样同一只怪物攻击不同玩家时，伤害会随各玩家阶段（玩家作用域怪物倍率）而不同。
+     * 在 {@link LivingIncomingDamageEvent} 中处理（伤害施加前），仅服务端生效。
+     */
+    @net.neoforged.bus.api.SubscribeEvent
+    public void onLivingIncomingDamage(LivingIncomingDamageEvent event) {
+        if (event.getEntity() == null || event.getEntity().level().isClientSide()) {
+            return;
+        }
+        if (!(event.getEntity() instanceof Player player)) {
+            return;
+        }
+        // 玩家之间的伤害不计入怪物倍率
+        var sourceEntity = event.getSource().getEntity();
+        if (sourceEntity instanceof Player) {
+            return;
+        }
+        PhaseEffectCalculator.ComputedEffects eff = playerEffectsMap.get(player.getUUID());
+        if (eff == null) {
+            return;
+        }
+        double mult = 1.0;
+        Double base = eff.mobMults().get("mob_damage_mult");
+        if (base != null) {
+            mult *= base;
+        }
+        // boss 倍率：当伤害来源为 boss 实体（或其投射物的拥有者）时叠加
+        if (isBossSource(event.getSource())) {
+            Double boss = eff.mobMults().get("boss_damage_mult");
+            if (boss != null) {
+                mult *= boss;
+            }
+        }
+        if (mult != 1.0) {
+            event.setAmount((float) (event.getAmount() * mult));
+        }
+    }
+
+    /** 判定伤害来源是否为 boss（含投射物拥有者） */
+    private boolean isBossSource(net.minecraft.world.damagesource.DamageSource source) {
+        var entity = source.getEntity();
+        if (entity instanceof EnderDragon || entity instanceof WitherBoss) {
+            return true;
+        }
+        var direct = source.getDirectEntity();
+        if (direct instanceof net.minecraft.world.entity.projectile.Projectile p) {
+            var owner = p.getOwner();
+            if (owner instanceof EnderDragon || owner instanceof WitherBoss) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void applyMobEffect(LivingEntity entity, PhaseEffectSet.MobEffectSpec spec) {
@@ -132,7 +201,8 @@ public final class PhaseEffectApplier {
         if (living instanceof Player) {
             return;
         }
-        PhaseEffectCalculator.ComputedEffects eff = dimensionEffects;
+        ResourceLocation dim = event.getLevel().dimension().location();
+        PhaseEffectCalculator.ComputedEffects eff = dimensionEffects.get(dim);
         if (eff == null) {
             return;
         }

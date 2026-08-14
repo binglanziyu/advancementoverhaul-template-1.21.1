@@ -34,7 +34,6 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.server.ServerStartedEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
-import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,18 +79,28 @@ public class TimelineEventHandler {
         TimelineStore.getInstance().saveAll();
     }
 
-    @SubscribeEvent
-    public static void onServerTick(ServerTickEvent.Post event) {
+    /**
+     * 时间线子系统的每 tick 驱动入口。
+     *
+     * <h2>调用来源</h2>
+     * 本方法<b>不再</b>直接订阅 {@code ServerTickEvent.Post}，改由
+     * {@code ServerEventHandler.onServerTick} 统一派发。同时原先独立订阅
+     * {@code ServerTickEvent.Pre} 的睡眠追踪也合并至此
+     * （见 {@link #tickSleepTracking}），本类由 2 个 tick 订阅降为 0 个。
+     *
+     * @param server 服务端实例，调用方保证非 {@code null}
+     */
+    public static void onServerTickDispatch(MinecraftServer server) {
         boolean doSync = ++syncTickCounter >= SYNC_INTERVAL_TICKS;
-        MinecraftServer server = ServerDataStore.getInstance().getServer();
-        if (server == null) {
-            return;
-        }
         long gameTime = server.overworld().getGameTime();
         int gameDay = PlayerStats.gameDay(gameTime);
         boolean isSunrise = gameTime % 24000L >= 22800L && gameTime % 24000L <= 23200L;
         boolean isSunset = gameTime % 24000L >= 12700L && gameTime % 24000L <= 13100L;
         boolean isRaining = server.overworld().isRaining();
+
+        // 原 ServerTickEvent.Pre 的职责，合并至此统一采样。
+        tickSleepTracking(server, gameTime, gameDay, isRaining);
+
         TimelineStore timelineStore = TimelineStore.getInstance();
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             UUID uuid = player.getUUID();
@@ -292,15 +301,21 @@ public class TimelineEventHandler {
         MilestoneChecker.checkCounter(player, uuid, gameDay, gameTime, "fall_damage_events", val);
     }
 
-    @SubscribeEvent
-    public static void onServerTickPre(ServerTickEvent.Pre event) {
-        MinecraftServer server = ServerDataStore.getInstance().getServer();
-        if (server == null) {
-            return;
-        }
-        long gameTime = server.overworld().getGameTime();
-        int gameDay = PlayerStats.gameDay(gameTime);
-        boolean isRaining = server.overworld().isRaining();
+    /**
+     * 睡眠状态边沿追踪。
+     *
+     * <h2>从 Pre 迁移到 Post 的依据</h2>
+     * 本逻辑原先订阅 {@code ServerTickEvent.Pre}，但它只做「上一状态 → 当前状态」
+     * 的边沿比对，不依赖同 tick 内世界更新的先后顺序：无论在 Pre 还是 Post 采样，
+     * 只要采样点在每 tick 中固定且唯一，边沿检测结果就完全一致。
+     * 因此合并进 Post 统一派发，省去一个独立的事件总线订阅。
+     *
+     * @param server   服务端实例，调用方保证非 {@code null}
+     * @param gameTime 主世界游戏时间，由调用方取一次后复用
+     * @param gameDay  由 {@code gameTime} 换算的游戏天数
+     * @param isRaining 主世界是否降雨
+     */
+    private static void tickSleepTracking(MinecraftServer server, long gameTime, int gameDay, boolean isRaining) {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             UUID uuid = player.getUUID();
             if (player.isSleeping() && !PlayerEventTrackers.wasSleeping(uuid)) {

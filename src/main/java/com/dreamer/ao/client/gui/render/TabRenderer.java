@@ -279,7 +279,7 @@ public class TabRenderer {
         if (canEdit && screen.editMode) {
             btns.add(new TBtn(cx, by, s, "\u2605", false, LangKeys.BTN_TT_AUTOLAYOUT, C_AUTOLAYOUT)); by -= s + gap;
         }
-        if (canEdit && screen.editMode && com.dreamer.ao.compat.ftb.FtbQuestsBridge.isLoaded()) {
+        if (canEdit && screen.editMode && com.dreamer.ao.compat.ftb.FtbCompatProvider.get().isLoaded()) {
             String ftbIcon = switch (com.dreamer.ao.client.gui.AdvancementScreen.ftbNotifMode) {
                 case 1 -> "\u2205";
                 case 2 -> "\u21C4";

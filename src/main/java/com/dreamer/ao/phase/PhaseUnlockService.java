@@ -6,9 +6,10 @@ import com.dreamer.ao.data.ServerDataStore;
 import com.dreamer.ao.network.payload.PhaseSyncPayload;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.network.PacketDistributor;
+import com.dreamer.ao.network.NetworkSender;
 
 /**
  * 阶段解锁与服务协调器。
@@ -100,9 +101,17 @@ public final class PhaseUnlockService {
         // 玩家层（当前玩家阶段 + 临时阶段）
         PhaseEffectSet playerSet = currentPlayerEffects(sds, reg, player);
 
-        // 维度级怪物效果（全局+维度两层合并，供 EntitySpawn 事件）
+        // 维度级怪物效果（全局+维度两层合并，供 EntitySpawn 事件），按维度分表写入
+        // 刷新所有已配置维度的效果，避免维度间串味或残留旧值
+        for (Map.Entry<String, String> e : sds.getAllDimensionPhases().entrySet()) {
+            ResourceLocation d = ResourceLocation.parse(e.getKey());
+            PhaseEffectSet ds = reg.getById(e.getValue()).map(PhaseDefinition::getEffects).orElse(null);
+            PhaseEffectCalculator.ComputedEffects dc = PhaseEffectCalculator.compute(worldSet, ds);
+            PhaseEffectApplier.get().setDimensionEffects(d, dc);
+        }
+        // 玩家当前维度（双保险，确保即使未登记也更新）
         PhaseEffectCalculator.ComputedEffects dimComputed = PhaseEffectCalculator.compute(worldSet, dimSet);
-        PhaseEffectApplier.get().setDimensionEffects(dimComputed);
+        PhaseEffectApplier.get().setDimensionEffects(dim, dimComputed);
 
         // 玩家级（全局+维度+玩家三层合并）
         PhaseEffectCalculator.ComputedEffects playerComputed =
@@ -158,6 +167,6 @@ public final class PhaseUnlockService {
                 unlocked,
                 briefs
         );
-        PacketDistributor.sendToPlayer(player, payload);
+        NetworkSender.toPlayer(player, payload);
     }
 }
