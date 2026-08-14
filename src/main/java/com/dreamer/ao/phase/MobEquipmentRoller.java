@@ -59,15 +59,14 @@ public final class MobEquipmentRoller {
         boolean overwrite = Config.OVERWRITE_OTHERS.get();
 
         // 收集命中规则（整条 chance 通过 + 实体类型匹配）
+        ResourceLocation typeId = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
         for (PhaseEffectSet.MobEquipmentRule rule : rules) {
             if (rule.getChance() <= 0) {
                 continue;
             }
-            if (rule.getEntityFilter() != null) {
-                ResourceLocation filter = ResourceLocation.parse(rule.getEntityFilter());
-                if (!entity.getType().equals(BuiltInRegistries.ENTITY_TYPE.get(filter))) {
-                    continue;
-                }
+            // 空列表表示对所有怪物生效；否则实体类型 id 在列表中即命中
+            if (!rule.getEntities().isEmpty() && !rule.getEntities().contains(typeId.toString())) {
+                continue;
             }
             if (entity.getRandom().nextDouble() > rule.getChance()) {
                 continue;

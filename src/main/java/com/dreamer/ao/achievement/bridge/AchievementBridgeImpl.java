@@ -4,6 +4,7 @@ import com.dreamer.ao.achievement.AdvancementCrudService;
 import com.dreamer.ao.data.ConditionType;
 import com.dreamer.ao.data.ServerDataStore;
 import com.dreamer.ao.data.model.CustomAdvancement;
+import com.dreamer.ao.logic.CompletionHandler;
 import com.dreamer.ao.logic.ConditionEvaluator;
 import com.dreamer.ao.milestone.bridge.AchievementBridge;
 import net.minecraft.server.level.ServerPlayer;
@@ -65,7 +66,7 @@ public class AchievementBridgeImpl implements AchievementBridge {
             // 1) 创建（内部已触发运行时增量更新并落盘）
             sds.addAdvancement(adv);
             // 2) 完成（内部已向玩家推送同步、授予进度并触发事件）
-            ConditionEvaluator.tryCompleteForce(player, advId);
+            CompletionHandler.tryCompleteForce(player, advId);
         } catch (Exception e) {
             // 异常时回滚：删除已创建的成就，防止留下孤立空成就
             LOGGER.warn("Failed to auto-create advancement for milestone {}, rolling back: {}",

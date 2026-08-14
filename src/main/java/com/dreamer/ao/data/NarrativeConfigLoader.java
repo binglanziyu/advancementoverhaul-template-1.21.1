@@ -1,9 +1,9 @@
 package com.dreamer.ao.data;
 
+import com.dreamer.ao.data.DataStore;
 import com.dreamer.ao.data.model.EchoEntry;
 import com.dreamer.ao.data.model.MonologueCategory;
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -23,7 +23,7 @@ import org.slf4j.LoggerFactory;
 
 public final class NarrativeConfigLoader {
     private static final Logger LOGGER = LoggerFactory.getLogger(NarrativeConfigLoader.class);
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Gson GSON = DataStore.GSON_PRETTY;
     private static final NarrativeConfigLoader INSTANCE = new NarrativeConfigLoader();
     private static final String NARRATIVES_DIR = "narratives";
     private static final String MONOLOGUES_DIR = "monologues";

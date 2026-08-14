@@ -332,8 +332,12 @@ public final class LangKeys {
     public static final String STATS_CUSTOM             = "advancementoverhaul.stats.custom";
     public static final String STATS_COUNT              = "advancementoverhaul.stats.count";
 
-    // ── 阶段面板 ──
+    // ── 阶段面板（列标题按下拉选择语义） ──
     public static final String PHASE_PANEL_TITLE       = "timeline.advancementoverhaul.phase_panel_title";
+    public static final String PHASE_GLOBAL_STAGE      = "timeline.advancementoverhaul.phase_global_stage";
+    public static final String PHASE_DIM_SELECT        = "timeline.advancementoverhaul.phase_dim_select";
+    public static final String PHASE_PLAYER_SELECT     = "timeline.advancementoverhaul.phase_player_select";
+    public static final String PHASE_GLOBAL_STAGE_FIXED = "timeline.advancementoverhaul.phase_global_stage_fixed";
     public static final String PHASE_OP_TAG            = "timeline.advancementoverhaul.phase_op_tag";
     public static final String PHASE_PREVIEW           = "timeline.advancementoverhaul.phase_preview";
     public static final String PHASE_WORLD             = "timeline.advancementoverhaul.phase_world";
@@ -427,6 +431,8 @@ public final class LangKeys {
     public static final String PHASE_EFFECT_POTION      = "timeline.advancementoverhaul.phase_effect_potion";
     public static final String PHASE_EFFECT_EQUIP       = "timeline.advancementoverhaul.phase_effect_equip";
     public static final String PHASE_EFFECT_REMOVED      = "timeline.advancementoverhaul.phase_effect_removed";
+    // 预览中附魔数量短后缀（如 "+2附魔"）
+    public static final String PHASE_EQUIP_ENCHANT_SHORT = "timeline.advancementoverhaul.phase_equip_enchant_short";
     public static final String PHASE_EDIT_NOT_FOUND      = "timeline.advancementoverhaul.phase_edit_not_found";
     // 阶段属性上下限说明
     public static final String PHASE_ATTR_LIMIT_HINT     = "timeline.advancementoverhaul.phase_attr_limit_hint";
@@ -443,6 +449,15 @@ public final class LangKeys {
     public static final String PHASE_EDIT_EQUIP_ENCHANT   = "timeline.advancementoverhaul.phase_edit_equip_enchant";
     public static final String PHASE_SHOW                  = "timeline.advancementoverhaul.phase_show";
     public static final String PHASE_HIDE                  = "timeline.advancementoverhaul.phase_hide";
+    // 部位勾选按钮：[ ] 未选 / [x] 已选（点击切换，不可重复选择同一部位）
+    public static final String PHASE_SELECT_SLOT          = "timeline.advancementoverhaul.phase_select_slot";
+    // 装备下拉中的“空装备”选项（选它表示该部位不穿戴，且不出现附魔）
+    public static final String PHASE_EQUIP_EMPTY           = "timeline.advancementoverhaul.phase_equip_empty";
+    // 装备编辑子屏的取消按钮
+    public static final String PHASE_EDIT_CANCEL           = "timeline.advancementoverhaul.phase_edit_cancel";
+    // 删除阶段定义复核
+    public static final String PHASE_DELETE_CONFIRM        = "timeline.advancementoverhaul.phase_delete_confirm";
+    public static final String PHASE_DELETE_CANCEL         = "timeline.advancementoverhaul.phase_delete_cancel";
     // 装备规则独立编辑屏
     public static final String PHASE_EQUIP_SCREEN_TITLE    = "timeline.advancementoverhaul.phase_equip_screen_title";
     public static final String PHASE_EQUIP_OPEN            = "timeline.advancementoverhaul.phase_equip_open";
@@ -450,10 +465,22 @@ public final class LangKeys {
     public static final String PHASE_EQUIP_CANCEL          = "timeline.advancementoverhaul.phase_equip_cancel";
     public static final String PHASE_EQUIP_COUNT           = "timeline.advancementoverhaul.phase_equip_count";
     public static final String PHASE_EQUIP_CHANCE          = "timeline.advancementoverhaul.phase_equip_chance";
+    public static final String PHASE_EQUIP_CHANCE_TIP      = "timeline.advancementoverhaul.phase_equip_chance_tip";
     public static final String PHASE_EQUIP_REMOVE          = "timeline.advancementoverhaul.phase_equip_remove";
+    // 装备槽位中文名
+    public static final String PHASE_EQUIP_SLOT_HEAD       = "timeline.advancementoverhaul.phase_equip_slot_head";
+    public static final String PHASE_EQUIP_SLOT_CHEST      = "timeline.advancementoverhaul.phase_equip_slot_chest";
+    public static final String PHASE_EQUIP_SLOT_LEGS       = "timeline.advancementoverhaul.phase_equip_slot_legs";
+    public static final String PHASE_EQUIP_SLOT_FEET       = "timeline.advancementoverhaul.phase_equip_slot_feet";
+    public static final String PHASE_EQUIP_SLOT_MAINHAND   = "timeline.advancementoverhaul.phase_equip_slot_mainhand";
     // 越界与重复校验
     public static final String PHASE_VALUE_OUT_OF_RANGE    = "timeline.advancementoverhaul.phase_value_out_of_range";
     public static final String PHASE_TIER_DUPLICATE        = "timeline.advancementoverhaul.phase_tier_duplicate";
+    // 装备规则目标怪物（多选）
+    public static final String PHASE_EQUIP_TARGET        = "timeline.advancementoverhaul.phase_equip_target";
+    public static final String PHASE_EQUIP_TARGET_ALL    = "timeline.advancementoverhaul.phase_equip_target_all";
+    public static final String PHASE_EQUIP_TARGET_TIP    = "timeline.advancementoverhaul.phase_equip_target_tip";
+    public static final String PHASE_EQUIP_TARGET_EMPTY  = "timeline.advancementoverhaul.phase_equip_target_empty";
 
     // ── 系统消息 ──
     public static final String MSG_DATASTORE_INIT_FAILED = "advancementoverhaul.msg.datastore_init_failed";

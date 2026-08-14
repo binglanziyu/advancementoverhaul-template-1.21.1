@@ -1,8 +1,8 @@
 package com.dreamer.ao.client.gui;
 
 import com.dreamer.ao.LangKeys;
+import com.dreamer.ao.data.DataStore;
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -28,7 +28,7 @@ public final class ImageManager {
     private static final Logger LOGGER = LoggerFactory.getLogger(ImageManager.class);
     private static final String IMAGE_DIR = "images";
     private static final String SAVE_FILE = "image_elements.json";
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Gson GSON = DataStore.GSON_PRETTY;
 
     private static Path configDir;
     private static final Map<String, DynamicTexture> textureCache = new HashMap<>();

@@ -5,7 +5,9 @@ import com.dreamer.ao.client.gui.GuiUtils;
 import com.dreamer.ao.data.ClientDataStore;
 import com.dreamer.ao.data.DisplayNameResolver;
 import com.dreamer.ao.network.NetworkHandler;
+import com.dreamer.ao.network.NetworkSender;
 import com.dreamer.ao.network.payload.PhaseDefEditPayload;
+import com.dreamer.ao.network.payload.PhaseRequestPayload;
 import com.dreamer.ao.network.payload.PhaseSyncPayload;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -149,8 +151,7 @@ public class PhasePanelScreen extends Screen {
         refreshDimensionList();
         refreshPlayerList();
         refreshAllColumns();
-        net.neoforged.neoforge.network.PacketDistributor.sendToServer(
-                new com.dreamer.ao.network.payload.PhaseRequestPayload());
+        NetworkSender.toServer(new PhaseRequestPayload());
     }
 
     private void computeLayout() {
@@ -203,7 +204,7 @@ public class PhasePanelScreen extends Screen {
     private void renderPickerDropdown(GuiGraphics g, int pickerId, int mouseX, int mouseY) {
         int ci = pickerId == SCOPE_DIM ? SCOPE_DIM : SCOPE_PLAYER;
         int x = colX(ci);
-        int y = colTop + TITLE_H + 16; // picker 行下方
+        int y = colTop + TITLE_H + 14; // 标题正下方
         int rowH = 14;
 
         List<String> labels;
@@ -298,36 +299,47 @@ public class PhasePanelScreen extends Screen {
         int x = colX(ci);
         Column col = getColumn(ci);
 
-        // ── 列标题（模块内居中，可点击切换） ──
-        boolean active = openTitleDropdown == ci;
+        // ── 列标题（可点击） ──
+        // 全局列无下拉；维度/玩家列点击标题展开对应选择下拉
         boolean hov = inRect(mouseX, mouseY, x, colTop, colW, TITLE_H);
+        boolean pickerOpen = (ci == SCOPE_DIM && openPicker == SCOPE_DIM)
+                || (ci == SCOPE_PLAYER && openPicker == SCOPE_PLAYER);
         g.fill(x, colTop, x + colW, colTop + TITLE_H,
-                active ? BG_COL_TITLE_A : (hov && editMode ? 0x55FFFFFF : BG_COL_TITLE));
+                hov ? 0x55FFFFFF : (pickerOpen ? BG_COL_TITLE_A : BG_COL_TITLE));
         Component t = Component.translatable(col.title);
-        String suffix = editMode ? " \u25BE" : "";
+        String suffix = (ci != SCOPE_GLOBAL) ? " \u25BE" : "";
         int tw = font.width(t) + font.width(suffix);
         g.drawString(font, Component.literal(t.getString() + suffix),
                 x + (colW - tw) / 2, colTop + 4, TEXT_PRIMARY, false);
-        if (editMode) {
+        if (ci == SCOPE_DIM) {
             final int idx = ci;
-            // 维度/玩家列标题点击 = 切换维度/玩家（不再展开阶段下拉）
-            if (ci == SCOPE_DIM) {
-                hotspots.add(new Hotspot(x, colTop, colW, TITLE_H, () -> cycleDimension()));
-            } else if (ci == SCOPE_PLAYER) {
-                hotspots.add(new Hotspot(x, colTop, colW, TITLE_H, () -> cyclePlayer()));
-            }
-            // 全局列标题不再承担切换，阶段切换移至"当前阶段"行内
+            hotspots.add(new Hotspot(x, colTop, colW, TITLE_H, () -> {
+                openPicker = (openPicker == SCOPE_DIM) ? 0 : SCOPE_DIM;
+                pickerScroll = 0;
+            }));
+        } else if (ci == SCOPE_PLAYER) {
+            final int idx = ci;
+            hotspots.add(new Hotspot(x, colTop, colW, TITLE_H, () -> {
+                openPicker = (openPicker == SCOPE_PLAYER) ? 0 : SCOPE_PLAYER;
+                pickerScroll = 0;
+            }));
         }
 
         int cy = colTop + TITLE_H + 3;
 
-        // ── 维度 / 玩家 选择器（点击展开下拉列表） ──
+        // ── 标题下方只读上下文（非交互、非按钮）：当前选中维度/玩家，全局显示固定说明 ──
         if (ci == SCOPE_DIM) {
-            cy = renderPicker(g, x, cy, mouseX, mouseY,
-                    DisplayNameResolver.friendlyDimension(selectedDimKey), SCOPE_DIM);
+            g.drawString(font, Component.literal(trunc(DisplayNameResolver.friendlyDimension(selectedDimKey), colW - 8)),
+                    x + 4, cy, TEXT_SECONDARY, false);
+            cy += 13;
         } else if (ci == SCOPE_PLAYER) {
-            cy = renderPicker(g, x, cy, mouseX, mouseY,
-                    getPlayerDisplayName(selectedPlayer), SCOPE_PLAYER);
+            g.drawString(font, Component.literal(trunc(getPlayerDisplayName(selectedPlayer), colW - 8)),
+                    x + 4, cy, TEXT_SECONDARY, false);
+            cy += 13;
+        } else {
+            g.drawString(font, Component.literal(Component.translatable(LangKeys.PHASE_GLOBAL_STAGE_FIXED).getString()),
+                    x + 4, cy, TEXT_DIM, false);
+            cy += 13;
         }
 
         // ── 当前阶段名（点击展开阶段切换下拉） ──
@@ -450,14 +462,24 @@ public class PhasePanelScreen extends Screen {
             hotspots.add(new Hotspot(x + 2, ry, 12, rowH,
                     () -> confirmForceSwitch(ci, id, name)));
 
-            // 名称：切换预览
-            boolean nh = inRect(mouseX, mouseY, x + 15, ry, colW - 17, rowH);
-            if (nh) g.fill(x + 15, ry, x + colW - 2, ry + rowH, 0x30FFFFFF);
-            g.drawString(font, Component.literal(trunc(name, colW - 22)), x + 18, ry + 3,
+            // 名称：切换预览（右侧预留齿轮位）
+            boolean nh = inRect(mouseX, mouseY, x + 15, ry, colW - 31, rowH);
+            if (nh) g.fill(x + 15, ry, x + colW - 16, ry + rowH, 0x30FFFFFF);
+            g.drawString(font, Component.literal(trunc(name, colW - 38)), x + 18, ry + 3,
                     nh ? TEXT_PRIMARY : TEXT_SECONDARY, false);
-            hotspots.add(new Hotspot(x + 15, ry, colW - 17, rowH, () -> {
+            hotspots.add(new Hotspot(x + 15, ry, colW - 31, rowH, () -> {
                 previewPhase(ci, id);
                 openTitleDropdown = -1;
+            }));
+
+            // 右侧齿轮：编辑该阶段定义
+            boolean gh = inRect(mouseX, mouseY, x + colW - 15, ry, 13, rowH);
+            if (gh) g.fill(x + colW - 15, ry, x + colW - 2, ry + rowH, 0xFF2E5C8A);
+            g.drawString(font, Component.literal("\u2699"), x + colW - 13, ry + 3,
+                    gh ? TEXT_PRIMARY : TEXT_DIM, false);
+            final int ciFinal = ci;
+            hotspots.add(new Hotspot(x + colW - 15, ry, 13, rowH, () -> {
+                openPhaseEditor(ciFinal, id);
             }));
         }
     }
@@ -699,19 +721,19 @@ public class PhasePanelScreen extends Screen {
     }
 
     private void refreshWorldColumn() {
-        colWorld.title = LangKeys.PHASE_WORLD;
+        colWorld.title = LangKeys.PHASE_GLOBAL_STAGE;
         String id = ClientDataStore.getInstance().getPhaseWorldPhase();
         applyDef(colWorld, id);
     }
 
     private void refreshDimColumn() {
-        colDim.title = LangKeys.PHASE_DIMENSION;
+        colDim.title = LangKeys.PHASE_DIM_SELECT;
         String id = ClientDataStore.getInstance().getPhaseDimensionPhases().get(selectedDimKey);
         applyDef(colDim, id);
     }
 
     private void refreshPlayerColumn() {
-        colPlayer.title = LangKeys.PHASE_PLAYER;
+        colPlayer.title = LangKeys.PHASE_PLAYER_SELECT;
         var cds = ClientDataStore.getInstance();
         String id = cds.getPhaseTempPhase() != null ? cds.getPhaseTempPhase() : cds.getPhasePlayerPhase();
         applyDef(colPlayer, id);

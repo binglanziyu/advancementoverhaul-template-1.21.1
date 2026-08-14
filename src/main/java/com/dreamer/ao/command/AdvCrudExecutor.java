@@ -10,6 +10,7 @@ import com.dreamer.ao.data.model.AdvancementCondition;
 import com.dreamer.ao.data.model.CustomAdvancement;
 import com.dreamer.ao.data.model.VanillaAdvMeta;
 import com.dreamer.ao.data.ServerDataStore;
+import com.dreamer.ao.logic.CompletionHandler;
 import com.dreamer.ao.logic.ConditionEvaluator;
 import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
@@ -269,7 +270,7 @@ final class AdvCrudExecutor {
         if (ctx.getSource().getServer() != null) {
             for (ServerPlayer player :
                     ctx.getSource().getServer().getPlayerList().getPlayers()) {
-                ConditionEvaluator.releasePendingDependents(player);
+                CompletionHandler.releasePendingDependents(player);
             }
         }
         CommandHelper.syncAll(ctx);

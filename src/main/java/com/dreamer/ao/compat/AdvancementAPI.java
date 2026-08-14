@@ -6,6 +6,7 @@ import com.dreamer.ao.data.ServerDataStore;
 import com.dreamer.ao.data.model.AdvancementCondition;
 import com.dreamer.ao.data.model.CustomAdvancement;
 import com.dreamer.ao.achievement.event.AdvResetEvent;
+import com.dreamer.ao.logic.CompletionHandler;
 import com.dreamer.ao.logic.ConditionEvaluator;
 import com.dreamer.ao.network.NetworkSender;
 import com.dreamer.ao.network.SyncManager;
@@ -127,7 +128,7 @@ public final class AdvancementAPI {
     public static void complete(ServerPlayer player, String advId) {
         ServerDataStore store = ServerDataStore.getInstance();
         if (store.getAdvancement(advId) == null || store.isCompleted(player.getUUID(), advId)) return;
-        ConditionEvaluator.tryCompleteForce(player, advId);
+        CompletionHandler.tryCompleteForce(player, advId);
     }
 
     /**

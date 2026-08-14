@@ -1,10 +1,10 @@
 package com.dreamer.ao.milestone.store;
 
+import com.dreamer.ao.data.DataStore;
 import com.dreamer.ao.milestone.model.MilestoneDefinition;
 import com.dreamer.ao.milestone.model.TimeMilestone;
 import com.dreamer.ao.milestone.model.TimelineCategory;
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -27,7 +27,7 @@ import org.slf4j.LoggerFactory;
 
 public class TimelineDefinitionLoader {
     private static final Logger LOGGER = LoggerFactory.getLogger(TimelineDefinitionLoader.class);
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Gson GSON = DataStore.GSON_PRETTY;
     private static final TimelineDefinitionLoader INSTANCE = new TimelineDefinitionLoader();
     private final Map<String, MilestoneDefinition> milestonesById = new LinkedHashMap<>();
     private final List<MilestoneDefinition> milestonesOrdered = new ArrayList<>();

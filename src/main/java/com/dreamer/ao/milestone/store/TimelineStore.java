@@ -5,7 +5,6 @@ import com.dreamer.ao.data.PlayerStats;
 import com.dreamer.ao.milestone.model.MilestoneDefinition;
 import com.dreamer.ao.milestone.model.TimeMilestone;
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -25,7 +24,7 @@ import org.slf4j.LoggerFactory;
 
 public class TimelineStore {
     private static final Logger LOGGER = LoggerFactory.getLogger(TimelineStore.class);
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Gson GSON = DataStore.GSON_PRETTY;
     private static final TimelineStore INSTANCE = new TimelineStore();
     private final Map<UUID, Map<String, Integer>> playerMilestones = new ConcurrentHashMap<>();
     private final Map<UUID, Map<String, Long>> playerMilestoneTicks = new ConcurrentHashMap<>();

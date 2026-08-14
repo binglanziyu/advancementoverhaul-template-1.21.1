@@ -5,12 +5,11 @@ import com.dreamer.ao.ServerConstants;
 import com.dreamer.ao.compat.AdvancementRegistry;
 import com.dreamer.ao.data.ConditionIndex.AdvIdCondIndex;
 import com.dreamer.ao.data.DataStore;
+import com.dreamer.ao.data.ServerDataStore;
 import com.dreamer.ao.data.model.AdvancementCondition;
 import com.dreamer.ao.data.ConditionType;
 import com.dreamer.ao.data.model.CustomAdvancement;
 import com.dreamer.ao.data.NbtMatchMode;
-import com.dreamer.ao.data.ServerDataStore;
-import com.dreamer.ao.achievement.event.AdvCompletedEvent;
 import com.dreamer.ao.achievement.event.AdvProgressEvent;
 import com.dreamer.ao.network.payload.ProgressSyncPayload;
 import net.minecraft.core.HolderLookup;
@@ -33,10 +32,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 /**
  * 进度条件评估引擎。
- *
- * <h2>核心职责</h2>
- * 将游戏事件（击杀实体、合成物品等）与自定义进度条件进行匹配，
- * 管理逐条件进度追踪，并在所有条件满足时触发进度完成。
+ * <p>
+ * <b>核心职责（单一）：</b>将游戏事件（击杀实体、合成物品等）与自定义进度条件进行匹配，
+ * 管理逐条件进度追踪，并在所有条件满足时委托 {@link CompletionHandler} 触发完成。
+ * 本类不再持有「完成 / 级联释放」逻辑，亦不再持有「Tick 级去重表」
+ * （已下沉至 {@link DedupGuard}），从而消除静态可变状态反模式。
  *
  * <h2>评估模式</h2>
  * <ul>
@@ -50,60 +50,32 @@ import java.util.concurrent.ConcurrentHashMap;
  * 一个进度可以配置多个条件，所有条件必须独立满足才算完成。
  * 每个条件的进度通过 {@link ServerDataStore#setConditionProgress} 独立追踪。
  *
- * <h2>前置条件与级联</h2>
- * 当一个进度的所有条件满足时，检查其前置条件：
- * <ul>
- *   <li>前置条件满足 → 直接完成 → 级联释放依赖此进度的 pending 进度</li>
- *   <li>前置条件不满足 → 标记为 pending，等待前置完成后再释放</li>
- * </ul>
- * 级联使用迭代方式（非递归），防止超长前置链导致栈溢出。
- * <p>
- * <b>级联边界保障：</b>每次完成（{@link #doComplete} 结束后）都会调用
- * {@link #releasePendingDependents}，因此无论触发来源（本类的 evaluate/tryComplete、
- * 外部 AdvCrudExecutor、FtbQuestListener），级联释放始终生效。
+ * <h2>完成与级联</h2>
+ * 当某进度所有条件满足时，本类调用 {@link CompletionHandler#tryComplete}；
+ * 完成判定、奖励授予与级联释放均由 {@link CompletionHandler} 负责。
  */
 public final class ConditionEvaluator {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /**
-     * 级联深度上限。详见 {@link ServerConstants#MAX_CASCADE_DEPTH}。
-     */
-    private static final int MAX_CASCADE_DEPTH = ServerConstants.MAX_CASCADE_DEPTH;
+    /** Tick 级去重守卫（独立单例状态对象）。 */
+    private static final DedupGuard DEDUP_GUARD = DedupGuard.getInstance();
 
-    /**
-     * 去重表键：玩家 + 进度 + 条件索引的不可变组合。
-     * <p>
-     * 相较此前的 {@code uuid + ":" + advId + ":" + condIndex} 字符串拼接，
-     * record 避免了每次条件匹配都产生 StringBuilder 与 String 两个对象；
-     * 同时相较将三者哈希折叠为单个 long，record 保留完整字段做 equals 比较，
-     * 不存在哈希碰撞导致合法评估被静默跳过的正确性风险。
-     */
-    private record DedupKey(UUID uuid, String advId, int condIndex) {}
-
-    /** Tick 级重入保护：防止同一 tick 内 Mixin + Event 双重触发导致重复评估。
-     *  使用 ConcurrentHashMap 做 per-key 自包含 tick 比较，消除 clear() 与 put() 之间的竞态窗口。
-     *  Value 为上次评估时的 tick 值，由 {@link #pruneEvaluatedKeys(long)} 周期驱逐。 */
-    private static final ConcurrentHashMap<DedupKey, Long> evaluatedKeys = new ConcurrentHashMap<>();
+    /** 已警告过空条件列表的成就 ID（每个 ID 仅警告一次，避免日志刷屏）。属评估查询的状态。 */
+    private static final Set<String> warnedEmptyAdvs = ConcurrentHashMap.newKeySet();
 
     private ConditionEvaluator() {}
 
     /**
      * 驱逐超出保留窗口的去重条目，由服务端 tick 周期调用。
      * <p>
-     * 去重语义只需覆盖「同一 tick」，因此任何早于
-     * {@code currentTick - DEDUP_RETENTION_TICKS} 的条目都已无用。
-     * 若无此清理，键空间会随「玩家 × 进度 × 条件」持续增长而无界泄漏。
+     * 委托给 {@link DedupGuard#prune}，保留本静态门面以兼容既有调用方
+     * （{@code ServerEventHandler}），避免无关调用点改动。
      *
      * @param currentTick 当前服务端 tick
      */
     public static void pruneEvaluatedKeys(long currentTick) {
-        if (evaluatedKeys.isEmpty()) return;
-        long cutoff = currentTick - ServerConstants.DEDUP_RETENTION_TICKS;
-        // 服务器刚启动（tick < 保留窗口）时 cutoff 为负，此时无条目可能过期，跳过以免误删当前 tick 的守卫
-        if (cutoff <= 0) return;
-        // 同时剔除「记录 tick 晚于当前 tick」的条目：存档回退或 tick 计数重置会产生此类陈旧项
-        evaluatedKeys.entrySet().removeIf(e -> e.getValue() < cutoff || e.getValue() > currentTick);
+        DEDUP_GUARD.prune(currentTick);
     }
 
     // ═══════════════ 公共评估入口 ═══════════════
@@ -182,8 +154,6 @@ public final class ConditionEvaluator {
      * 将「事件目标 / 物品堆」与条件本身的匹配判定收敛为单一策略点，
      * 消除 {@code evaluate} 与 {@code evaluateWithIndex} 中重复的
      * {@code if (stack != null) ... else ...} 分支。
-     * 新增条件类型时，若匹配语义超出「普通目标相等」与「物品堆组件匹配」，
-     * 只需在此扩展一个匹配策略，而非改动两个评估路径。
      */
     @FunctionalInterface
     private interface ConditionMatcher {
@@ -273,16 +243,9 @@ public final class ConditionEvaluator {
     private static void processMatchedCondition(ServerPlayer player, ServerDataStore store, UUID uuid,
             String advId, CustomAdvancement adv, AdvancementCondition cond, int condIndex,
             int amount, ProgressUpdater updater) {
-        // Tick 级重入保护：同一 tick 内同一玩家的同一成就条件不重复评估
-        var server = store.getServer();
-        if (server != null) {
-            long currentTick = server.getTickCount();
-            DedupKey dedupKey = new DedupKey(uuid, advId, condIndex);
-            Long lastTick = evaluatedKeys.put(dedupKey, currentTick);
-            if (lastTick != null && lastTick == currentTick) {
-                LOGGER.debug("Skipping duplicate evaluation: {} @ tick {}", dedupKey, currentTick);
-                return;
-            }
+        // Tick 级重入保护：同一 tick 内同一玩家的同一成就条件不重复评估（委托 DedupGuard）
+        if (DEDUP_GUARD.shouldSkip(store.getServer(), uuid, advId, condIndex)) {
+            return;
         }
 
         int current = store.getConditionProgress(uuid, advId, condIndex);
@@ -292,7 +255,7 @@ public final class ConditionEvaluator {
         NeoForge.EVENT_BUS.post(new AdvProgressEvent(player, advId, newProgress, cond.getCount()));
 
         if (allConditionsMet(uuid, advId, adv)) {
-            tryComplete(player, advId);
+            CompletionHandler.tryComplete(player, advId);
         }
     }
 
@@ -309,116 +272,6 @@ public final class ConditionEvaluator {
         return store.getAdvIdsByConditionType(type);
     }
 
-    // ═══════════════ 完成逻辑 ═══════════════
-
-    /** 强制完成：跳过前置条件检查。 */
-    public static void tryCompleteForce(ServerPlayer player, String advId) {
-        doComplete(player, advId);
-        releasePendingDependents(player);
-    }
-
-    /** 带前置条件检查的完成。 */
-    public static void tryComplete(ServerPlayer player, String advId) {
-        ServerDataStore store = ServerDataStore.getInstance();
-        UUID uuid = player.getUUID();
-        if (store.isCompleted(uuid, advId)) return;
-
-        CustomAdvancement adv = store.getAdvancement(advId);
-        if (adv != null && !adv.getPrerequisites().isEmpty()) {
-            boolean allPrereqsMet = true;
-            for (String prereqId : adv.getPrerequisites()) {
-                if (!store.isCompleted(uuid, prereqId)) {
-                    allPrereqsMet = false;
-                    break;
-                }
-            }
-            if (!allPrereqsMet) {
-                store.setPending(uuid, advId, true);
-                store.savePlayerDataIfDirty();
-                int progress = store.getProgress(uuid, advId);
-                NetworkSender.toPlayer(player,
-                        new ProgressSyncPayload(advId, false, progress, true));
-                return;
-            }
-        }
-
-        doComplete(player, advId);
-        releasePendingDependents(player);
-    }
-
-    private static void doComplete(ServerPlayer player, String advId) {
-        ServerDataStore store = ServerDataStore.getInstance();
-        UUID uuid = player.getUUID();
-        if (store.isCompleted(uuid, advId)) return;
-
-        store.setCompleted(uuid, advId, true);
-        store.setPending(uuid, advId, false);
-        store.savePlayerDataIfDirty();
-
-        int progress = store.getProgress(uuid, advId);
-        NetworkSender.toPlayer(player,
-                new ProgressSyncPayload(advId, true, progress));
-
-        AdvancementRegistry.grantAdvancement(player, advId);
-
-        CustomAdvancement adv = store.getAdvancement(advId);
-        String advName = adv != null ? adv.getName() : advId;
-        NeoForge.EVENT_BUS.post(new AdvCompletedEvent(player, advId, advName));
-    }
-
-    // ═══════════════ 级联释放 ═══════════════
-
-    /**
-     * 释放所有前置条件已满足的 pending 进度。使用迭代方式，深度上限 64。
-     * <p>
-     * <b>级联边界保障：</b>tryComplete 和 tryCompleteForce 在 doComplete 之后均调用本方法。
-     * 此外 ExpCompletionListener、AdvCrudExecutor、FtbQuestListener 等外部完成入口
-     * 也通过 tryComplete → 本方法实现级联。因此无论触发来源为何，
-     * 级联释放始终生效（包括用户提出的 D 完成 → B 释放场景）。
-     */
-    public static void releasePendingDependents(ServerPlayer player) {
-        UUID uuid = player.getUUID();
-
-        for (int depth = 0; depth < MAX_CASCADE_DEPTH; depth++) {
-            ServerDataStore store = ServerDataStore.getInstance();
-            List<String> pendingCopy = new ArrayList<>(store.getPendingAdvancements(uuid));
-            boolean anyCompleted = false;
-
-            for (String pendingId : pendingCopy) {
-                if (store.isCompleted(uuid, pendingId)) continue;
-
-                CustomAdvancement adv = store.getAdvancement(pendingId);
-                if (adv == null) continue;
-
-                boolean allMet = true;
-                List<String> prereqs = adv.getPrerequisites();
-                if (!prereqs.isEmpty()) {
-                    for (String prereqId : prereqs) {
-                        if (!store.isCompleted(uuid, prereqId)) {
-                            allMet = false;
-                            break;
-                        }
-                    }
-                }
-                if (allMet) {
-                    doComplete(player, pendingId);
-                    anyCompleted = true;
-                }
-            }
-
-            if (!anyCompleted) break;
-
-            if (depth == MAX_CASCADE_DEPTH - 1) {
-                int remaining = store.getPendingAdvancements(uuid).size();
-                LOGGER.warn("Cascade depth limit ({}) reached, {} pending advancements remain",
-                        MAX_CASCADE_DEPTH, remaining);
-                player.sendSystemMessage(
-                        Component.translatable(LangKeys.CMD_CASCADE_DEPTH_EXCEEDED,
-                                MAX_CASCADE_DEPTH, remaining));
-            }
-        }
-    }
-
     // ═══════════════ AND 逻辑 ═══════════════
 
     /**
@@ -431,9 +284,6 @@ public final class ConditionEvaluator {
         if (adv == null) return false;
         return allConditionsMet(uuid, advId, adv);
     }
-
-    /** 已警告过空条件列表的成就 ID（每个 ID 仅警告一次，避免日志刷屏） */
-    private static final Set<String> warnedEmptyAdvs = ConcurrentHashMap.newKeySet();
 
     private static boolean allConditionsMet(UUID uuid, String advId, CustomAdvancement adv) {
         ServerDataStore store = ServerDataStore.getInstance();

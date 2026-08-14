@@ -13,6 +13,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,11 +22,15 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.item.enchantment.Enchantment;
+import com.dreamer.ao.client.gui.cache.RegistryCache;
 import net.minecraft.core.registries.Registries;
 import org.jetbrains.annotations.NotNull;
 import org.lwjgl.glfw.GLFW;
@@ -82,16 +87,8 @@ public final class PhaseEditScreen extends Screen {
             MOB_EFFECT_OPTIONS.add(BuiltInRegistries.MOB_EFFECT.getKey(e).toString());
         }
         MOB_EFFECT_OPTIONS.sort(String::compareToIgnoreCase);
-        // 运行时扫描注册表：仅保留能穿装备的实体（Mob 子类，排除玩家）
-        ENTITY_OPTIONS.add("minecraft:all");
-        for (EntityType<?> t : BuiltInRegistries.ENTITY_TYPE) {
-            Class<?> base = t.getBaseClass();
-            if (net.minecraft.world.entity.Mob.class.isAssignableFrom(base)
-                    && base != net.minecraft.world.entity.player.Player.class) {
-                ENTITY_OPTIONS.add(BuiltInRegistries.ENTITY_TYPE.getKey(t).toString());
-            }
-        }
-        ENTITY_OPTIONS.sort(String::compareToIgnoreCase);
+        // 实体可选列表改为懒加载（entityOptions()），复用成就编辑模块的 RegistryCache，
+        // 并二次筛选为“敌对生物(Monster 子类) 且 可穿戴装备(Mob 子类)”
         for (String it : new String[]{"minecraft:diamond_helmet", "minecraft:diamond_chestplate",
                 "minecraft:diamond_leggings", "minecraft:diamond_boots", "minecraft:netherite_helmet",
                 "minecraft:netherite_chestplate", "minecraft:netherite_leggings", "minecraft:netherite_boots",
@@ -133,8 +130,31 @@ public final class PhaseEditScreen extends Screen {
 
     // ── 供 PhaseEquipRuleScreen 复用的访问器 ──
 
-    /** 实体可选列表 */
+    /**
+     * 实体可选列表（懒加载）。
+     * 复用成就编辑模块的 {@link RegistryCache} 做完整注册表枚举（支持 mod），
+     * 再二次筛选为：仅敌对生物（Monster 子类）且可穿戴装备（Mob 子类）的实体。
+     */
     static List<String> entityOptions() {
+        if (!ENTITY_OPTIONS.isEmpty()) return ENTITY_OPTIONS;
+        synchronized (ENTITY_OPTIONS) {
+            if (!ENTITY_OPTIONS.isEmpty()) return ENTITY_OPTIONS;
+            RegistryCache.init(); // 确保成就编辑模块的实体缓存已构建
+            for (var entry : RegistryCache.getEntities()) {
+                ResourceLocation rl = ResourceLocation.tryParse(entry.id());
+                if (rl == null) continue;
+                EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(rl);
+                if (type == null) continue;
+                // 敌对生物判定：用 MobCategory.MONSTER（原版与 mod 敌对生物的权威分类）。
+                // 注意：1.21.x 的 EntityType 已改用 EntityFactory 而非存储实体 Class，
+                // 故 getBaseClass() 不再返回具体生物类，旧式 Monster/Mob 继承判断会全部失败。
+                // MONSTER 类别实体均为 Mob 子类、可穿戴装备，语义等价于“敌对且可穿戴”。
+                if (type.getCategory() == MobCategory.MONSTER) {
+                    ENTITY_OPTIONS.add(entry.id());
+                }
+            }
+            ENTITY_OPTIONS.sort(String::compareToIgnoreCase);
+        }
         return ENTITY_OPTIONS;
     }
 
@@ -146,6 +166,18 @@ public final class PhaseEditScreen extends Screen {
     /** 装备部位列表 */
     static List<String> equipSlots() {
         return EQUIP_SLOTS;
+    }
+
+    /** 装备部位的中文显示名（消除未汉化内容） */
+    static String slotDisplay(String key) {
+        return switch (key) {
+            case "head"     -> Component.translatable(LangKeys.PHASE_EQUIP_SLOT_HEAD).getString();
+            case "chest"    -> Component.translatable(LangKeys.PHASE_EQUIP_SLOT_CHEST).getString();
+            case "legs"     -> Component.translatable(LangKeys.PHASE_EQUIP_SLOT_LEGS).getString();
+            case "feet"     -> Component.translatable(LangKeys.PHASE_EQUIP_SLOT_FEET).getString();
+            case "mainhand" -> Component.translatable(LangKeys.PHASE_EQUIP_SLOT_MAINHAND).getString();
+            default         -> key;
+        };
     }
 
     /** 附魔可选列表（懒加载后可用） */
@@ -168,10 +200,53 @@ public final class PhaseEditScreen extends Screen {
         return shortId(id);
     }
 
+    /** 装备物品显示名：走注册表 description（自动读取原版与 mod 的语言文件），空串返回“空装备” */
+    static String itemDisplay(String id) {
+        if (id == null || id.isEmpty()) {
+            return Component.translatable(LangKeys.PHASE_EQUIP_EMPTY).getString();
+        }
+        try {
+            ResourceLocation rl = ResourceLocation.tryParse(id);
+            if (rl != null) {
+                Item item = BuiltInRegistries.ITEM.get(rl);
+                if (item != null && item != Items.AIR) {
+                    return item.getDescription().getString();
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return shortId(id);
+    }
+
     /** 概率文本是否合法（可解析且落在 [0,1]） */
     static boolean isChanceValid(String s) {
         Double d = parseDoubleOrNull(s);
         return d != null && d >= 0.0 && d <= 1.0;
+    }
+
+    /**
+     * 概率框输入实时清洗：限制最多 4 位小数，并将越界值按比例钳制到 [0,1]
+     * （>1 视为 1.0，<0 视为 0，超过 4 位小数四舍五入保留 4 位）。
+     * 返回规范化后的文本；若输入非法或无需变更返回 null。
+     */
+    static String sanitizeChance(String raw) {
+        if (raw == null) return null;
+        String s = raw.trim();
+        if (s.isEmpty()) return null;
+        // 仅允许数字、小数点与一个前置负号
+        if (!s.matches("-?\\d*(\\.\\d*)?")) return null;
+        try {
+            double d = Double.parseDouble(s);
+            if (d > 1.0) d = 1.0;
+            if (d < 0.0) d = 0.0;
+            // 四舍五入到 4 位小数并去掉尾随零
+            double r = Math.round(d * 10000.0) / 10000.0;
+            String fixed = String.format(Locale.US, "%.4f", r)
+                    .replaceAll("0*$", "").replaceAll("\\.$", "");
+            return fixed;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     /**
@@ -222,6 +297,45 @@ public final class PhaseEditScreen extends Screen {
         recomputePreview();
     }
 
+    /** 装备编辑子屏“应用”时写回：用子屏深拷贝的规则替换当前列表 */
+    void commitEquipRules(List<EquipRule> src) {
+        // 部位级概率归一化：同一部位内多条概率之和超过 100% 时等比压缩到 100%（不跨部位）
+        normalizeSlotChances(src);
+        this.equipRules.clear();
+        for (EquipRule r : src) this.equipRules.add(r);
+        recomputePreview();
+    }
+
+    /**
+     * 对同一部位内的多条装备条目做概率归一化：
+     * 若该部位所有条目概率之和 > 1.0，则按 1/sum 等比压缩每条，使总和 = 1.0。
+     * 仅作用于单部位，绝不跨部位。压缩结果写回各条目概率框（最多 4 位小数）。
+     */
+    private static void normalizeSlotChances(List<EquipRule> rules) {
+        for (EquipRule r : rules) {
+            for (List<EquipEntry> entries : r.slots.values()) {
+                double sum = 0.0;
+                for (EquipEntry e : entries) {
+                    Double ch = parseDoubleOrNull(e.chanceBox.getValue());
+                    if (ch != null && ch > 0) sum += ch;
+                }
+                if (sum > 1.0 + 1e-9) {
+                    double factor = 1.0 / sum;
+                    for (EquipEntry e : entries) {
+                        Double ch = parseDoubleOrNull(e.chanceBox.getValue());
+                        if (ch != null && ch > 0) {
+                            double scaled = ch * factor;
+                            // 最多 4 位小数并去尾随零
+                            String fixed = String.format(Locale.US, "%.4f", scaled)
+                                    .replaceAll("0*$", "").replaceAll("\\.$", "");
+                            e.chanceBox.setValue(fixed);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private static String milestoneName(String id) {
         try {
             var def = TimelineDefinitionLoader.getInstance().getMilestone(id);
@@ -268,6 +382,8 @@ public final class PhaseEditScreen extends Screen {
     private final Screen parent;
     private final String editingId; // null = 新建
     private final String editingScope; // world / dimension / player（不可选，由打开来源决定）
+    /** 删除阶段定义时的二次复核态 */
+    private boolean confirmDelete = false;
 
     private EditBox nameBox, dimensionBox, unlockBox;
     private String unlockBoxValue = "";
@@ -401,7 +517,7 @@ public final class PhaseEditScreen extends Screen {
                             String.valueOf(spec.level()), String.valueOf(spec.seconds())));
                 }
                 for (PhaseEffectSet.MobEquipmentRule rule : set.getEquipmentRules()) {
-                    EquipRule er = new EquipRule(rule.getEntityFilter() == null ? "" : rule.getEntityFilter());
+                    EquipRule er = new EquipRule(rule.getEntities());
                     for (Map.Entry<String, List<PhaseEffectSet.EquipmentEntry>> s : rule.getSlots().entrySet()) {
                         List<EquipEntry> list = er.slots.computeIfAbsent(s.getKey(), k -> new ArrayList<>());
                         for (PhaseEffectSet.EquipmentEntry e : s.getValue()) {
@@ -409,6 +525,10 @@ public final class PhaseEditScreen extends Screen {
                             ee.enchants.putAll(e.getEnchants());
                             list.add(ee);
                         }
+                    }
+                    // 补齐缺失的 5 个部位，保持与 EQUIP_SLOTS 一致的键顺序，避免列错位
+                    for (String slot : EQUIP_SLOTS) {
+                        er.slots.putIfAbsent(slot, new ArrayList<>());
                     }
                     equipRules.add(er);
                 }
@@ -714,12 +834,6 @@ public final class PhaseEditScreen extends Screen {
     private String currentOf(DropdownState s) {
         if (s.row() instanceof AttrRow r) return r.key;
         if (s.row() instanceof MobEffectRow m) return m.selected;
-        if (s.row() instanceof EquipRule e) {
-            return switch (s.field()) {
-                case "entity" -> e.entity;
-                default -> "";
-            };
-        }
         if (s.row() instanceof EquipEntry e) {
             return switch (s.field()) {
                 case "item" -> e.itemId;
@@ -736,8 +850,6 @@ public final class PhaseEditScreen extends Screen {
             r.key = opt;
         } else if (s.row() instanceof MobEffectRow m) {
             m.selected = opt;
-        } else if (s.row() instanceof EquipRule e) {
-            if ("entity".equals(s.field())) e.entity = opt;
         } else if (s.row() instanceof EquipEntry e) {
             if ("item".equals(s.field())) e.itemId = opt;
         } else if (s.row() == MILESTONE_SENTINEL) {
@@ -749,9 +861,6 @@ public final class PhaseEditScreen extends Screen {
     /** 依据行类型 + 字段返回可选列表 */
     private List<String> optionsFor(DropdownState s) {
         if (s.row() instanceof MobEffectRow) return MOB_EFFECT_OPTIONS;
-        if (s.row() instanceof EquipRule) {
-            return "entity".equals(s.field()) ? ENTITY_OPTIONS : new ArrayList<>();
-        }
         if (s.row() instanceof EquipEntry) {
             return "item".equals(s.field()) ? ITEM_OPTIONS : new ArrayList<>();
         }
@@ -766,9 +875,6 @@ public final class PhaseEditScreen extends Screen {
     /** 依据行类型 + 字段返回可选项的显示名 */
     private static java.util.function.Function<String, String> displayFor(DropdownState s) {
         if (s.row() instanceof MobEffectRow) return PhaseEditScreen::mobEffectName;
-        if (s.row() instanceof EquipRule) {
-            return "entity".equals(s.field()) ? PhaseEditScreen::entityName : (k) -> k;
-        }
         if (s.row() instanceof EquipEntry) {
             return "item".equals(s.field()) ? PhaseEditScreen::shortId : (k) -> k;
         }
@@ -845,12 +951,22 @@ public final class PhaseEditScreen extends Screen {
 
     private void renderFooter(GuiGraphics g, int mx, int my) {
         int by = panelY + panelH - 22;
+        if (confirmDelete && editingId != null) {
+            // 复核态：提示 + 确认删除 / 取消删除
+            int lw = panelW - 24;
+            g.drawString(font, Component.translatable(LangKeys.PHASE_EDIT_CONFIRM_DELETE),
+                    panelX + 12, by - 14, 0xFFE0A0A0, false);
+            int bw = Math.min(90, (lw - 12) / 2);
+            button(g, panelX + 12, by, bw, LangKeys.PHASE_DELETE_CONFIRM, mx, my, false, this::onDelete);
+            button(g, panelX + 12 + bw + 12, by, bw, LangKeys.PHASE_DELETE_CANCEL, mx, my, false, () -> confirmDelete = false);
+            return;
+        }
         int bw = Math.min(80, (panelW - 40) / 3);
         int x = panelX + 12;
         button(g, x, by, bw, LangKeys.PHASE_EDIT_SAVE, mx, my, true, this::onSave);
         x += bw + 6;
         if (editingId != null) {
-            button(g, x, by, bw, LangKeys.PHASE_EDIT_DELETE, mx, my, false, this::onDelete);
+            button(g, x, by, bw, LangKeys.PHASE_EDIT_DELETE, mx, my, false, () -> confirmDelete = true);
             x += bw + 6;
         }
         button(g, x, by, bw, LangKeys.CANCEL, mx, my, false, this::onClose);
@@ -977,6 +1093,7 @@ public final class PhaseEditScreen extends Screen {
     }
 
     private void onDelete() {
+        confirmDelete = false;
         NetworkHandler.sendPhaseDefEdit(new PhaseDefEditPayload("delete", editingId, null));
         onClose();
     }
@@ -1039,20 +1156,26 @@ public final class PhaseEditScreen extends Screen {
         // 装备规则：仅非玩家作用域（装备是给怪物穿戴的，玩家作用域无意义）
         boolean isPlayer = "player".equals(SCOPES[scopeIndex]);
         if (!isPlayer) {
+            // 保存前按部位归一化概率（同一部位内多条之和超 100% 则等比缩放，不跨部位）
+            normalizeSlotChances(equipRules);
             JsonArray eqArr = new JsonArray();
             for (EquipRule r : equipRules) {
-                String ent = r.entity == null ? "" : r.entity.trim();
-                if (ent.isEmpty()) continue;
+                // 空 entities 列表表示对所有怪物生效，仍保存（不再跳过）
                 JsonObject o = new JsonObject();
                 o.addProperty("chance", 1.0);
-                o.addProperty("entity", ent);
+                JsonArray entArr = new JsonArray();
+                for (String e : r.entities) {
+                    String en = e == null ? "" : e.trim();
+                    if (!en.isEmpty()) entArr.add(en);
+                }
+                o.add("entities", entArr);
                 JsonObject slots = new JsonObject();
                 for (Map.Entry<String, List<EquipEntry>> se : r.slots.entrySet()) {
                     List<EquipEntry> kept = new ArrayList<>();
                     for (EquipEntry e : se.getValue()) {
                         Double ch = parseDoubleOrNull(e.chanceBox.getValue());
                         if (ch == null || ch <= 0) continue;
-                        if (e.itemId == null || e.itemId.isEmpty()) continue;
+                        // 允许空装备（itemId 为空）：选“空装备”表示该部位不穿戴，且不带附魔
                         kept.add(e);
                     }
                     if (!kept.isEmpty()) {
@@ -1061,7 +1184,7 @@ public final class PhaseEditScreen extends Screen {
                             JsonObject en = new JsonObject();
                             en.addProperty("item", e0.itemId);
                             en.addProperty("chance", parseDoubleOrNull(e0.chanceBox.getValue()));
-                            if (!e0.enchants.isEmpty()) {
+                            if (e0.itemId != null && !e0.itemId.isEmpty() && !e0.enchants.isEmpty()) {
                                 JsonObject enc = new JsonObject();
                                 for (Map.Entry<String, Integer> x : e0.enchants.entrySet()) {
                                     enc.addProperty(x.getKey(), x.getValue());
@@ -1075,7 +1198,7 @@ public final class PhaseEditScreen extends Screen {
                                 JsonObject en = new JsonObject();
                                 en.addProperty("item", e.itemId);
                                 en.addProperty("chance", parseDoubleOrNull(e.chanceBox.getValue()));
-                                if (!e.enchants.isEmpty()) {
+                                if (e.itemId != null && !e.itemId.isEmpty() && !e.enchants.isEmpty()) {
                                     JsonObject enc = new JsonObject();
                                     for (Map.Entry<String, Integer> x : e.enchants.entrySet()) {
                                         enc.addProperty(x.getKey(), x.getValue());
@@ -1116,37 +1239,85 @@ public final class PhaseEditScreen extends Screen {
 
     private void recomputePreview() {
         previewLines.clear();
-        previewLines.add(Component.translatable(SCOPE_KEYS[scopeIndex]).getString());
-        addPreviewSection(LangKeys.PHASE_EFFECT_ATTR, attrRows);
-        addPreviewSection(LangKeys.PHASE_EFFECT_MOB, mobMultRows);
+        int wrapW = Math.max(120, colRightW - 6);
+        addPreviewLine(Component.translatable(SCOPE_KEYS[scopeIndex]).getString(), wrapW);
+        addPreviewSection(LangKeys.PHASE_EFFECT_ATTR, attrRows, wrapW);
+        addPreviewSection(LangKeys.PHASE_EFFECT_MOB, mobMultRows, wrapW);
 
-        previewLines.add(Component.translatable(LangKeys.PHASE_EFFECT_POTION).getString());
+        addPreviewLine(Component.translatable(LangKeys.PHASE_EFFECT_POTION).getString(), wrapW);
         for (MobEffectRow r : mobEffectRows) {
             if (r.selected == null || r.selected.isEmpty()) continue;
-            previewLines.add(" " + shortId(r.selected) + " L" + r.lvlBox.getValue().trim()
-                    + " " + r.secBox.getValue().trim() + "s");
+            addPreviewLine(" " + shortDisplay(r.selected) + " L" + r.lvlBox.getValue().trim()
+                    + " " + r.secBox.getValue().trim() + "s", wrapW);
         }
-        previewLines.add(Component.translatable(LangKeys.PHASE_EFFECT_EQUIP).getString());
+        addPreviewLine(Component.translatable(LangKeys.PHASE_EFFECT_EQUIP).getString(), wrapW);
         for (EquipRule r : equipRules) {
-            String ent = r.entity == null ? "" : r.entity;
+            String entName;
+            if (r.entities.isEmpty()) {
+                entName = "*";
+            } else {
+                StringBuilder sb2 = new StringBuilder();
+                for (String eId : r.entities) {
+                    if (!sb2.isEmpty()) sb2.append(",");
+                    sb2.append(entityDisplay(eId));
+                }
+                entName = sb2.toString();
+            }
             for (Map.Entry<String, List<EquipEntry>> se : r.slots.entrySet()) {
                 for (EquipEntry e : se.getValue()) {
                     Double ch = parseDoubleOrNull(e.chanceBox.getValue());
                     if (ch == null) continue;
-                    previewLines.add(" " + (ent.isEmpty() ? "*" : shortId(ent)) + "/" + se.getKey()
-                            + " " + (int) (ch * 100) + "% " + shortId(e.itemId)
-                            + (e.enchants.isEmpty() ? "" : " +" + e.enchants.size() + "Ench"));
+                    String slot = slotDisplay(se.getKey());
+                    String item = itemDisplay(e.itemId);
+                    StringBuilder sb = new StringBuilder();
+                    sb.append(" ").append(entName).append("/").append(slot)
+                            .append(" ").append((int) (ch * 100)).append("% ").append(item);
+                    if (e.itemId != null && !e.itemId.isEmpty() && !e.enchants.isEmpty()) {
+                        sb.append(" +").append(e.enchants.size())
+                                .append(Component.translatable(LangKeys.PHASE_EQUIP_ENCHANT_SHORT).getString());
+                    }
+                    addPreviewLine(sb.toString(), wrapW);
                 }
             }
         }
         // 数值范围说明（需求：预览内给出上下限说明）
-        previewLines.add("");
-        previewLines.add(Component.translatable(LangKeys.PHASE_LIMIT_TITLE).getString());
-        previewLines.add(" " + (isPlayerScope() ? PhaseAttrLimits.playerLimitHint() : PhaseAttrLimits.playerLimitHint()));
+        addPreviewLine("", wrapW);
+        addPreviewLine(Component.translatable(LangKeys.PHASE_LIMIT_TITLE).getString(), wrapW);
+        addPreviewLine(" " + (isPlayerScope() ? PhaseAttrLimits.playerLimitHint()
+                : PhaseAttrLimits.playerLimitHint()), wrapW);
         if (!isPlayerScope()) {
-            previewLines.add(" " + PhaseAttrLimits.mobLimitHint());
+            addPreviewLine(" " + PhaseAttrLimits.mobLimitHint(), wrapW);
         }
         previewScroll = 0;
+    }
+
+    /** 按预览列宽折行后写入 previewLines */
+    private void addPreviewLine(String line, int maxW) {
+        if (line.isEmpty()) {
+            previewLines.add(line);
+            return;
+        }
+        previewLines.addAll(wrapPreview(line, maxW));
+    }
+
+    private List<String> wrapPreview(String s, int maxPx) {
+        List<String> out = new ArrayList<>();
+        StringBuilder cur = new StringBuilder();
+        for (char c : s.toCharArray()) {
+            cur.append(c);
+            if (font.width(cur.toString()) > maxPx) {
+                if (cur.length() > 1) {
+                    out.add(cur.substring(0, cur.length() - 1));
+                    cur = new StringBuilder(String.valueOf(c));
+                } else {
+                    out.add(cur.toString());
+                    cur.setLength(0);
+                }
+            }
+        }
+        if (cur.length() > 0) out.add(cur.toString());
+        if (out.isEmpty()) out.add(s);
+        return out;
     }
 
     /** 当前是否玩家作用域 */
@@ -1154,11 +1325,11 @@ public final class PhaseEditScreen extends Screen {
         return "player".equals(SCOPES[scopeIndex]);
     }
 
-    private void addPreviewSection(String titleKey, List<AttrRow> rows) {
-        previewLines.add(Component.translatable(titleKey).getString());
+    private void addPreviewSection(String titleKey, List<AttrRow> rows, int wrapW) {
+        addPreviewLine(Component.translatable(titleKey).getString(), wrapW);
         for (AttrRow r : rows) {
             if (r.key == null || r.key.isEmpty()) continue;
-            previewLines.add(" " + r.key + " = " + r.valBox.getValue().trim());
+            addPreviewLine(" " + r.key + " = " + r.valBox.getValue().trim(), wrapW);
         }
     }
 
@@ -1265,24 +1436,36 @@ public final class PhaseEditScreen extends Screen {
         EquipEntry(String ch, String item) {
             chanceBox = new EditBox(Minecraft.getInstance().font, 0, 0, 32, 14, Component.literal(""));
             chanceBox.setValue(ch);
-            chanceBox.setMaxLength(5);
+            chanceBox.setMaxLength(6); // 最多 "1.0000"
+            chanceBox.setResponder(s -> {
+                String fixed = sanitizeChance(s);
+                if (fixed != null && !fixed.equals(chanceBox.getValue())) {
+                    chanceBox.setValue(fixed);
+                }
+            });
             this.itemId = item;
         }
     }
 
     /** 一条装备规则：目标实体 + 5 个部位的条目列表（按部位分组） */
     static final class EquipRule {
-        String entity;
+        /** 生效的实体类型 id 列表；空集合表示对所有怪物生效 */
+        final List<String> entities = new ArrayList<>();
         final Map<String, List<EquipEntry>> slots = new LinkedHashMap<>();
         boolean expanded = false;
+        // 各部位是否展开（默认收起，选择部位后才展开）
+        final Map<String, Boolean> slotExpanded = new LinkedHashMap<>();
 
         EquipRule() {
-            for (String s : EQUIP_SLOTS) slots.put(s, new ArrayList<>());
+            for (String s : EQUIP_SLOTS) {
+                slots.put(s, new ArrayList<>());
+                slotExpanded.put(s, false);
+            }
         }
 
-        EquipRule(String entity) {
+        EquipRule(List<String> entities) {
             this();
-            this.entity = entity;
+            this.entities.addAll(entities);
         }
     }
 

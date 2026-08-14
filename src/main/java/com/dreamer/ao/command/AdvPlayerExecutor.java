@@ -6,6 +6,7 @@ import com.dreamer.ao.data.DataStore;
 import com.dreamer.ao.data.model.CustomAdvancement;
 import com.dreamer.ao.data.ServerDataStore;
 import com.dreamer.ao.achievement.event.AdvResetEvent;
+import com.dreamer.ao.logic.CompletionHandler;
 import com.dreamer.ao.logic.ConditionEvaluator;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.StringArgumentType;
@@ -60,7 +61,7 @@ final class AdvPlayerExecutor {
             }
         }
 
-        ConditionEvaluator.tryCompleteForce(player, id);
+        CompletionHandler.tryCompleteForce(player, id);
         CommandHelper.syncTargetPlayer(player);
 
         final String playerName = player.getName().getString();
@@ -165,7 +166,7 @@ final class AdvPlayerExecutor {
         }
 
         if (give) {
-            ConditionEvaluator.tryCompleteForce(player, id);
+            CompletionHandler.tryCompleteForce(player, id);
         } else {
             ServerDataStore store = ServerDataStore.getInstance();
             UUID uuid = player.getUUID();

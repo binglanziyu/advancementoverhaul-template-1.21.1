@@ -1,10 +1,10 @@
 package com.dreamer.ao.phase;
 
 import com.dreamer.ao.ModInfo;
+import com.dreamer.ao.data.DataStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.io.IOException;
@@ -24,7 +24,7 @@ import net.neoforged.fml.loading.FMLPaths;
 public final class PhaseDefinitionLoader {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(PhaseDefinitionLoader.class);
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Gson GSON = DataStore.GSON_PRETTY;
     private static final Path PHASE_DIR = FMLPaths.CONFIGDIR.get()
             .resolve(ModInfo.MOD_ID).resolve("phases");
 

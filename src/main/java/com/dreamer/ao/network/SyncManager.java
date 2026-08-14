@@ -68,13 +68,31 @@ public final class SyncManager {
      * 线程数绑定 {@link Runtime#availableProcessors()}，上限受 CPU 核心数约束，
      * 避免无界缓存线程池（{@code CachedThreadPool}）在突发流量下创建过多线程。
      * 所有线程均为守护线程，JVM 退出时不会阻塞主进程关闭。
+     * <p>
+     * 注意：集成服务器（单人游戏）会随世界的开关反复启停，每次关闭都会调用
+     * {@link #shutdown()}。若使用 {@code static final} 一次性池，关闭后将永久进入
+     * {@code Terminated} 状态，导致再次进世界时 {@code supplyAsync} 抛出
+     * {@code RejectedExecutionException} 并中断玩家登录。因此改为<b>懒加载 + 关闭后
+     * 可重建</b>的池，确保多次启停都能正常工作。
      */
-    private static final ExecutorService SYNC_EXECUTOR = Executors.newFixedThreadPool(
-            Runtime.getRuntime().availableProcessors(), r -> {
-        Thread t = new Thread(r, "AO-Sync");
-        t.setDaemon(true);
-        return t;
-    });
+    private static volatile ExecutorService SYNC_EXECUTOR = null;
+
+    /** 获取同步线程池（懒加载，线程安全；关闭后下次调用会重建） */
+    private static ExecutorService getExecutor() {
+        ExecutorService ex = SYNC_EXECUTOR;
+        if (ex != null && !ex.isShutdown()) return ex;
+        synchronized (SyncManager.class) {
+            ex = SYNC_EXECUTOR;
+            if (ex != null && !ex.isShutdown()) return ex;
+            SYNC_EXECUTOR = Executors.newFixedThreadPool(
+                    Runtime.getRuntime().availableProcessors(), r -> {
+                        Thread t = new Thread(r, "AO-Sync");
+                        t.setDaemon(true);
+                        return t;
+                    });
+            return SYNC_EXECUTOR;
+        }
+    }
 
     // ═══════════════ 缓存生命周期 ═══════════════
 
@@ -135,7 +153,7 @@ public final class SyncManager {
                 advancements, dimLocks, completions, progress, customTabs,
                 disabled, enabled, vanillaList, vanillaMeta, vanillaParentMap,
                 tabOrder, pending, playerStats
-        ), SYNC_EXECUTOR)
+        ), getExecutor())
         // 网络包分发必须在主线程执行：thenAcceptAsync + player.server 确保回调
         // 在服务端 tick 线程上运行，而非继续复用 SYNC_EXECUTOR 的后台线程
         .thenAcceptAsync(payload -> {
@@ -170,13 +188,19 @@ public final class SyncManager {
     }
 
     /**
-     * 关闭同步线程池，立即释放所有线程资源。
+     * 关闭同步线程池，释放当前线程资源。
      * <p>
-     * 使用 {@code shutdownNow()} 中断所有等待中的同步任务，
+     * 使用 {@code shutdownNow()} 中断所有等待中的同步任务。
+     * 注意：集成服务器（单人游戏）会随世界开关反复调用本方法，故关闭后将引用置空，
+     * 由 {@link #getExecutor()} 在下次使用时<b>重建</b>线程池，避免进入永久 Terminated 状态。
      * 由 {@link com.dreamer.ao.data.ServerDataStore#shutdown()} 在服务端关闭时调用。
      */
     public static void shutdown() {
-        SYNC_EXECUTOR.shutdownNow();
+        ExecutorService ex = SYNC_EXECUTOR;
+        SYNC_EXECUTOR = null;
+        if (ex != null) {
+            ex.shutdownNow();
+        }
     }
 
     /**

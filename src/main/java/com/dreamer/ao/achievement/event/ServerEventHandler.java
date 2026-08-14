@@ -9,6 +9,7 @@ import com.dreamer.ao.compat.ftb.FtbCompatService;
 import com.dreamer.ao.data.*;
 import com.dreamer.ao.data.ConditionType;
 import com.dreamer.ao.event.StatsEventHandler;
+import com.dreamer.ao.logic.CompletionHandler;
 import com.dreamer.ao.logic.ConditionEvaluator;
 import com.dreamer.ao.milestone.event.TimelineEventHandler;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -328,7 +329,7 @@ public class ServerEventHandler {
                     // 检查所有条件是否满足：如果条件已满足，正常完成；
                     // 如果条件未满足（如 FTB 奖励在任务未完成时就被领取），撤销授予并通知玩家
                     if (ConditionEvaluator.checkAllConditionsMet(uuid, customId)) {
-                        ConditionEvaluator.tryComplete(player, customId);
+                        CompletionHandler.tryComplete(player, customId);
                     } else {
                         player.getAdvancements().revoke(holder, "trigger");
                         player.getAdvancements().flushDirty(player);

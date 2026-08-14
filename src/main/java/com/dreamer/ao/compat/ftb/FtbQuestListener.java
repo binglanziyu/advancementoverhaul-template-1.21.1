@@ -2,6 +2,7 @@ package com.dreamer.ao.compat.ftb;
 
 import com.dreamer.ao.data.ConditionType;
 import com.dreamer.ao.data.DataStore;
+import com.dreamer.ao.logic.CompletionHandler;
 import com.dreamer.ao.logic.ConditionEvaluator;
 import com.dreamer.ao.network.payload.FtbQuestCompletedPayload;
 import java.util.Collection;
@@ -118,7 +119,7 @@ public final class FtbQuestListener {
                     completed.add(questIdStr);
                     NetworkSender.toPlayer(player, new FtbQuestCompletedPayload(questDisplayName));
                     ConditionEvaluator.checkInstant(player, ConditionType.FTB_QUEST_COMPLETE, questIdStr);
-                    ConditionEvaluator.releasePendingDependents(player);
+                    CompletionHandler.releasePendingDependents(player);
                     LOGGER.debug("FTB Quest completed (event): {} by player {}", questIdStr, uuid);
                 }
             } catch (Throwable e) {
@@ -159,7 +160,7 @@ public final class FtbQuestListener {
                         cached.add(questIdStr);
                         NetworkSender.toPlayer(player, new FtbQuestCompletedPayload(displayName));
                         ConditionEvaluator.checkInstant(player, ConditionType.FTB_QUEST_COMPLETE, questIdStr);
-                        ConditionEvaluator.releasePendingDependents(player);
+                        CompletionHandler.releasePendingDependents(player);
                         LOGGER.debug("FTB Quest completed (poll): {} by player {}", questIdStr, uuid);
                     }
                 }

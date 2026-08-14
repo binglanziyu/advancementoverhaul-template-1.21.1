@@ -175,8 +175,8 @@ public final class PhaseEffectSet {
     public static final class MobEquipmentRule {
         /** 整条规则触发概率 0~1 */
         private double chance = 1.0;
-        /** 目标实体类型 id（如 minecraft:zombie） */
-        private String entityFilter;
+        /** 生效的实体类型 id 列表（如 minecraft:zombie）；空集合表示对所有怪物生效（原“无阶段”语义） */
+        private final List<String> entities = new ArrayList<>();
         /** 部位 -> 装备条目列表（head/chest/legs/feet/mainhand/offhand） */
         private final Map<String, List<EquipmentEntry>> slots = new LinkedHashMap<>();
 
@@ -184,8 +184,13 @@ public final class PhaseEffectSet {
             return chance;
         }
 
-        public String getEntityFilter() {
-            return entityFilter;
+        public void setChance(double c) {
+            this.chance = c;
+        }
+
+        /** 生效实体类型列表（不可为 null；空列表表示对所有怪物生效） */
+        public List<String> getEntities() {
+            return entities;
         }
 
         public Map<String, List<EquipmentEntry>> getSlots() {
@@ -195,10 +200,14 @@ public final class PhaseEffectSet {
         public static MobEquipmentRule fromJson(JsonObject obj) {
             MobEquipmentRule rule = new MobEquipmentRule();
             rule.chance = com.dreamer.ao.util.JsonParse.optDouble(obj, "chance", 1.0);
-            if (obj.has("entity")) {
-                rule.entityFilter = com.dreamer.ao.util.JsonParse.optString(obj, "entity", null);
+            if (obj.has("entities") && obj.get("entities").isJsonArray()) {
+                for (JsonElement e : obj.getAsJsonArray("entities")) {
+                    if (e.isJsonPrimitive()) rule.entities.add(e.getAsString());
+                }
+            } else if (obj.has("entity")) {
+                rule.entities.add(com.dreamer.ao.util.JsonParse.optString(obj, "entity", ""));
             } else if (obj.has("entityFilter")) {
-                rule.entityFilter = com.dreamer.ao.util.JsonParse.optString(obj, "entityFilter", null);
+                rule.entities.add(com.dreamer.ao.util.JsonParse.optString(obj, "entityFilter", ""));
             }
             if (obj.has("slots") && obj.get("slots").isJsonObject()) {
                 JsonObject s = obj.getAsJsonObject("slots");
@@ -221,9 +230,9 @@ public final class PhaseEffectSet {
         public JsonObject toJson() {
             JsonObject o = new JsonObject();
             o.addProperty("chance", chance);
-            if (entityFilter != null) {
-                o.addProperty("entity", entityFilter);
-            }
+            JsonArray ent = new JsonArray();
+            for (String e : entities) ent.add(e);
+            o.add("entities", ent);
             JsonObject s = new JsonObject();
             for (Map.Entry<String, List<EquipmentEntry>> e : slots.entrySet()) {
                 if (e.getValue().size() == 1) {
